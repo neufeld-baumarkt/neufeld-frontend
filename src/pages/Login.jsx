@@ -16,11 +16,13 @@ export default function Login() {
     });
 
     const data = await res.json();
-    setResult(data);
 
-    if (data.success) {
-      localStorage.setItem("user", JSON.stringify(data));
+    if (data.token) {
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify({ name: data.name, role: data.role }));
       navigate("/start");
+    } else {
+      setResult(data);
     }
   };
 
@@ -66,7 +68,7 @@ export default function Login() {
 
           {result && (
             <div className="text-center text-sm">
-              {result.success
+              {result.token
                 ? <div className="text-green-600">✅ Eingeloggt als <b>{result.name}</b> ({result.role})</div>
                 : <div className="text-red-600">❌ {result.message}</div>}
             </div>
