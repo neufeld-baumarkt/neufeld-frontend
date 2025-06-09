@@ -2,13 +2,20 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Startseite() {
-  const user = JSON.parse(sessionStorage.getItem('user')); // ✅ geändert von localStorage zu sessionStorage
+  let user = null;
+  try {
+    user = JSON.parse(sessionStorage.getItem('user'));
+  } catch (e) {
+    console.warn('❗ Benutzer konnte nicht geladen werden:', e);
+  }
+  const displayName = user?.name || 'Unbekannt';
+
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    sessionStorage.removeItem('user');   // ✅ angepasst
-    sessionStorage.removeItem('token');  // ✅ aufräumen
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
     navigate('/');
   };
 
@@ -40,7 +47,7 @@ function Startseite() {
       <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
            style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
            onClick={() => setMenuOpen(!menuOpen)}>
-        Angemeldet als: {user?.name || 'Unbekannt'}
+        Angemeldet als: {displayName}
         {menuOpen && (
           <div className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
                style={{ minWidth: '160px' }}>
