@@ -18,18 +18,41 @@ export default function Login() {
       });
 
       const data = await res.json();
-      console.log(data); // Debug nur bei Bedarf
 
-      if (data.token) {
-        sessionStorage.setItem("token", data.token);
-        sessionStorage.setItem("user", JSON.stringify({ name: data.name, role: data.role }));
-        navigate("/start");
-      } else {
-        setResult({ message: 'Zugriff verweigert – kein gültiger Token erhalten.' });
+      if (!res.ok || !data.token || !data.role) {
+        setResult({ message: '❌ Login fehlgeschlagen – ungültige Zugangsdaten oder keine Rolle zugewiesen.' });
+        return;
+      }
+
+      const userData = { name: data.name, role: data.role };
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify(userData));
+
+      console.log('Rolle erkannt:', data.role);
+
+      // Weiterleitung nach Rolle
+      switch (data.role) {
+        case 'Admin':
+          navigate('/admin');
+          break;
+        case 'Supervisor':
+          navigate('/supervisor');
+          break;
+        case 'Manager-1':
+        case 'Manager-2':
+        case 'Geschäftsführer':
+          navigate('/manager');
+          break;
+        case 'Filiale':
+          navigate('/start');
+          break;
+        default:
+          setResult({ message: '❌ Unbekannte Rolle – Zugriff verweigert.' });
+          sessionStorage.clear();
       }
     } catch (err) {
       console.error('Login-Fehler:', err);
-      setResult({ message: 'Server nicht erreichbar oder ungültige Antwort' });
+      setResult({ message: '❌ Server nicht erreichbar oder ungültige Antwort' });
     }
   };
 
@@ -70,8 +93,8 @@ export default function Login() {
           </div>
 
           {result && (
-            <div className="text-center text-sm text-red-600">
-              ❌ {result.message}
+            <div className="text-center text-sm text-red-600 font-semibold">
+              {result.message}
             </div>
           )}
 
