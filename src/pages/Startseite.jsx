@@ -9,8 +9,10 @@ function Startseite() {
     console.warn('❗ Benutzer konnte nicht geladen werden:', e);
   }
   const displayName = user?.name || 'Unbekannt';
+  const role = user?.role || 'Unbekannt';
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuGridOpen, setMenuGridOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -19,9 +21,14 @@ function Startseite() {
     navigate('/');
   };
 
+  const handleNavigate = (path) => {
+    setMenuGridOpen(false);
+    navigate(path);
+  };
+
   return (
     <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
-      {/* Top horizontal bar */}
+      {/* Layout-Rahmen */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: "57px" }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: "57px" }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: "7px" }}></div>
@@ -34,16 +41,14 @@ function Startseite() {
       </div>
 
       {/* Rechts oben */}
-      <div className="absolute top-[130px] text-2xl font-semibold text-white"
-           style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
+      <div className="absolute top-[130px] text-2xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
         Management Tool 3.0
       </div>
-      <div className="absolute top-[175px] text-1xl font-semibold text-white"
-           style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
+      <div className="absolute top-[175px] text-1xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
         by Peter Neufeld
       </div>
 
-      {/* Benutzerinformationen mit Dropdown */}
+      {/* Benutzer Dropdown */}
       <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
            style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
            onClick={() => setMenuOpen(!menuOpen)}>
@@ -62,11 +67,48 @@ function Startseite() {
         )}
       </div>
 
-      {/* Hauptmenü Titel */}
-      <div className="absolute text-4xl font-bold text-white"
-           style={{ marginLeft: '105px', marginTop: '30px' }}>
+      {/* Hauptmenü + Burgerbutton links */}
+      <div className="absolute text-4xl font-bold text-white flex items-center gap-1" style={{ marginLeft: '100px', marginTop: '30px' }}>
+        {/* ↓↓↓ Hier kannst du den Burger vertikal verschieben ↓↓↓ */}
+        <button
+          onClick={() => setMenuGridOpen(!menuGridOpen)}
+          className="p-1 rounded hover:bg-white/10"
+          style={{ transform: 'translateY(2px)' }} // ← Anpassen nach Wunsch
+        >
+          <svg width="28" height="28" fill="white" viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
         Hauptmenü
       </div>
+
+      {/* Menü Overlay */}
+      {menuGridOpen && (
+        <div className="absolute top-[230px] left-[155px] right-[80px] bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-xl grid grid-cols-2 gap-6 z-50">
+          {/* FILIALE – Buttons sichtbar für Filialnutzer */}
+          {role === "Filiale" && (
+            <>
+              <button onClick={() => handleNavigate("/reklamationen")} className="bg-blue-600 text-white rounded-xl p-4 shadow hover:bg-blue-700">
+                <div className="text-xl font-bold mb-1">Reklamationen anzeigen</div>
+                <div className="text-sm text-white/80">alle Reklas der Filiale</div>
+              </button>
+
+              <button onClick={() => handleNavigate("/reklamation-anlegen")} className="bg-green-600 text-white rounded-xl p-4 shadow hover:bg-green-700">
+                <div className="text-xl font-bold mb-1">Reklamation anlegen</div>
+                <div className="text-sm text-white/80">neue Reklamation erfassen</div>
+              </button>
+            </>
+          )}
+
+          {/* ADMIN & SUPERVISOR – Beispielbutton */}
+          {["Admin", "Supervisor"].includes(role) && (
+            <button onClick={() => handleNavigate("/adminbereich")} className="bg-rose-600 text-white rounded-xl p-4 shadow hover:bg-rose-700">
+              <div className="text-xl font-bold mb-1">Adminbereich</div>
+              <div className="text-sm text-white/80">Verwalten & prüfen</div>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
