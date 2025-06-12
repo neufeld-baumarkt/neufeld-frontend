@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -27,6 +26,18 @@ function Startseite() {
     navigate(path);
   };
 
+  let closeTimeout;
+
+  const handleMouseEnter = () => {
+    clearTimeout(closeTimeout);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimeout = setTimeout(() => {
+      setMenuGridOpen(false);
+    }, 200);
+  };
+
   return (
     <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: "57px" }}></div>
@@ -42,7 +53,7 @@ function Startseite() {
       <div className="absolute top-[130px] text-2xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
         Management Tool 3.0
       </div>
-      <div className="absolute top-[175px] text-1xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
+      <div className="absolute top-[175px] text-s font-semibold text-white" style={{ right: '82px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
         by Peter Neufeld
       </div>
 
@@ -65,8 +76,8 @@ function Startseite() {
       </div>
 
       <div className="absolute text-4xl font-bold text-white flex items-center gap-1" style={{ marginLeft: '100px', marginTop: '30px' }}>
-        <button onClick={() => setMenuGridOpen(!menuGridOpen)} className="p-1 rounded hover:bg-white/10" style={{ transform: 'translateY(2px)' }}>
-          <svg width="28" height="28" fill="white" viewBox="0 0 24 24">
+        <button onClick={() => setMenuGridOpen(true)} className="p-1 rounded hover:bg-white/10" style={{ transform: 'translateY(2px)' }}>
+          <svg width="40" height="40" fill="white" viewBox="0 0 24 24">
             <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
@@ -74,27 +85,30 @@ function Startseite() {
       </div>
 
       {menuGridOpen && (
-        <div className="absolute top-[230px] left-[155px] right-[80px] bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-xl grid grid-cols-4 gap-6 z-50 text-center">
-          {role === "Filiale" && (
-            <>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/reklamationen")}>
-                <img src="/icons/reklamation.png" alt="Reklamation" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Reklamationen</div>
+        <div
+          className={`absolute top-[280px] left-[100px] bg-white/60 backdrop-blur-sm rounded-xl shadow-xl z-50 flex flex-col items-start gap-4 p-4 transition-all duration-300 overflow-hidden min-w-[6rem] w-auto max-w-fit`}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {[
+            { icon: "/icons/reklamation.png", text: "Reklamationen anzeigen und anlegen", path: "/reklamationen" },
+            { icon: "/icons/technik.png", text: "Technikstörungen anzeigen und anlegen", path: "/stoerungen" },
+            { icon: "/icons/budget.png", text: " Aktuelle Budgetliste anzeigen", path: "/budgetliste" },
+            { icon: "/icons/materialshop.png", text: "Materialshop Bestellung anlegen", path: "/materialshop" }
+          ].map(({ icon, text, path }) => (
+            <div
+              key={text}
+              className="flex items-center gap-2 cursor-pointer w-full"
+              onClick={() => handleNavigate(path)}
+            >
+              <div className="w-16 h-16 rounded-full overflow-hidden bg-white shadow">
+                <img src={icon} alt={text} className="w-full h-full object-cover" />
               </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/stoerungen")}>
-                <img src="/icons/technik.png" alt="Technik" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Technik</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/budgetliste")}>
-                <img src="/icons/budget.png" alt="Budget" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Budgetliste</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/materialshop")}>
-                <img src="/icons/materialshop.png" alt="Materialshop" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Materialshop</div>
-              </div>
-            </>
-          )}
+              <span className="opacity-100 transition-opacity duration-300 whitespace-nowrap text-black font-semibold">
+                {text}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
