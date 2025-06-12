@@ -74,25 +74,37 @@ function Startseite() {
       </div>
 
       {menuGridOpen && (
-        <div className="absolute top-[230px] left-[155px] right-[80px] bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-xl grid grid-cols-4 gap-6 z-50 text-center">
+        <div className="absolute top-[230px] left-[155px] right-[80px] bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-xl grid grid-cols-2 gap-6 z-50">
           {role === "Filiale" && (
             <>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/reklamationen")}>
-                <img src="/icons/reklamation.png" alt="Reklamation" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Reklamationen</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/stoerungen")}>
-                <img src="/icons/technik.png" alt="Technik" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Technik</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/budgetliste")}>
-                <img src="/icons/budget.png" alt="Budget" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Budgetliste</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/materialshop")}>
-                <img src="/icons/materialshop.png" alt="Materialshop" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Materialshop</div>
-              </div>
+              <button onClick={() => handleNavigate("/reklamationen")} className="bg-white rounded-xl p-4 shadow hover:bg-gray-100 flex items-start gap-4">
+                <img src="/icons/reklamation.png" alt="Reklamation" className="w-10 h-10" />
+                <div>
+                  <div className="text-xl font-bold mb-1 text-black">Reklamationen</div>
+                  <div className="text-sm text-black/60">anzeigen & anlegen</div>
+                </div>
+              </button>
+              <button onClick={() => handleNavigate("/stoerungen")} className="bg-white rounded-xl p-4 shadow hover:bg-gray-100 flex items-start gap-4">
+                <img src="/icons/technik.png" alt="Technik" className="w-10 h-10" />
+                <div>
+                  <div className="text-xl font-bold mb-1 text-black">Technik-Störungen</div>
+                  <div className="text-sm text-black/60">melden & einsehen</div>
+                </div>
+              </button>
+              <button onClick={() => handleNavigate("/budgetliste")} className="bg-white rounded-xl p-4 shadow hover:bg-gray-100 flex items-start gap-4">
+                <img src="/icons/budget.png" alt="Budget" className="w-10 h-10" />
+                <div>
+                  <div className="text-xl font-bold mb-1 text-black">Budgetliste</div>
+                  <div className="text-sm text-black/60">Einkäufe & Limits</div>
+                </div>
+              </button>
+              <button onClick={() => handleNavigate("/materialshop")} className="bg-white rounded-xl p-4 shadow hover:bg-gray-100 flex items-start gap-4">
+                <img src="/icons/materialshop.png" alt="Materialshop" className="w-10 h-10" />
+                <div>
+                  <div className="text-xl font-bold mb-1 text-black">Materialshop</div>
+                  <div className="text-sm text-black/60">Bestellungen</div>
+                </div>
+              </button>
             </>
           )}
         </div>
