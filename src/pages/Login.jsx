@@ -28,28 +28,11 @@ export default function Login() {
       sessionStorage.setItem("token", data.token);
       sessionStorage.setItem("user", JSON.stringify(userData));
 
-      console.log('Rolle erkannt:', data.role);
+      console.log('✅ Login erfolgreich:', data.role);
 
-      // Weiterleitung nach Rolle
-      switch (data.role) {
-        case 'Admin':
-          navigate('/admin');
-          break;
-        case 'Supervisor':
-          navigate('/supervisor');
-          break;
-        case 'Manager-1':
-        case 'Manager-2':
-        case 'Geschäftsführer':
-          navigate('/manager');
-          break;
-        case 'Filiale':
-          navigate('/start');
-          break;
-        default:
-          setResult({ message: '❌ Unbekannte Rolle – Zugriff verweigert.' });
-          sessionStorage.clear();
-      }
+      // Alle Rollen werden auf /start weitergeleitet
+      navigate('/start');
+
     } catch (err) {
       console.error('Login-Fehler:', err);
       setResult({ message: '❌ Server nicht erreichbar oder ungültige Antwort' });

@@ -1,22 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Dashboard from './Dashboard';
 
 function Startseite() {
-  const [user, setUser] = useState(null);
+  let user = null;
+  try {
+    user = JSON.parse(sessionStorage.getItem('user'));
+  } catch (e) {
+    console.warn('❗ Benutzer konnte nicht geladen werden:', e);
+  }
+  const displayName = user?.name || 'Unbekannt';
+  const role = user?.role || 'Unbekannt';
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuGridOpen, setMenuGridOpen] = useState(false);
   const navigate = useNavigate();
-  let closeTimeout;
-
-  useEffect(() => {
-    try {
-      const userData = JSON.parse(sessionStorage.getItem('user'));
-      setUser(userData);
-    } catch (e) {
-      console.warn('❗ Benutzer konnte nicht geladen werden:', e);
-    }
-  }, []);
 
   const handleLogout = () => {
     sessionStorage.removeItem('user');
@@ -29,6 +26,8 @@ function Startseite() {
     navigate(path);
   };
 
+  let closeTimeout;
+
   const handleMouseEnter = () => {
     clearTimeout(closeTimeout);
   };
@@ -39,13 +38,8 @@ function Startseite() {
     }, 200);
   };
 
-  if (!user) {
-    return <div className="text-white p-8">Lade Benutzerdaten...</div>;
-  }
-
   return (
     <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
-      {/* Branding, Titel und Kopfbereich */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: "57px" }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: "57px" }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: "7px" }}></div>
@@ -63,11 +57,10 @@ function Startseite() {
         by Peter Neufeld
       </div>
 
-      {/* User-Menü */}
       <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
            style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
            onClick={() => setMenuOpen(!menuOpen)}>
-        Angemeldet als: {user.name} ({user.role})
+        Angemeldet als: {displayName}
         {menuOpen && (
           <div className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
                style={{ minWidth: '160px' }}>
@@ -82,7 +75,6 @@ function Startseite() {
         )}
       </div>
 
-      {/* Menü-Button */}
       <div className="absolute text-4xl font-bold text-white flex items-center gap-1" style={{ marginLeft: '100px', marginTop: '30px' }}>
         <button onClick={() => setMenuGridOpen(true)} className="p-1 rounded hover:bg-white/10" style={{ transform: 'translateY(2px)' }}>
           <svg width="40" height="40" fill="white" viewBox="0 0 24 24">
@@ -92,7 +84,6 @@ function Startseite() {
         Hauptmenü
       </div>
 
-      {/* Menübereich */}
       {menuGridOpen && (
         <div
           className={`absolute top-[280px] left-[100px] bg-white/60 backdrop-blur-sm rounded-xl shadow-xl z-50 flex flex-col items-start gap-4 p-4 transition-all duration-300 overflow-hidden min-w-[6rem] w-auto max-w-fit`}
@@ -120,9 +111,6 @@ function Startseite() {
           ))}
         </div>
       )}
-
-      {/* Rollenbasiertes Dashboard */}
-      <Dashboard role={user.role} />
     </div>
   );
 }
