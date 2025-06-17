@@ -24,13 +24,17 @@ export default function Login() {
         return;
       }
 
-      const userData = { name: data.name, role: data.role };
+      const userData = {
+        name: data.name,
+        role: data.role,
+        filiale: data.filiale // ✅ HIER JETZT DRIN
+      };
+
       sessionStorage.setItem("token", data.token);
       sessionStorage.setItem("user", JSON.stringify(userData));
 
-      console.log('Rolle erkannt:', data.role);
+      console.log('Login erfolgreich:', userData);
 
-      // Einheitliche Weiterleitung für alle Rollen zur Startseite
       navigate('/start');
 
     } catch (err) {

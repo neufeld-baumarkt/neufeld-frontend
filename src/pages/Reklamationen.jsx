@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -17,14 +18,26 @@ export default function Reklamationen() {
   const displayName = user?.name || "Unbekannt";
 
   useEffect(() => {
+    const token = sessionStorage.getItem("token");
+    if (!token) {
+      setError("Token nicht gefunden – bitte neu anmelden");
+      setLoading(false);
+      return;
+    }
+
     axios
-      .get("https://neufeld-backend.onrender.com/api/reklamationen?filiale=Vreden")
+      .get("https://neufeld-backend.onrender.com/api/reklamationen", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
       .then((res) => {
         setReklas(res.data);
         setLoading(false);
       })
       .catch((err) => {
         console.error("Fehler beim Laden:", err);
+        setError("Zugriff fehlgeschlagen oder abgelaufen.");
         setLoading(false);
       });
   }, []);
@@ -39,7 +52,8 @@ export default function Reklamationen() {
     navigate("/start");
   };
 
-  if (loading) return <p>Lade Reklamationen...</p>;
+  if (loading) return <p className="text-white p-6">Lade Reklamationen...</p>;
+  if (error) return <p className="text-red-500 p-6">{error}</p>;
 
   return (
     <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
@@ -50,7 +64,9 @@ export default function Reklamationen() {
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
       <div className="relative z-10 text-white p-8 ml-[60px] mt-[50px]">
-        <h1 className="text-7xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">Reklamationen Filiale XY</h1>
+        <h1 className="text-7xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">
+          Reklamationen {user?.filiale !== 'alle' ? `Filiale ${user.filiale}` : '– Übersicht'}
+        </h1>
       </div>
 
       <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
@@ -79,7 +95,7 @@ export default function Reklamationen() {
             <span className="text-white underline cursor-pointer" onClick={handleZurueck}>⬅️ Zurück zum Hauptmenü</span>
           </div>
 
-          <h1 className="text-2xl font-bold mb-4 text-white">Reklamationen – Vreden</h1>
+          <h1 className="text-2xl font-bold mb-4 text-white">Reklamationen</h1>
           <ul className="space-y-2">
             {reklas.map((rekla) => (
               <li
