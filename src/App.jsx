@@ -5,6 +5,7 @@ import Startseite from './pages/Startseite';
 import Forbidden from './pages/Forbidden';
 import SupervisorPanel from './pages/SupervisorPanel';
 import AdminPanel from './pages/AdminPanel';
+import Reklamationen from './pages/Reklamationen'; // ⬅️ hinzugefügt
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
 
@@ -20,6 +21,16 @@ function App() {
         element={
           <ProtectedRoute>
             <Startseite />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* NEU: Geschützte Reklamationsseite – noch ohne Rollenprüfung */}
+      <Route
+        path="/reklamationen"
+        element={
+          <ProtectedRoute>
+            <Reklamationen />
           </ProtectedRoute>
         }
       />

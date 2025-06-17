@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,8 +54,8 @@ function Startseite() {
                style={{ minWidth: '160px' }}>
             <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
-                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z"/>
-                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
+                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
               </svg>
               <span>Abmelden</span>
             </div>
@@ -73,30 +72,32 @@ function Startseite() {
         Hauptmenü
       </div>
 
-      {menuGridOpen && (
-        <div className="absolute top-[230px] left-[155px] right-[80px] bg-white/90 backdrop-blur-md p-6 rounded-xl shadow-xl grid grid-cols-4 gap-6 z-50 text-center">
-          {role === "Filiale" && (
-            <>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/reklamationen")}>
-                <img src="/icons/reklamation.png" alt="Reklamation" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Reklamationen</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/stoerungen")}>
-                <img src="/icons/technik.png" alt="Technik" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Technik</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/budgetliste")}>
-                <img src="/icons/budget.png" alt="Budget" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Budgetliste</div>
-              </div>
-              <div className="group cursor-pointer" onClick={() => handleNavigate("/materialshop")}>
-                <img src="/icons/materialshop.png" alt="Materialshop" className="w-16 h-16 mx-auto" />
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-2 text-sm text-black font-semibold">Materialshop</div>
-              </div>
-            </>
-          )}
+      <div
+        className={`absolute top-[230px] left-[155px] bg-white/80 backdrop-blur-sm rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-300 ${
+          menuGridOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 pointer-events-none'
+        }`}
+        style={{ minWidth: '180px' }}
+        onMouseLeave={() => setMenuGridOpen(false)}
+      >
+        <div className="flex flex-col items-start gap-4 px-6 py-4 text-black text-left">
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen')}>
+            <img src="/icons/reklamation.png" alt="Reklamation" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Reklamationen</span>
+          </div>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
+            <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
+          </div>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
+            <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Budgetliste</span>
+          </div>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop')}>
+            <img src="/icons/materialshop.png" alt="Materialshop" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Materialshop</span>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -30,26 +30,9 @@ export default function Login() {
 
       console.log('Rolle erkannt:', data.role);
 
-      // Weiterleitung nach Rolle
-      switch (data.role) {
-        case 'Admin':
-          navigate('/admin');
-          break;
-        case 'Supervisor':
-          navigate('/supervisor');
-          break;
-        case 'Manager-1':
-        case 'Manager-2':
-        case 'Geschäftsführer':
-          navigate('/manager');
-          break;
-        case 'Filiale':
-          navigate('/start');
-          break;
-        default:
-          setResult({ message: '❌ Unbekannte Rolle – Zugriff verweigert.' });
-          sessionStorage.clear();
-      }
+      // Einheitliche Weiterleitung für alle Rollen zur Startseite
+      navigate('/start');
+
     } catch (err) {
       console.error('Login-Fehler:', err);
       setResult({ message: '❌ Server nicht erreichbar oder ungültige Antwort' });
