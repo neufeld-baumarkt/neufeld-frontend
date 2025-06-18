@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
 
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedRekla, setSelectedRekla] = useState(null);
+  const [expandedReklaId, setExpandedReklaId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   let user = null;
@@ -37,17 +36,14 @@ export default function Reklamationen() {
   const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
   const pagedData = reklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const handleOpen = (rekla) => setSelectedRekla(rekla);
-  const handleClose = () => setSelectedRekla(null);
+  const handleZurueck = () => {
+    window.location.href = "/start";
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("token");
     window.location.href = "/";
-  };
-
-  const handleZurueck = () => {
-    window.location.href = "/start";
   };
 
   const formatDate = (isoDate) => {
@@ -104,34 +100,55 @@ export default function Reklamationen() {
         </h1>
       </div>
 
-      {/* Aktionen */}
-      <div className="absolute top-[180px] left-[95px] right-[80px] flex gap-6 text-white text-lg underline cursor-pointer">
+      {/* Buttons */}
+      <div className="absolute top-[180px] left-[90px] text-white text-2xl cursor-pointer" onClick={handleZurueck}>
+        ⬅️ Zurück zum Hauptmenü
+      </div>
+      <div className="absolute top-[180px] right-[80px] flex gap-8 text-white text-2xl cursor-pointer">
         <span onClick={() => alert("Reklamation anlegen folgt...")}>➕ Reklamation anlegen</span>
         <span onClick={() => alert("Reklamation bearbeiten folgt...")}>✏️ Reklamation bearbeiten</span>
-        <span onClick={handleZurueck}>⬅️ Zurück zum Hauptmenü</span>
       </div>
 
-      {/* Inhalt */}
-      <div className="absolute top-[260px] left-[95px] right-[80px] bottom-[80px] overflow-y-auto">
-        <div className="p-6 space-y-2">
-          <div className="flex font-bold text-sm text-gray-300 border-b border-gray-500 pb-1">
-            <div className="w-[100px]">lfd. Nr.</div>
-            <div className="w-[180px]">Rekla-Nr.</div>
-            <div className="w-[140px]">Datum</div>
-            <div className="flex-1">Lieferant</div>
-            <div className="w-[120px] text-right">Status</div>
-          </div>
+      {/* Headline */}
+      <div className="absolute top-[260px] left-[95px] right-[80px] text-xl text-gray-300 border-b border-gray-500 pb-1 flex font-bold">
+        <div className="w-[100px]">lfd. Nr.</div>
+        <div className="w-[180px]">Rekla-Nr.</div>
+        <div className="w-[140px]">Datum</div>
+        <div className="flex-1">Lieferant</div>
+        <div className="w-[120px] text-right">Status</div>
+      </div>
+
+      {/* Reklamationen */}
+      <div className="absolute top-[290px] left-[95px] right-[80px]" style={{ maxHeight: 'calc(100vh - 380px)' }}>
+        <div className="space-y-2">
           {pagedData.map((rekla) => (
             <div
               key={rekla.id}
-              onClick={() => handleOpen(rekla)}
-              className="bg-white text-black px-4 py-2 rounded-lg shadow flex justify-between items-center hover:bg-gray-100 cursor-pointer"
+              className={`bg-white text-black px-4 py-2 rounded-lg shadow hover:bg-gray-100 cursor-pointer ${expandedReklaId === rekla.id ? 'flex-col' : 'flex justify-between items-center'}`}
+              onClick={() => setExpandedReklaId(expandedReklaId === rekla.id ? null : rekla.id)}
             >
-              <div className="font-bold w-[100px]">#{rekla.laufende_nummer}</div>
-              <div className="w-[180px]">{rekla.rekla_nr}</div>
-              <div className="w-[140px]">{formatDate(rekla.datum)}</div>
-              <div className="flex-1 truncate pr-4">{rekla.lieferant}</div>
-              <div className={`w-[120px] text-right font-semibold ${getStatusColor(rekla.status)}`}>{rekla.status}</div>
+              {expandedReklaId === rekla.id && (
+                <div className="text-left w-full">
+                  <button onClick={(e) => { e.stopPropagation(); setExpandedReklaId(null); }} className="text-red-600 font-bold mb-2">× schließen</button>
+                  <h2 className="text-xl font-bold mb-2">Rekla-Nr: {rekla.rekla_nr}</h2>
+                  <p><strong>Fortlaufende Nr:</strong> #{rekla.laufende_nummer}</p>
+                  <p><strong>Datum:</strong> {formatDate(rekla.datum)}</p>
+                  <p><strong>Letzte Änderung:</strong> {formatDate(rekla.letzte_aenderung)}</p>
+                  <p><strong>Art:</strong> {rekla.art}</p>
+                  <p><strong>Lieferant:</strong> {rekla.lieferant}</p>
+                  <p><strong>Filiale:</strong> {rekla.filiale}</p>
+                  <p><strong>Status:</strong> {rekla.status}</p>
+                </div>
+              )}
+              {expandedReklaId !== rekla.id && (
+                <>
+                  <div className="font-bold w-[100px]">#{rekla.laufende_nummer}</div>
+                  <div className="w-[180px]">{rekla.rekla_nr}</div>
+                  <div className="w-[140px]">{formatDate(rekla.datum)}</div>
+                  <div className="flex-1 truncate pr-4">{rekla.lieferant}</div>
+                  <div className={`w-[120px] text-right font-semibold ${getStatusColor(rekla.status)}`}>{rekla.status}</div>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -153,31 +170,6 @@ export default function Reklamationen() {
         <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-2">&#8250;</button>
         <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2">&#187;</button>
       </div>
-
-      {/* Slide-Over Panel */}
-      <AnimatePresence>
-        {selectedRekla && (
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.3 }}
-            className="fixed top-0 right-0 w-full max-w-md h-full bg-white text-black shadow-lg z-50 overflow-y-auto"
-          >
-            <div className="p-6">
-              <button onClick={handleClose} className="mb-4 text-red-600 font-bold">Schließen ×</button>
-              <h2 className="text-xl font-bold mb-2">Rekla-Nr: {selectedRekla.rekla_nr}</h2>
-              <p><strong>Fortlaufende Nr:</strong> #{selectedRekla.laufende_nummer}</p>
-              <p><strong>Datum:</strong> {formatDate(selectedRekla.datum)}</p>
-              <p><strong>Letzte Änderung:</strong> {formatDate(selectedRekla.letzte_aenderung)}</p>
-              <p><strong>Art:</strong> {selectedRekla.art}</p>
-              <p><strong>Lieferant:</strong> {selectedRekla.lieferant}</p>
-              <p><strong>Filiale:</strong> {selectedRekla.filiale}</p>
-              <p><strong>Status:</strong> {selectedRekla.status}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
