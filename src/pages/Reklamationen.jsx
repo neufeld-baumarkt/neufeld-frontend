@@ -1,3 +1,4 @@
+// Reklamationen.jsx (Modal-Version mit vollständigem Designrahmen + Pagination + Buttons + User-Dropdown)
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
@@ -6,7 +7,8 @@ const PAGE_SIZE = 10;
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [expandedReklaId, setExpandedReklaId] = useState(null);
+  const [activeReklaId, setActiveReklaId] = useState(null);
+  const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
 
   let user = null;
@@ -33,23 +35,26 @@ export default function Reklamationen() {
     fetchData();
   }, []);
 
-  const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
+  const loadDetails = async (id) => {
+    const token = sessionStorage.getItem('token');
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReklaDetails((prev) => ({ ...prev, [id]: res.data }));
+    } catch (err) {
+      console.error("Fehler beim Laden der Detaildaten:", err);
+    }
+  };
+
   const pagedData = reklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const handleZurueck = () => {
-    window.location.href = "/start";
+  const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
+  const visiblePages = () => {
+    const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
+    return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("token");
-    window.location.href = "/";
-  };
-
-  const formatDate = (isoDate) => {
-    const d = new Date(isoDate);
-    return d.toLocaleDateString('de-DE');
-  };
+  const formatDate = (isoDate) => new Date(isoDate).toLocaleDateString('de-DE');
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
@@ -61,24 +66,26 @@ export default function Reklamationen() {
     }
   };
 
-  const visiblePages = () => {
-    const pages = [];
-    const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
-    const end = Math.min(start + 4, totalPages);
-    for (let i = start; i <= end; i++) pages.push(i);
-    return pages;
+  const handleZurueck = () => {
+    window.location.href = "/start";
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    window.location.href = "/";
   };
 
   return (
-    <div className="relative w-screen h-screen bg-[#3A3838] text-white overflow-hidden">
-      {/* Rahmen-Layout */}
+    <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
+      {/* Rahmen-Design */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
-      {/* Userinfo oben rechts */}
+      {/* Userinfo mit Dropdown */}
       <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
            style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
            onClick={() => setMenuOpen(!menuOpen)}>
@@ -93,14 +100,7 @@ export default function Reklamationen() {
         )}
       </div>
 
-      {/* Überschrift */}
-      <div className="relative z-10 text-white p-8 ml-[60px] mt-[50px]">
-        <h1 className="text-7xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">
-          Reklamationsliste – Filiale {displayFiliale}
-        </h1>
-      </div>
-
-      {/* Buttons */}
+      {/* Zurück & Aktion-Buttons */}
       <div className="absolute top-[180px] left-[90px] text-white text-2xl cursor-pointer" onClick={handleZurueck}>
         ⬅️ Zurück zum Hauptmenü
       </div>
@@ -109,67 +109,91 @@ export default function Reklamationen() {
         <span onClick={() => alert("Reklamation bearbeiten folgt...")}>✏️ Reklamation bearbeiten</span>
       </div>
 
-      {/* Headline */}
-      <div className="absolute top-[260px] left-[95px] right-[80px] text-xl text-gray-300 border-b border-gray-500 pb-1 flex font-bold">
-        <div className="w-[100px]">lfd. Nr.</div>
-        <div className="w-[180px]">Rekla-Nr.</div>
-        <div className="w-[140px]">Datum</div>
-        <div className="flex-1">Lieferant</div>
-        <div className="w-[120px] text-right">Status</div>
-      </div>
+      {/* Überschrift */}
+      <div className="pt-24 px-[80px]">
+        <h1 className="text-6xl font-bold mb-8 drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">
+          Reklamationsliste – Filiale {displayFiliale}
+        </h1>
 
-      {/* Reklamationen */}
-      <div className="absolute top-[290px] left-[95px] right-[80px]" style={{ maxHeight: 'calc(100vh - 380px)' }}>
-        <div className="space-y-2">
-          {pagedData.map((rekla) => (
-            <div
-              key={rekla.id}
-              className={`bg-white text-black px-4 py-2 rounded-lg shadow hover:bg-gray-100 cursor-pointer ${expandedReklaId === rekla.id ? 'flex-col' : 'flex justify-between items-center'}`}
-              onClick={() => setExpandedReklaId(expandedReklaId === rekla.id ? null : rekla.id)}
+        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-1 mb-4">
+          <div>lfd. Nr.</div>
+          <div>Rekla-Nr.</div>
+          <div>Datum</div>
+          <div>Lieferant</div>
+          <div className="text-right">Status</div>
+        </div>
+
+        {pagedData.map(rekla => (
+          <div
+            key={rekla.id}
+            className="grid grid-cols-[100px_180px_140px_1fr_120px] bg-white text-black px-4 py-2 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100"
+            onClick={() => {
+              setActiveReklaId(rekla.id);
+              if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
+            }}>
+            <div className="font-bold">#{rekla.laufende_nummer}</div>
+            <div>{rekla.rekla_nr}</div>
+            <div>{formatDate(rekla.datum)}</div>
+            <div className="truncate pr-2">{rekla.lieferant}</div>
+            <div className={`text-right font-semibold ${getStatusColor(rekla.status)}`}>{rekla.status}</div>
+          </div>
+        ))}
+
+        {/* Pagination komplett */}
+        <div className="flex justify-center items-center gap-2 mt-6 text-sm">
+          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2">&#171;</button>
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-2">&#8249;</button>
+          {visiblePages().map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-3 py-1 rounded ${page === currentPage ? 'bg-white text-black' : 'bg-gray-700 text-white'}`}
             >
-              {expandedReklaId === rekla.id && (
-                <div className="text-left w-full">
-                  <button onClick={(e) => { e.stopPropagation(); setExpandedReklaId(null); }} className="text-red-600 font-bold mb-2">× schließen</button>
-                  <h2 className="text-xl font-bold mb-2">Rekla-Nr: {rekla.rekla_nr}</h2>
-                  <p><strong>Fortlaufende Nr:</strong> #{rekla.laufende_nummer}</p>
-                  <p><strong>Datum:</strong> {formatDate(rekla.datum)}</p>
-                  <p><strong>Letzte Änderung:</strong> {formatDate(rekla.letzte_aenderung)}</p>
-                  <p><strong>Art:</strong> {rekla.art}</p>
-                  <p><strong>Lieferant:</strong> {rekla.lieferant}</p>
-                  <p><strong>Filiale:</strong> {rekla.filiale}</p>
-                  <p><strong>Status:</strong> {rekla.status}</p>
-                </div>
-              )}
-              {expandedReklaId !== rekla.id && (
-                <>
-                  <div className="font-bold w-[100px]">#{rekla.laufende_nummer}</div>
-                  <div className="w-[180px]">{rekla.rekla_nr}</div>
-                  <div className="w-[140px]">{formatDate(rekla.datum)}</div>
-                  <div className="flex-1 truncate pr-4">{rekla.lieferant}</div>
-                  <div className={`w-[120px] text-right font-semibold ${getStatusColor(rekla.status)}`}>{rekla.status}</div>
-                </>
-              )}
-            </div>
+              {page}
+            </button>
           ))}
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-2">&#8250;</button>
+          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2">&#187;</button>
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="absolute bottom-[20px] left-[95px] right-[80px] flex justify-center items-center space-x-2 text-sm">
-        <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-2">&#171;</button>
-        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-2">&#8249;</button>
-        {visiblePages().map((page) => (
-          <button
-            key={page}
-            onClick={() => setCurrentPage(page)}
-            className={`px-3 py-1 rounded ${page === currentPage ? 'bg-white text-black' : 'bg-gray-700 text-white'}`}
+      {/* MODAL Detailkarte */}
+      {activeReklaId && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" onClick={() => setActiveReklaId(null)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white text-black p-6 rounded-lg shadow-xl w-[calc(100%-160px)] max-w-6xl max-h-[85vh] overflow-y-auto"
           >
-            {page}
-          </button>
-        ))}
-        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-2">&#8250;</button>
-        <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-2">&#187;</button>
-      </div>
+            <div className="grid grid-cols-[100px_200px_160px_1fr_140px] gap-4 mb-3 text-lg font-bold">
+              <div>#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
+              <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
+              <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
+              <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
+              <div>{reklaDetails[activeReklaId]?.reklamation?.art}</div>
+              <div className="text-right">{reklaDetails[activeReklaId]?.reklamation?.status}</div>
+            </div>
+
+            <div className="grid grid-cols-[1fr_120px_80px_120px_80px_1fr] gap-4 text-sm mb-4">
+              <div>{reklaDetails[activeReklaId]?.positionen?.[0]?.rekla_menge}</div>
+              <div>{reklaDetails[activeReklaId]?.positionen?.[0]?.rekla_einheit}</div>
+              <div>{reklaDetails[activeReklaId]?.positionen?.[0]?.bestell_menge}</div>
+              <div>{reklaDetails[activeReklaId]?.positionen?.[0]?.bestell_einheit}</div>
+              <div className="text-right">Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}</div>
+            </div>
+
+            {reklaDetails[activeReklaId]?.positionen?.length > 0 && (
+              <div className="mt-4">
+                <p className="font-semibold mb-1">📦 Positionen:</p>
+                {reklaDetails[activeReklaId].positionen.map((pos, idx) => (
+                  <div key={pos.id} className="ml-4 text-sm">
+                    • {pos.artikelnummer} – {pos.rekla_menge} {pos.rekla_einheit} – {pos.bestell_menge} {pos.bestell_einheit} (EAN: {pos.ean})
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
