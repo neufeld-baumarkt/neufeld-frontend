@@ -1,4 +1,4 @@
-// Reklamationen.jsx (Überlappung behoben – Buttons höher positioniert)
+// Reklamationen.jsx – FINAL VERSION: Geile Animationen + alles funktioniert!
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
@@ -11,16 +11,28 @@ export default function Reklamationen() {
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // User aus Session
   let user = null;
   try {
     user = JSON.parse(sessionStorage.getItem("user"));
   } catch (e) {
-    console.warn("❗ Benutzer konnte nicht geladen werden:", e);
+    console.warn("Benutzer konnte nicht geladen werden:", e);
   }
 
   const displayName = user?.name || "Unbekannt";
-  const displayFiliale = user?.filiale || "-";
+  const rawFiliale = user?.filiale || "";
+  const isSuperUser =
+    !rawFiliale ||
+    rawFiliale.trim() === "" ||
+    rawFiliale.trim() === "-" ||
+    rawFiliale.toLowerCase().trim() === "alle" ||
+    ['supervisor', 'manager', 'admin'].includes(user?.role?.toLowerCase() || "");
 
+  const headlineText = isSuperUser
+    ? "Reklamationsliste"
+    : `Reklamationsliste – Filiale ${rawFiliale}`;
+
+  // Daten laden
   useEffect(() => {
     const fetchData = async () => {
       const token = sessionStorage.getItem('token');
@@ -36,6 +48,7 @@ export default function Reklamationen() {
     fetchData();
   }, []);
 
+  // Detaildaten laden
   const loadDetails = async (id) => {
     const token = sessionStorage.getItem('token');
     try {
@@ -48,6 +61,7 @@ export default function Reklamationen() {
     }
   };
 
+  // Pagination & Hilfsfunktionen
   const pagedData = reklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
 
@@ -71,10 +85,7 @@ export default function Reklamationen() {
     }
   };
 
-  const handleZurueck = () => {
-    window.location.href = "/start";
-  };
-
+  const handleZurueck = () => { window.location.href = "/start"; };
   const handleLogout = () => {
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("token");
@@ -83,6 +94,23 @@ export default function Reklamationen() {
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
+
+      {/* HOVER-ONLY ANIMATIONS */}
+      <style jsx>{`
+        @keyframes arrowWiggle {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-10px); }
+        }
+        @keyframes plusPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.35); }
+        }
+        @keyframes pencilScribble {
+          0% { stroke-dashoffset: 30; }
+          100% { stroke-dashoffset: 0; }
+        }
+      `}</style>
+
       {/* Rahmen-Design */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
@@ -90,7 +118,7 @@ export default function Reklamationen() {
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
-      {/* Userinfo mit Dropdown */}
+      {/* Userinfo Dropdown */}
       <div
         className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
         style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
@@ -99,10 +127,7 @@ export default function Reklamationen() {
         Angemeldet als: {displayName}
         {menuOpen && (
           <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm" style={{ minWidth: '180px' }}>
-            <div
-              onClick={handleLogout}
-              className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition"
-            >
+            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
                 <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
                 <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
@@ -113,26 +138,66 @@ export default function Reklamationen() {
         )}
       </div>
 
-      {/* Zurück & Aktion-Buttons – jetzt höher, keine Überlappung mehr */}
-      <div className="absolute top-[140px] left-[90px] text-white text-2xl cursor-pointer" onClick={handleZurueck}>
-        ⬅️ Zurück zum Hauptmenü
-      </div>
-      <div className="absolute top-[140px] right-[80px] flex gap-10 text-white text-2xl">
-        <span className="cursor-pointer hover:text-gray-300" onClick={() => alert("Reklamation anlegen folgt...")}>
-          ➕ Reklamation anlegen
-        </span>
-        <span className="cursor-pointer hover:text-gray-300" onClick={() => alert("Reklamation bearbeiten folgt...")}>
-          ✏️ Reklamation bearbeiten
-        </span>
+      {/* ZURÜCK BUTTON – Animation nur beim Hover */}
+      <div
+        className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+        onClick={handleZurueck}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36" height="36"
+          fill="white"
+          viewBox="0 0 24 24"
+          className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
+        >
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
       </div>
 
-      {/* Überschrift & Liste */}
-      <div className="pt-24 px-[80px]">
-        <h1 className="text-6xl font-bold mb-6 drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">
-          Reklamationsliste – Filiale {displayFiliale}
-        </h1>
+      {/* RECHTE BUTTONS – Animation nur beim Hover */}
+      <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
+        <div className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+             onClick={() => alert("Reklamation anlegen folgt...")}>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="36" height="36"
+            fill="white"
+            viewBox="0 0 24 24"
+            className="transition-all duration-200 group-hover:animate-[plusPulse_1.4s_ease-in-out_infinite]"
+          >
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <span className="text-2xl font-medium">Reklamation anlegen</span>
+        </div>
 
-        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-4">
+        <div className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+             onClick={() => alert("Reklamation bearbeiten folgt...")}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            <path
+              d="M14 5.5 l-2.5 3"
+              stroke="white"
+              strokeWidth="3"
+              strokeDasharray="30"
+              strokeDashoffset="30"
+              className="transition-all duration-200 group-hover:animate-[pencilScribble_1.6s_ease-in-out_infinite]"
+            />
+          </svg>
+          <span className="text-2xl font-medium">Reklamation bearbeiten</span>
+        </div>
+      </div>
+
+      {/* Überschrift */}
+      <h1 className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
+          style={{ top: '100px', left: '92px' }}>
+        {headlineText}
+      </h1>
+
+      {/* TABELLE + PAGINATION */}
+      <div className="pt-64 px-[80px]">
+        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
           <div>lfd. Nr.</div>
           <div>Rekla-Nr.</div>
           <div>Datum</div>
@@ -161,8 +226,8 @@ export default function Reklamationen() {
 
         {/* Pagination */}
         <div className="flex justify-center items-center gap-3 mt-8 text-lg">
-          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">&#171;</button>
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">&#8249;</button>
+          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
           {visiblePages().map((page) => (
             <button
               key={page}
@@ -172,12 +237,12 @@ export default function Reklamationen() {
               {page}
             </button>
           ))}
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">&#8250;</button>
-          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">&#187;</button>
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">›</button>
+          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">»</button>
         </div>
       </div>
 
-      {/* MODAL Detailkarte */}
+      {/* MODAL – komplett mit allen Details */}
       {activeReklaId && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
@@ -204,7 +269,6 @@ export default function Reklamationen() {
                     </button>
                   </div>
 
-                  {/* Kopfzeile mit Überschriften */}
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>lfd. Nr.</div>
                     <div>Rekla-Nr.</div>
@@ -214,7 +278,6 @@ export default function Reklamationen() {
                     <div className="text-right">Status</div>
                   </div>
 
-                  {/* Datenzeile */}
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
                     <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
@@ -226,11 +289,10 @@ export default function Reklamationen() {
                     </div>
                   </div>
 
-                  {/* Positionen */}
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <p className="font-bold text-xl mb-4">
-                        📦 Positionen ({reklaDetails[activeReklaId].positionen.length})
+                        Positionen ({reklaDetails[activeReklaId].positionen.length})
                       </p>
                       <div className="space-y-3">
                         {reklaDetails[activeReklaId].positionen.map((pos) => (
@@ -238,7 +300,7 @@ export default function Reklamationen() {
                             <div className="font-semibold text-lg">{pos.artikelnummer}</div>
                             <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
                             <div className="mt-2 text-sm">
-                              <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br/>
+                              <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
                               <span className="font-medium">Bestellte Menge:</span> {pos.bestell_menge} {pos.bestell_einheit}
                             </div>
                           </div>
@@ -247,7 +309,6 @@ export default function Reklamationen() {
                     </div>
                   )}
 
-                  {/* Fußzeile */}
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
                     Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
                   </div>
