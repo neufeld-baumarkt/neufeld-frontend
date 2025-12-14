@@ -5,16 +5,7 @@ import axios from 'axios';
 const today = new Date().toISOString().split('T')[0];
 
 export default function CreateReklamationModal({ onClose, onSuccess }) {
-  // User aus Session für Filiale-Auto-Fill
-  let user = null;
-  try {
-    user = JSON.parse(sessionStorage.getItem("user"));
-  } catch (e) {}
-  const userFiliale = user?.filiale?.trim() || "";
-  const isFilialUser = userFiliale && !["", "-", "alle", "zentrale"].includes(userFiliale.toLowerCase());
-
   const [formData, setFormData] = useState({
-    filiale: isFilialUser ? userFiliale : '',
     art: '',
     datum: today,
     rekla_nr: '',
@@ -33,7 +24,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   });
 
   const [dropdownData, setDropdownData] = useState({
-    filialen: [],
     arten: [],
     lieferanten: [],
     einheiten: [],
@@ -44,15 +34,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Dropdown-Daten aus Backend laden
   useEffect(() => {
     const fetchDropdowns = async () => {
       const token = sessionStorage.getItem('token');
       const headers = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
       try {
-        const [filialenRes, artenRes, lieferantenRes, einheitenRes, statusRes] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/api/filialen`, headers).catch(() => ({ data: [] })),
+        const [artenRes, lieferantenRes, einheitenRes, statusRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/api/art_der_reklamation`, headers).catch(() => ({ data: [] })),
           axios.get(`${import.meta.env.VITE_API_URL}/api/lieferanten`, headers).catch(() => ({ data: [] })),
           axios.get(`${import.meta.env.VITE_API_URL}/api/einheit`, headers).catch(() => ({ data: [] })),
@@ -60,7 +48,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
         ]);
 
         setDropdownData({
-          filialen: filialenRes.data,
           arten: artenRes.data,
           lieferanten: lieferantenRes.data,
           einheiten: einheitenRes.data,
@@ -90,7 +77,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
   const validate = () => {
     const err = {};
-    if (!formData.filiale && dropdownData.filialen.length > 0) err.filiale = true;
     if (!formData.art) err.art = true;
     if (!formData.rekla_nr) err.rekla_nr = true;
     if (!formData.lieferant) err.lieferant = true;
@@ -151,26 +137,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Linke Spalte */}
             <div className="space-y-5">
-              {/* Filiale */}
-              {dropdownData.filialen.length > 0 && (
-                <div>
-                  <label className="block font-semibold mb-1">Filiale <span className="text-red-600">*</span></label>
-                  <select
-                    name="filiale"
-                    value={formData.filiale}
-                    onChange={handleChange}
-                    disabled={isFilialUser}
-                    className={`w-full px-4 py-2 border rounded-lg ${errors.filiale ? 'border-red-500' : 'border-gray-300'} ${isFilialUser ? 'bg-gray-100' : ''}`}
-                  >
-                    <option value="">-- Auswählen --</option>
-                    {dropdownData.filialen.map((f) => (
-                      <option key={f.id} value={f.name}>{f.name}</option>
-                    ))}
-                  </select>
-                  {isFilialUser && <p className="text-sm text-gray-600 mt-1">Automatisch aus Anmeldung</p>}
-                </div>
-              )}
-
               <div>
                 <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
                 <select name="art" value={formData.art} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
