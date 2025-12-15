@@ -1,20 +1,18 @@
-// src/components/CreateReklamationModal.jsx – FINAL VERSION: Optik perfekt + DB-Daten
-import React, { useState, useEffect } from 'react';
+// src/components/CreateReklamationModal.jsx – stabile Version vom 13.12.2025
+import React, { useState } from 'react';
 import axios from 'axios';
 
 const today = new Date().toISOString().split('T')[0];
 
-const fallbackOptions = {
-  filialen: ['Ahaus', 'Münster', 'Telgte', 'Vreden'],
-  reklamationsarten: ['Falsche Lieferung', 'Beschädigt', 'Mangelhaft', 'Falsche Menge', 'Sonstiges'],
-  lieferanten: [], // bleibt leer, wird aus DB geladen
-  einheiten: ['KG', 'Stück', 'Liter', 'lfdm'],
+const placeholderOptions = {
+  art: ['Falsche Lieferung', 'Beschädigt', 'Mangelhaft', 'Falsche Menge', 'Sonstiges'],
+  lieferant: ['Alfer Aluminium', 'Alpina Farben', 'Aspen', 'Batavia', 'BGS', 'Binderholz', 'Bostik GmbH', 'Bümag', 'BVK', 'Cellfast', 'CF Group Deutschland GmbH', 'CFH', 'Chemofast Anchoring GmbH', 'Chrestensen', 'Ciret Gmbh', 'Conacord', 'Conmetall', 'Degro', 'DHG Erde', 'DHG Grillkohke', 'DHG Pflanzenschutz', 'Dolle', 'Drillcraft', 'Edco Eindhoven', 'E.H.G. Lucas', 'EAL', 'Emskabel', 'Enovatek', 'Erfurt & Sohn KG', 'Eures GmbH', 'EVB Intertec', 'Expo-Börse', 'Feida', 'Fischer Ofenrohre', 'Gardena', 'Gebol', 'Geda Garden', 'Güde Gmbh', 'Hama GmbH', 'Hamann', 'Hanseatischer Drahthandel GmbH', 'Heku', 'Henkel', 'Hopeg', 'Hünerdorff GmbH', 'Innocom GmbH', 'Iseo', 'J.W. Ostendorf', 'Joseph Dresselhaus', 'Kabelexpress', 'Kaiman', 'KEW Dübel', 'Kosche Holzwerkstoffe', 'L&B Lederwelt', 'Lausitzer Energie Bergbau Gmbh', 'Lesli Sylvesterzauber GmbH', 'Linder Exklusiv', 'Liqui Moly', 'Marley', 'Max Schierer Brennstoffe', 'Meffert', 'Merotec GmbH', 'MTS Bosch', 'Müller Licht', 'Müller Kerzenfabrik', 'NMC GmbH', 'NHG GmbH', 'Oregon Tool GmbH', 'Palram GmbH', 'PLANA S D.O.O.', 'PPG Coatings Deutschland GmbH', 'Prosperplast', 'Prosperplast Winter', 'Reinex', 'Rowe Mineralöle', 'SB-Waren Gmbh', 'Scheppach GmbH', 'Schildgen GmbH', 'Schomaker', 'SodaFixx', 'Soudal N.V. Deutschland', 'Startcraft Batterien', 'Stylex', 'TFA Dostmann', 'Tobsteel', 'Tyczka', 'Ultrament', 'VDV Benefit', 'W.Kirchhoff', 'Walter Schmidt', 'Waskönig & Walter Kabel-Werke', 'WENKO-WENSELAAR GmbH & Co. KG', 'Westland Erde', 'Westland Indoor', 'WundMed', 'Zentrallager'],
+  einheit: ['KG', 'Stück', 'Liter', 'lfdm'],
   status: ['Angelegt', 'In Bearbeitung', 'Freigegeben', 'Abgelehnt', 'Erledigt'],
 };
 
 export default function CreateReklamationModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    filiale: '',
     art: '',
     datum: today,
     rekla_nr: '',
@@ -28,54 +26,12 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     bestell_einheit: '',
     rekla_menge: '',
     rekla_einheit: '',
-    status: 'Angelegt',
     letzte_aenderung: today,
+    status: 'Angelegt',
   });
 
-  const [options, setOptions] = useState({
-    filialen: [],
-    lieferanten: [],
-    reklamationsarten: [],
-    einheiten: [],
-    status: [],
-  });
-
-  const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Stammdaten aus DB laden (wie in Code 2)
-  useEffect(() => {
-    const fetchAllData = async () => {
-      const token = sessionStorage.getItem('token');
-      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-
-      try {
-        const [filRes, liefRes, artRes, einhRes, statRes] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/api/filialen`, config),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/lieferanten`, config),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationsarten`, config),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/einheiten`, config),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/status`, config),
-        ]);
-
-        setOptions({
-          filialen: filRes.data.length ? filRes.data : fallbackOptions.filialen,
-          lieferanten: liefRes.data.length ? liefRes.data : fallbackOptions.lieferanten,
-          reklamationsarten: artRes.data.length ? artRes.data : fallbackOptions.reklamationsarten,
-          einheiten: einhRes.data.length ? einhRes.data : fallbackOptions.einheiten,
-          status: statRes.data.length ? statRes.data : fallbackOptions.status,
-        });
-      } catch (err) {
-        console.error('Fehler beim Laden der Stammdaten:', err);
-        setOptions(fallbackOptions);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAllData();
-  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -99,26 +55,27 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     if (!formData.ean) err.ean = true;
     if (!formData.rekla_menge) err.rekla_menge = true;
     if (!formData.rekla_einheit) err.rekla_einheit = true;
+    if (!formData.status) err.status = true;
     if (formData.versand && !formData.tracking_id) err.tracking_id = true;
+
     setErrors(err);
     return Object.keys(err).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) {
-      alert('Bitte alle Pflichtfelder ausfüllen!');
-      return;
-    }
+    if (!validate()) return;
+
     setIsSubmitting(true);
     const token = sessionStorage.getItem('token');
+
     try {
       await axios.post(
         `${import.meta.env.VITE_API_URL}/api/reklamationen`,
         formData,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert('Reklamation erfolgreich angelegt!');
-      onSuccess?.();
+
+      onSuccess();
       onClose();
     } catch (error) {
       console.error('Fehler beim Anlegen:', error);
@@ -127,16 +84,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       setIsSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-        <div className="bg-white rounded-xl p-12 text-center">
-          <div className="text-2xl">Lade Stammdaten...</div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
@@ -151,28 +98,18 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             {/* Linke Spalte */}
             <div className="space-y-5">
               <div>
-                <label className="block font-semibold mb-1">Filiale</label>
-                <select name="filiale" value={formData.filiale} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                  <option value="">-- Auswählen --</option>
-                  {options.filialen.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
                 <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
                 <select name="art" value={formData.art} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
                   <option value="">-- Auswählen --</option>
-                  {options.reklamationsarten.map(opt => (
+                  {placeholderOptions.art.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Anlegedatum</label>
-                <input type="date" value={formData.datum} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
+                <label className="block font-semibold mb-1">Anlegedatum <span className="text-red-600">*</span></label>
+                <input type="date" name="datum" value={formData.datum} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
               </div>
 
               <div>
@@ -184,7 +121,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                 <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
                 <select name="lieferant" value={formData.lieferant} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
                   <option value="">-- Auswählen --</option>
-                  {options.lieferanten.map(opt => (
+                  {placeholderOptions.lieferant.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
@@ -229,7 +166,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   <label className="block font-semibold mb-1">Bestelleinheit</label>
                   <select name="bestell_einheit" value={formData.bestell_einheit} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
                     <option value="">--</option>
-                    {options.einheiten.map(opt => (
+                    {placeholderOptions.einheit.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
@@ -245,7 +182,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   <label className="block font-semibold mb-1">Reklamationseinheit <span className="text-red-600">*</span></label>
                   <select name="rekla_einheit" value={formData.rekla_einheit} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.rekla_einheit ? 'border-red-500' : 'border-gray-300'}`}>
                     <option value="">-- Auswählen --</option>
-                    {options.einheiten.map(opt => (
+                    {placeholderOptions.einheit.map(opt => (
                       <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
@@ -253,10 +190,9 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Status</label>
-                <select name="status" value={formData.status} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                  <option value="">-- Auswählen --</option>
-                  {options.status.map(opt => (
+                <label className="block font-semibold mb-1">Status <span className="text-red-600">*</span></label>
+                <select name="status" value={formData.status} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.status ? 'border-red-500' : 'border-gray-300'}`}>
+                  {placeholderOptions.status.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
@@ -264,7 +200,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
               <div>
                 <label className="block font-semibold mb-1">Letzte Änderung</label>
-                <input type="date" value={formData.letzte_aenderung} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
+                <input type="date" value={formData.letzte_aenderung} className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" readOnly />
               </div>
             </div>
           </div>
