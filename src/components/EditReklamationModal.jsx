@@ -1,10 +1,9 @@
-// src/components/EditReklamationModal.jsx
+// src/components/EditReklamationModal.jsx – ohne react-hot-toast (nutzt alert statt toast)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast'; // Falls du toast hast, sonst alert nutzen
 
 const EditReklamationModal = ({ initialData, onClose, onSubmit }) => {
-  const [formData, setFormData] = useState(initialData);
+  const [formData, setFormData] = useState(initialData || {});
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [filialen, setFilialen] = useState([]);
@@ -37,7 +36,7 @@ const EditReklamationModal = ({ initialData, onClose, onSubmit }) => {
       setStatuses(statusesRes.data);
     } catch (error) {
       console.error('Fehler beim Laden der Stammdaten:', error);
-      toast.error('Stammdaten konnten nicht geladen werden.');
+      alert('Stammdaten konnten nicht geladen werden.');
     }
   };
 
@@ -67,17 +66,17 @@ const EditReklamationModal = ({ initialData, onClose, onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
-      toast.error('Bitte alle Pflichtfelder ausfüllen.');
+      alert('Bitte alle Pflichtfelder ausfüllen.');
       return;
     }
 
     setLoading(true);
     try {
       await onSubmit(formData);
-      toast.success('Änderungen erfolgreich gespeichert!');
+      alert('Änderungen erfolgreich gespeichert!');
       onClose();
     } catch (error) {
-      toast.error('Fehler beim Speichern der Änderungen.');
+      alert('Fehler beim Speichern der Änderungen.');
     } finally {
       setLoading(false);
     }
