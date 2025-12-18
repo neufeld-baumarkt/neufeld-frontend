@@ -1,6 +1,7 @@
-// Reklamationen.jsx – FINAL VERSION: Geile Animationen + alles funktioniert!
+// src/pages/Reklamationen.jsx – Mit funktionierendem Anlege-Modal und korrektem Import-Pfad!
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import CreateReklamationModal from '../components/CreateReklamationModal'; // ← KORRIGIERTER PFAD
 
 const PAGE_SIZE = 10;
 
@@ -10,6 +11,7 @@ export default function Reklamationen() {
   const [activeReklaId, setActiveReklaId] = useState(null);
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // User aus Session
   let user = null;
@@ -18,7 +20,6 @@ export default function Reklamationen() {
   } catch (e) {
     console.warn("Benutzer konnte nicht geladen werden:", e);
   }
-
   const displayName = user?.name || "Unbekannt";
   const rawFiliale = user?.filiale || "";
   const isSuperUser =
@@ -27,25 +28,25 @@ export default function Reklamationen() {
     rawFiliale.trim() === "-" ||
     rawFiliale.toLowerCase().trim() === "alle" ||
     ['supervisor', 'manager', 'admin'].includes(user?.role?.toLowerCase() || "");
-
   const headlineText = isSuperUser
     ? "Reklamationsliste"
     : `Reklamationsliste – Filiale ${rawFiliale}`;
 
   // Daten laden
+  const fetchReklamationen = async () => {
+    const token = sessionStorage.getItem('token');
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setReklas(response.data);
+    } catch (error) {
+      console.error('Fehler beim Laden der Reklamationen:', error);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      const token = sessionStorage.getItem('token');
-      try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setReklas(response.data);
-      } catch (error) {
-        console.error('Fehler beim Laden der Reklamationen:', error);
-      }
-    };
-    fetchData();
+    fetchReklamationen();
   }, []);
 
   // Detaildaten laden
@@ -64,7 +65,6 @@ export default function Reklamationen() {
   // Pagination & Hilfsfunktionen
   const pagedData = reklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
-
   const visiblePages = () => {
     const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
     return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
@@ -78,7 +78,7 @@ export default function Reklamationen() {
   const getStatusColor = (status) => {
     switch ((status || "").toLowerCase()) {
       case 'angelegt': return 'text-blue-600';
-      case 'bearbeitet': return 'text-yellow-600';
+      case 'bearbeitet': case 'in bearbeitung': return 'text-yellow-600';
       case 'freigegeben': return 'text-green-600';
       case 'abgelehnt': return 'text-red-600';
       default: return 'text-gray-600';
@@ -92,9 +92,14 @@ export default function Reklamationen() {
     window.location.href = "/";
   };
 
+  // Neu laden nach erfolgreichem Anlegen
+  const handleCreateSuccess = () => {
+    fetchReklamationen();
+    setCurrentPage(1);
+  };
+
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
-
       {/* HOVER-ONLY ANIMATIONS */}
       <style jsx>{`
         @keyframes arrowWiggle {
@@ -138,7 +143,7 @@ export default function Reklamationen() {
         )}
       </div>
 
-      {/* ZURÜCK BUTTON – Animation nur beim Hover */}
+      {/* ZURÜCK BUTTON */}
       <div
         className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
         onClick={handleZurueck}
@@ -155,10 +160,13 @@ export default function Reklamationen() {
         <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
       </div>
 
-      {/* RECHTE BUTTONS – Animation nur beim Hover */}
+      {/* RECHTE BUTTONS */}
       <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
-        <div className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-             onClick={() => alert("Reklamation anlegen folgt...")}>
+        {/* ANLEGEN BUTTON */}
+        <div
+          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+          onClick={() => setShowCreateModal(true)}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="36" height="36"
@@ -171,6 +179,7 @@ export default function Reklamationen() {
           <span className="text-2xl font-medium">Reklamation anlegen</span>
         </div>
 
+        {/* Bearbeiten kommt später */}
         <div className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
              onClick={() => alert("Reklamation bearbeiten folgt...")}>
           <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -242,7 +251,7 @@ export default function Reklamationen() {
         </div>
       </div>
 
-      {/* MODAL – komplett mit allen Details */}
+      {/* DETAIL-MODAL */}
       {activeReklaId && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
@@ -268,7 +277,6 @@ export default function Reklamationen() {
                       ×
                     </button>
                   </div>
-
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>lfd. Nr.</div>
                     <div>Rekla-Nr.</div>
@@ -277,7 +285,6 @@ export default function Reklamationen() {
                     <div>Art</div>
                     <div className="text-right">Status</div>
                   </div>
-
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
                     <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
@@ -288,7 +295,6 @@ export default function Reklamationen() {
                       {reklaDetails[activeReklaId]?.reklamation?.status}
                     </div>
                   </div>
-
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <p className="font-bold text-xl mb-4">
@@ -308,7 +314,6 @@ export default function Reklamationen() {
                       </div>
                     </div>
                   )}
-
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
                     Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
                   </div>
@@ -317,6 +322,14 @@ export default function Reklamationen() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ANLEGE-MODAL */}
+      {showCreateModal && (
+        <CreateReklamationModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={handleCreateSuccess}
+        />
       )}
     </div>
   );
