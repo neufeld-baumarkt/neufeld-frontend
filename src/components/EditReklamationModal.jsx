@@ -1,4 +1,4 @@
-// src/components/EditReklamationModal.jsx – ohne react-hot-toast (nutzt alert statt toast)
+// src/components/EditReklamationModal.jsx – Stammdaten ohne Token laden (wie beim Anlegen)
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
@@ -18,15 +18,13 @@ const EditReklamationModal = ({ initialData, onClose, onSubmit }) => {
 
   const loadStammdaten = async () => {
     try {
-      const token = sessionStorage.getItem('token');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-
+      // KEIN Token mehr – wie beim Anlegen-Modal
       const [filialenRes, lieferantenRes, artenRes, einheitenRes, statusesRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/filialen`, config),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/lieferanten`, config),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationsarten`, config),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/einheiten`, config),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/statuses`, config)
+        axios.get(`${import.meta.env.VITE_API_URL}/api/filialen`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/lieferanten`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationsarten`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/einheiten`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/statuses`)
       ]);
 
       setFilialen(filialenRes.data);
