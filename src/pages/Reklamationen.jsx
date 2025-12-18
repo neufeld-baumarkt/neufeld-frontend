@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CreateReklamationModal from '../components/CreateReklamationModal';
-import EditReklamationModal from '../components/EditReklamationModal'; // NEU: Import
+import EditReklamationModal from '../components/EditReklamationModal'; // NEU
 
 const PAGE_SIZE = 10;
 
@@ -13,7 +13,7 @@ export default function Reklamationen() {
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false); // NEU: für das Bearbeiten-Modal
+  const [showEditModal, setShowEditModal] = useState(false); // NEU
 
   // User aus Session
   let user = null;
@@ -101,7 +101,7 @@ export default function Reklamationen() {
     setCurrentPage(1);
   };
 
-  // NEU: Öffnet das Edit-Modal (leer)
+  // NEU: Öffnet das Edit-Modal leer
   const openEditModal = () => {
     setShowEditModal(true);
   };
@@ -138,7 +138,17 @@ export default function Reklamationen() {
         onClick={() => setMenuOpen(!menuOpen)}
       >
         Angemeldet als: {displayName}
-        {/* Dropdown bleibt gleich */}
+        {menuOpen && (
+          <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm" style={{ minWidth: '180px' }}>
+            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
+                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
+                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+              </svg>
+              <span>Abmelden</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ZURÜCK BUTTON */}
@@ -146,7 +156,16 @@ export default function Reklamationen() {
         className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
         onClick={handleZurueck}
       >
-        {/* Zurück-Button bleibt gleich */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36" height="36"
+          fill="white"
+          viewBox="0 0 24 24"
+          className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
+        >
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
       </div>
 
       {/* RECHTE BUTTONS */}
@@ -156,10 +175,19 @@ export default function Reklamationen() {
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
           onClick={() => setShowCreateModal(true)}
         >
-          {/* Anlegen-Button bleibt gleich */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="36" height="36"
+            fill="white"
+            viewBox="0 0 24 24"
+            className="transition-all duration-200 group-hover:animate-[plusPulse_1.4s_ease-in-out_infinite]"
+          >
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <span className="text-2xl font-medium">Reklamation anlegen</span>
         </div>
 
-        {/* BEARBEITEN BUTTON – jetzt öffnet Edit-Modal */}
+        {/* BEARBEITEN BUTTON – jetzt mit Funktion */}
         {canEdit && (
           <div
             className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
@@ -188,14 +216,122 @@ export default function Reklamationen() {
         {headlineText}
       </h1>
 
-      {/* TABELLE + PAGINATION – unverändert */}
+      {/* TABELLE + PAGINATION */}
       <div className="pt-64 px-[80px]">
-        {/* Dein kompletter Tabellen-Code bleibt exakt gleich */}
+        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
+          <div>lfd. Nr.</div>
+          <div>Rekla-Nr.</div>
+          <div>Datum</div>
+          <div>Lieferant</div>
+          <div className="text-right">Status</div>
+        </div>
+        {pagedData.map(rekla => (
+          <div
+            key={rekla.id}
+            className="grid grid-cols-[100px_180px_140px_1fr_120px] bg-white text-black px-4 py-3 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
+            onClick={() => {
+              setActiveReklaId(rekla.id);
+              if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
+            }}
+          >
+            <div className="font-bold">#{rekla.laufende_nummer}</div>
+            <div>{rekla.rekla_nr}</div>
+            <div>{formatDate(rekla.datum)}</div>
+            <div className="truncate pr-2">{rekla.lieferant}</div>
+            <div className={`text-right font-semibold ${getStatusColor(rekla.status)}`}>
+              {rekla.status}
+            </div>
+          </div>
+        ))}
+        {/* Pagination */}
+        <div className="flex justify-center items-center gap-3 mt-8 text-lg">
+          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
+          {visiblePages().map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-4 py-2 rounded ${page === currentPage ? 'bg-white text-black font-bold' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+            >
+              {page}
+            </button>
+          ))}
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">›</button>
+          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">»</button>
+        </div>
       </div>
 
-      {/* DETAIL-MODAL – unverändert */}
+      {/* DETAIL-MODAL */}
       {activeReklaId && (
-        // dein kompletter Detail-Modal
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          onClick={() => setActiveReklaId(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-8">
+              {!reklaDetails[activeReklaId] ? (
+                <div className="text-center py-20 text-2xl text-gray-600">
+                  Lade Details...
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start mb-8 border-b pb-4">
+                    <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
+                    <button
+                      onClick={() => setActiveReklaId(null)}
+                      className="text-4xl leading-none hover:text-red-600 transition"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
+                    <div>lfd. Nr.</div>
+                    <div>Rekla-Nr.</div>
+                    <div>Datum</div>
+                    <div>Lieferant</div>
+                    <div>Art</div>
+                    <div className="text-right">Status</div>
+                  </div>
+                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
+                    <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
+                    <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.art || "-"}</div>
+                    <div className={`text-right font-semibold ${getStatusColor(reklaDetails[activeReklaId]?.reklamation?.status)}`}>
+                      {reklaDetails[activeReklaId]?.reklamation?.status}
+                    </div>
+                  </div>
+                  {reklaDetails[activeReklaId].positionen?.length > 0 && (
+                    <div className="mt-6">
+                      <p className="font-bold text-xl mb-4">
+                        Positionen ({reklaDetails[activeReklaId].positionen.length})
+                      </p>
+                      <div className="space-y-3">
+                        {reklaDetails[activeReklaId].positionen.map((pos) => (
+                          <div key={pos.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                            <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
+                            <div className="mt-2 text-sm">
+                              <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
+                              <span className="font-medium">Bestellte Menge:</span> {pos.bestell_menge} {pos.bestell_einheit}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
+                    Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ANLEGE-MODAL */}
@@ -206,13 +342,13 @@ export default function Reklamationen() {
         />
       )}
 
-      {/* NEU: EDIT-MODAL – öffnet leer */}
+      {/* EDIT-MODAL – öffnet leer */}
       {showEditModal && (
         <EditReklamationModal
           initialData={{}} // leer – später kommt die Suche
           onClose={() => setShowEditModal(false)}
           onSubmit={() => {
-            alert('Speichern kommt später – Modal öffnet sich korrekt?');
+            alert('Speichern kommt später – Modal geöffnet?');
             setShowEditModal(false);
           }}
         />
