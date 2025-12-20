@@ -1,4 +1,4 @@
-// src/components/FilterModal.jsx – Filter-Modal für die Reklamationsliste
+// src/components/FilterModal.jsx – Filiale-Filter nur für SuperUser sichtbar
 import React, { useState } from 'react';
 
 const FilterModal = ({ onClose, onApply, currentFilters }) => {
@@ -6,8 +6,22 @@ const FilterModal = ({ onClose, onApply, currentFilters }) => {
     filiale: 'Alle',
     status: 'Alle',
     reklaNr: '',
-    sortDatum: 'desc', // default: neueste zuerst
+    sortDatum: 'desc',
   });
+
+  // User aus Session (für Berechtigung)
+  let user = null;
+  try {
+    user = JSON.parse(sessionStorage.getItem("user"));
+  } catch (e) {}
+  const userRole = user?.role || "";
+  const rawFiliale = user?.filiale || "";
+  const isSuperUser =
+    !rawFiliale ||
+    rawFiliale.trim() === "" ||
+    rawFiliale.trim() === "-" ||
+    rawFiliale.toLowerCase().trim() === "alle" ||
+    ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
   const handleChange = (field, value) => {
     setTempFilters(prev => ({ ...prev, [field]: value }));
@@ -24,20 +38,27 @@ const FilterModal = ({ onClose, onApply, currentFilters }) => {
         <h2 className="text-2xl font-bold mb-6 text-center">Filter & Sortierung</h2>
 
         <div className="space-y-5">
-          <div>
-            <label className="block font-semibold mb-1">Filiale</label>
-            <select
-              value={tempFilters.filiale}
-              onChange={(e) => handleChange('filiale', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
-            >
-              <option value="Alle">Alle Filialen</option>
-              <option value="Ahaus">Ahaus</option>
-              <option value="Münster">Münster</option>
-              <option value="Telgte">Telgte</option>
-              <option value="Vreden">Vreden</option>
-            </select>
-          </div>
+          {/* Filiale-Filter nur für SuperUser */}
+          {isSuperUser ? (
+            <div>
+              <label className="block font-semibold mb-1">Filiale</label>
+              <select
+                value={tempFilters.filiale}
+                onChange={(e) => handleChange('filiale', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-black"
+              >
+                <option value="Alle">Alle Filialen</option>
+                <option value="Ahaus">Ahaus</option>
+                <option value="Münster">Münster</option>
+                <option value="Telgte">Telgte</option>
+                <option value="Vreden">Vreden</option>
+              </select>
+            </div>
+          ) : (
+            <div className="bg-gray-100 p-3 rounded-lg text-center text-gray-700">
+              Sie sehen nur Reklamationen Ihrer eigenen Filiale ({rawFiliale || 'unbekannt'}).
+            </div>
+          )}
 
           <div>
             <label className="block font-semibold mb-1">Status</label>
