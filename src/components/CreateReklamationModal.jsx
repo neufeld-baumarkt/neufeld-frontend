@@ -24,6 +24,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     versand: false,
     tracking_id: '',
     status: 'Angelegt',
+    letzte_aenderung: today, // Neu: Default heute
   });
 
   const [positionen, setPositionen] = useState([
@@ -48,6 +49,11 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // User-Rolle holen für Rechteprüfung
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const userRole = (user.role || '').toLowerCase();
+  const canEditLetzteAenderung = ['admin', 'supervisor'].includes(userRole);
+
   useEffect(() => {
     const fetchAllData = async () => {
       const token = sessionStorage.getItem('token');
@@ -70,7 +76,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
 
-        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        // Default-Filiale setzen, falls User eine hat
         if (user.filiale && filRes.data.includes(user.filiale)) {
           setFormData(prev => ({ ...prev, filiale: user.filiale }));
         }
@@ -85,6 +91,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     fetchAllData();
   }, []);
 
+  // SodaFixx-Logik
   useEffect(() => {
     if (formData.lieferant === 'SodaFixx') {
       setFormData(prev => ({ ...prev, versand: true }));
@@ -205,6 +212,17 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   {options.status.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="block font-semibold mb-1">Letzte Änderung</label>
+                <input
+                  type="date"
+                  name="letzte_aenderung"
+                  value={formData.letzte_aenderung}
+                  onChange={handleCommonChange}
+                  readOnly={!canEditLetzteAenderung}
+                  className={`w-full px-3 py-2 border rounded-lg ${!canEditLetzteAenderung ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                />
+              </div>
               <div className="flex items-center gap-3 pt-2">
                 <input type="checkbox" name="versand" checked={formData.versand} onChange={handleCommonChange} disabled={formData.lieferant === 'SodaFixx'} className="w-5 h-5" />
                 <label className="font-semibold">Versand (Rücksendung)</label>
@@ -225,7 +243,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             {positionen.map((pos, index) => (
               <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Linke Spalte */}
                   <div className="space-y-4">
                     <div>
                       <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
@@ -250,7 +267,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     </div>
                   </div>
 
-                  {/* Rechte Spalte */}
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
