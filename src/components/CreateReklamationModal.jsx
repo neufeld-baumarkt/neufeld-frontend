@@ -114,7 +114,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       const newPos = [...prev];
       newPos[index] = { ...newPos[index], [field]: value };
 
-      // NEU: Automatische Übernahme Bestell → Rekla
+      // Automatische Übernahme Bestell → Rekla
       if (field === 'bestell_menge' && value !== '') {
         newPos[index].rekla_menge = value;
       }
@@ -128,7 +128,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     setErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[`pos_${index}_${field}`];
-      // Auch Rekla-Felder Fehler löschen bei autom. Übernahme
       if (field === 'bestell_menge') delete newErrors[`pos_${index}_rekla_menge`];
       if (field === 'bestell_einheit') delete newErrors[`pos_${index}_rekla_einheit`];
       return newErrors;
@@ -268,7 +267,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             </button>
           </div>
 
-          {/* Gemeinsame Felder */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <div className="space-y-4">
               <div>
@@ -337,7 +335,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Positionen */}
           <div>
             <h3 className="text-xl font-bold mb-4">Positionen</h3>
 
@@ -356,13 +353,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Bestellmenge</label>
-                        <input 
-                          type="number" 
-                          step="1"   {/* NEU: Ganze Zahlen beim Scrollen */}
+                        <input
+                          type="number"
+                          step="1"
                           min="0"
-                          value={pos.bestell_menge} 
-                          onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)} 
-                          className="w-full px-3 py-2 border rounded-lg" 
+                          value={pos.bestell_menge}
+                          onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
                         />
                       </div>
                       <div>
@@ -379,13 +376,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                        <input 
-                          type="number" 
-                          step="1"   {/* NEU: Ganze Zahlen beim Scrollen */}
+                        <input
+                          type="number"
+                          step="1"
                           min="0"
-                          value={pos.rekla_menge} 
-                          onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} 
-                          className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`} 
+                          value={pos.rekla_menge}
+                          onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`}
                         />
                       </div>
                       <div>
@@ -420,7 +417,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             </button>
           </div>
 
-          {/* Buttons */}
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
             <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
               Abbrechen
