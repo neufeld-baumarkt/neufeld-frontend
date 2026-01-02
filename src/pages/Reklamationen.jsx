@@ -1,29 +1,30 @@
-// src/pages/Reklamationen.jsx
+// src/pages/Reklamationen.jsx – Mit Filter-Button und Filter-Modal
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CreateReklamationModal from '../components/CreateReklamationModal';
 import EditReklamationModal from '../components/EditReklamationModal';
-import FilterModal from '../components/FilterModal';
+import FilterModal from '../components/FilterModal'; // NEU
 
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
-  const [filteredReklas, setFilteredReklas] = useState([]);
+  const [filteredReklas, setFilteredReklas] = useState([]); // Gefilterte Liste
   const [currentPage, setCurrentPage] = useState(1);
   const [activeReklaId, setActiveReklaId] = useState(null);
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filters, setFilters] = useState({
+  const [showFilterModal, setShowFilterModal] = useState(false); // NEU
+  const [filters, setFilters] = useState({ // NEU
     filiale: 'Alle',
     status: 'Alle',
     reklaNr: '',
     sortDatum: 'desc'
   });
 
+  // User aus Session
   let user = null;
   try {
     user = JSON.parse(sessionStorage.getItem("user"));
@@ -40,6 +41,7 @@ export default function Reklamationen() {
     rawFiliale.toLowerCase().trim() === "alle" ||
     ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
+  // Bearbeiten erlaubt? Nein bei role "Filiale"
   const canEdit = userRole.toLowerCase() !== 'filiale';
 
   const headlineText = isSuperUser
@@ -54,7 +56,7 @@ export default function Reklamationen() {
       });
       const data = response.data;
       setReklas(data);
-      applyFilters(data, filters);
+      applyFilters(data, filters); // Filter anwenden
     } catch (error) {
       console.error('Fehler beim Laden der Reklamationen:', error);
     }
@@ -76,27 +78,35 @@ export default function Reklamationen() {
     }
   };
 
+  // NEU: Filter und Sortierung anwenden
   const applyFilters = (data, newFilters) => {
     let result = [...data];
+
     if (newFilters.filiale !== 'Alle') {
       result = result.filter(r => r.filiale === newFilters.filiale);
     }
+
     if (newFilters.status !== 'Alle') {
       result = result.filter(r => r.status === newFilters.status);
     }
+
     if (newFilters.reklaNr) {
       const search = newFilters.reklaNr.toLowerCase();
       result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
     }
+
+    // Sortierung nach Datum
     result.sort((a, b) => {
       const dateA = new Date(a.datum);
       const dateB = new Date(b.datum);
       return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
     });
+
     setFilteredReklas(result);
     setCurrentPage(1);
   };
 
+  // NEU: Filter aus Modal übernehmen
   const handleFilterApply = (newFilters) => {
     setFilters(newFilters);
     applyFilters(reklas, newFilters);
@@ -142,7 +152,241 @@ export default function Reklamationen() {
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
-      {/* ... (ganzes Layout unverändert bis zu den Modals) ... */}
+      {/* HOVER-ONLY ANIMATIONS */}
+      <style jsx>{`
+        @keyframes arrowWiggle {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-10px); }
+        }
+        @keyframes plusPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.35); }
+        }
+        @keyframes pencilScribble {
+          0% { stroke-dashoffset: 30; }
+          100% { stroke-dashoffset: 0; }
+        }
+      `}</style>
+
+      {/* Rahmen-Design */}
+      <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
+      <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
+      <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
+      <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
+      <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
+
+      {/* Userinfo Dropdown */}
+      <div
+        className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
+        style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
+        Angemeldet als: {displayName}
+        {menuOpen && (
+          <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm" style={{ minWidth: '180px' }}>
+            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
+                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
+                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+              </svg>
+              <span>Abmelden</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ZURÜCK BUTTON */}
+      <div
+        className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+        onClick={handleZurueck}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36" height="36"
+          fill="white"
+          viewBox="0 0 24 24"
+          className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
+        >
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
+      </div>
+
+      {/* RECHTE BUTTONS */}
+      <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
+        {/* ANLEGEN BUTTON */}
+        <div
+          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+          onClick={() => setShowCreateModal(true)}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="36" height="36"
+            fill="white"
+            viewBox="0 0 24 24"
+            className="transition-all duration-200 group-hover:animate-[plusPulse_1.4s_ease-in-out_infinite]"
+          >
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+          </svg>
+          <span className="text-2xl font-medium">Reklamation anlegen</span>
+        </div>
+
+        {/* BEARBEITEN BUTTON */}
+        {canEdit && (
+          <div
+            className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+            onClick={openEditModal}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              <path
+                d="M14 5.5 l-2.5 3"
+                stroke="white"
+                strokeWidth="3"
+                strokeDasharray="30"
+                strokeDashoffset="30"
+                className="transition-all duration-200 group-hover:animate-[pencilScribble_1.6s_ease-in-out_infinite]"
+              />
+            </svg>
+            <span className="text-2xl font-medium">Reklamation bearbeiten</span>
+          </div>
+        )}
+
+        {/* NEU: FILTER BUTTON */}
+        <div
+          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+          onClick={() => setShowFilterModal(true)}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="white" viewBox="0 0 24 24">
+            <path d="M3 4h18v2H3V4zm2 4h14v2H5V8zm2 4h10v2H7v-2zm2 4h6v2H9v-2z" />
+          </svg>
+          <span className="text-2xl font-medium">Filter</span>
+        </div>
+      </div>
+
+      {/* Überschrift */}
+      <h1 className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
+          style={{ top: '100px', left: '92px' }}>
+        {headlineText}
+      </h1>
+
+      {/* TABELLE + PAGINATION */}
+      <div className="pt-64 px-[80px]">
+        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
+          <div>lfd. Nr.</div>
+          <div>Rekla-Nr.</div>
+          <div>Datum</div>
+          <div>Lieferant</div>
+          <div className="text-right">Status</div>
+        </div>
+        {pagedData.map(rekla => (
+          <div
+            key={rekla.id}
+            className="grid grid-cols-[100px_180px_140px_1fr_120px] bg-white text-black px-4 py-3 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
+            onClick={() => {
+              setActiveReklaId(rekla.id);
+              if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
+            }}
+          >
+            <div className="font-bold">#{rekla.laufende_nummer}</div>
+            <div>{rekla.rekla_nr}</div>
+            <div>{formatDate(rekla.datum)}</div>
+            <div className="truncate pr-2">{rekla.lieferant}</div>
+            <div className={`text-right font-semibold ${getStatusColor(rekla.status)}`}>
+              {rekla.status}
+            </div>
+          </div>
+        ))}
+        <div className="flex justify-center items-center gap-3 mt-8 text-lg">
+          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
+          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
+          {visiblePages().map((page) => (
+            <button
+              key={page}
+              onClick={() => setCurrentPage(page)}
+              className={`px-4 py-2 rounded ${page === currentPage ? 'bg-white text-black font-bold' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+            >
+              {page}
+            </button>
+          ))}
+          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">›</button>
+          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">»</button>
+        </div>
+      </div>
+
+      {/* DETAIL-MODAL */}
+      {activeReklaId && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          onClick={() => setActiveReklaId(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-8">
+              {!reklaDetails[activeReklaId] ? (
+                <div className="text-center py-20 text-2xl text-gray-600">
+                  Lade Details...
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between items-start mb-8 border-b pb-4">
+                    <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
+                    <button
+                      onClick={() => setActiveReklaId(null)}
+                      className="text-4xl leading-none hover:text-red-600 transition"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
+                    <div>lfd. Nr.</div>
+                    <div>Rekla-Nr.</div>
+                    <div>Datum</div>
+                    <div>Lieferant</div>
+                    <div>Art</div>
+                    <div className="text-right">Status</div>
+                  </div>
+                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
+                    <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
+                    <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
+                    <div>{reklaDetails[activeReklaId]?.reklamation?.art || "-"}</div>
+                    <div className={`text-right font-semibold ${getStatusColor(reklaDetails[activeReklaId]?.reklamation?.status)}`}>
+                      {reklaDetails[activeReklaId]?.reklamation?.status}
+                    </div>
+                  </div>
+                  {reklaDetails[activeReklaId].positionen?.length > 0 && (
+                    <div className="mt-6">
+                      <p className="font-bold text-xl mb-4">
+                        Positionen ({reklaDetails[activeReklaId].positionen.length})
+                      </p>
+                      <div className="space-y-3">
+                        {reklaDetails[activeReklaId].positionen.map((pos) => (
+                          <div key={pos.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                            <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
+                            <div className="mt-2 text-sm">
+                              <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
+                              <span className="font-medium">Bestellte Menge:</span> {pos.bestell_menge} {pos.bestell_einheit}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
+                    Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ANLEGE-MODAL */}
       {showCreateModal && (
@@ -152,15 +396,19 @@ export default function Reklamationen() {
         />
       )}
 
-      {/* EDIT-MODAL – JETZT KORREKT */}
+      {/* EDIT-MODAL */}
       {showEditModal && (
         <EditReklamationModal
+          initialData={{}}
           onClose={() => setShowEditModal(false)}
-          onSuccess={handleCreateSuccess} // Reload nach Save/Delete
+          onSubmit={() => {
+            alert('Speichern kommt später – Modal geöffnet?');
+            setShowEditModal(false);
+          }}
         />
       )}
 
-      {/* FILTER-MODAL */}
+      {/* NEU: FILTER-MODAL */}
       {showFilterModal && (
         <FilterModal
           onClose={() => setShowFilterModal(false)}
