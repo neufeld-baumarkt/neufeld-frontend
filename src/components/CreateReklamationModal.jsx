@@ -48,7 +48,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Stammdaten laden
   useEffect(() => {
     const fetchAllData = async () => {
       const token = sessionStorage.getItem('token');
@@ -71,7 +70,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
 
-        // Default-Filiale setzen (User-Filiale, falls vorhanden)
         const user = JSON.parse(sessionStorage.getItem('user') || '{}');
         if (user.filiale && filRes.data.includes(user.filiale)) {
           setFormData(prev => ({ ...prev, filiale: user.filiale }));
@@ -87,7 +85,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     fetchAllData();
   }, []);
 
-  // SodaFixx-Logik
   useEffect(() => {
     if (formData.lieferant === 'SodaFixx') {
       setFormData(prev => ({ ...prev, versand: true }));
@@ -125,17 +122,15 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   };
 
   const removePosition = (index) => {
-    if (positionen.length === 1) return; // Mindestens eine behalten
+    if (positionen.length === 1) return;
     setPositionen(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Platzhalter für Speichern (wird in Schritt 3/4 komplett)
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    // Hier kommt später die echte Validierung + POST
     console.log('FormData:', formData);
     console.log('Positionen:', positionen);
-    alert('Speichern noch nicht implementiert – siehe Konsole für Daten.');
+    alert('Speichern noch nicht implementiert – siehe Konsole.');
     setIsSubmitting(false);
   };
 
@@ -155,220 +150,118 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
         onClick={(e) => e.stopPropagation()}
         className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-80px)] max-w-5xl max-h-[90vh] overflow-y-auto"
       >
-        <div className="p-8">
-          <div className="flex justify-between items-start mb-8 border-b pb-4">
-            <h2 className="text-3xl font-bold">Neue Reklamation anlegen</h2>
-            <button onClick={onClose} className="text-4xl leading-none hover:text-red-600">
+        <div className="p-6 md:p-8">
+          <div className="flex justify-between items-start mb-6 border-b pb-4">
+            <h2 className="text-2xl md:text-3xl font-bold">Neue Reklamation anlegen</h2>
+            <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">
               ×
             </button>
           </div>
 
-          {/* Gemeinsame Felder – linke und rechte Spalte */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          {/* Gemeinsame Felder – zwei Spalten */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             {/* Linke Spalte */}
-            <div className="space-y-5">
+            <div className="space-y-4">
               <div>
                 <label className="block font-semibold mb-1">Filiale</label>
-                <select
-                  name="filiale"
-                  value={formData.filiale}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                >
+                <select name="filiale" value={formData.filiale} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">-- Auswählen --</option>
-                  {options.filialen.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">Anlegedatum</label>
-                <input
-                  type="date"
-                  name="datum"
-                  value={formData.datum}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
+                <input type="date" name="datum" value={formData.datum} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
-                <input
-                  type="text"
-                  name="rekla_nr"
-                  value={formData.rekla_nr}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                  placeholder="z. B. REK-2026-001"
-                />
+                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. REK-2026-001" />
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
-                <select
-                  name="art"
-                  value={formData.art}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                >
+                <select name="art" value={formData.art} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">-- Auswählen --</option>
-                  {options.reklamationsarten.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  {options.reklamationsarten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
+            </div>
 
+            {/* Rechte Spalte */}
+            <div className="space-y-4">
               <div>
                 <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
-                <select
-                  name="lieferant"
-                  value={formData.lieferant}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                >
+                <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">-- Auswählen --</option>
-                  {options.lieferanten.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
+                  {options.lieferanten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
-
               <div>
                 <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
-                <input
-                  type="text"
-                  name="ls_nummer_grund"
-                  value={formData.ls_nummer_grund}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                />
+                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
               </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  name="versand"
-                  checked={formData.versand}
-                  onChange={handleCommonChange}
-                  disabled={formData.lieferant === 'SodaFixx'}
-                  className="w-5 h-5"
-                />
+              <div>
+                <label className="block font-semibold mb-1">Status</label>
+                <select name="status" value={formData.status} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                  {options.status.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <input type="checkbox" name="versand" checked={formData.versand} onChange={handleCommonChange} disabled={formData.lieferant === 'SodaFixx'} className="w-5 h-5" />
                 <label className="font-semibold">Versand (Rücksendung)</label>
               </div>
-
               {formData.versand && (
                 <div>
                   <label className="block font-semibold mb-1">Tracking ID</label>
-                  <input
-                    type="text"
-                    name="tracking_id"
-                    value={formData.tracking_id}
-                    onChange={handleCommonChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    placeholder="z. B. DHL-Trackingnummer"
-                  />
+                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. DHL-Trackingnummer" />
                 </div>
               )}
-            </div>
-
-            {/* Rechte Spalte: Status */}
-            <div className="space-y-5">
-              <div>
-                <label className="block font-semibold mb-1">Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleCommonChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                >
-                  {options.status.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
             </div>
           </div>
 
           {/* Positionen */}
-          <div className="mt-10">
-            <h3 className="text-2xl font-bold mb-6">Positionen</h3>
+          <div>
+            <h3 className="text-xl font-bold mb-4">Positionen</h3>
 
             {positionen.map((pos, index) => (
-              <div key={index} className="bg-gray-50 p-6 rounded-lg mb-6 relative">
+              <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Linke Spalte */}
                   <div className="space-y-4">
                     <div>
                       <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
-                      <input
-                        type="text"
-                        value={pos.artikelnummer}
-                        onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      />
+                      <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
                     </div>
-
                     <div>
                       <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
-                      <input
-                        type="text"
-                        value={pos.ean}
-                        onChange={(e) => handlePositionChange(index, 'ean', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                      />
+                      <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
                     </div>
-
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Bestellmenge</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={pos.bestell_menge}
-                          onChange={(e) => handlePositionChange(index, 'bestell_menge', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        />
+                        <input type="number" step="0.01" value={pos.bestell_menge} onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit</label>
-                        <select
-                          value={pos.bestell_einheit}
-                          onChange={(e) => handlePositionChange(index, 'bestell_einheit', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        >
+                        <select value={pos.bestell_einheit} onChange={e => handlePositionChange(index, 'bestell_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                           <option value="">--</option>
-                          {options.einheiten.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
+                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       </div>
                     </div>
                   </div>
 
+                  {/* Rechte Spalte */}
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={pos.rekla_menge}
-                          onChange={(e) => handlePositionChange(index, 'rekla_menge', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        />
+                        <input type="number" step="0.01" value={pos.rekla_menge} onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
-                        <select
-                          value={pos.rekla_einheit}
-                          onChange={(e) => handlePositionChange(index, 'rekla_einheit', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                        >
+                        <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                           <option value="">-- Auswählen --</option>
-                          {options.einheiten.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
+                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
                       </div>
                     </div>
@@ -378,10 +271,10 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                 {positionen.length > 1 && (
                   <button
                     onClick={() => removePosition(index)}
-                    className="absolute top-4 right-4 text-red-600 hover:text-red-800 transition"
+                    className="absolute top-4 right-4 text-red-600 hover:text-red-800"
                     title="Position löschen"
                   >
-                    <Trash2 size={24} />
+                    <Trash2 size={20} />
                   </button>
                 )}
               </div>
@@ -389,27 +282,19 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
             <button
               onClick={addPosition}
-              className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-semibold"
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-medium"
             >
-              <Plus size={20} />
+              <Plus size={18} />
               Neue Position hinzufügen
             </button>
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-end gap-4 mt-10 pt-6 border-t">
-            <button
-              onClick={onClose}
-              className="px-8 py-3 text-lg font-medium border border-gray-400 rounded-lg hover:bg-gray-100 transition"
-              disabled={isSubmitting}
-            >
+          <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
+            <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
               Abbrechen
             </button>
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="px-8 py-3 text-lg font-medium bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70"
-            >
+            <button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-2.5 text-base bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70">
               {isSubmitting ? 'Wird gespeichert...' : 'Reklamation anlegen'}
             </button>
           </div>
