@@ -1,13 +1,14 @@
-// src/components/CreateReklamationModal.jsx – FINAL VERSION: Optik perfekt + DB-Daten
+// src/components/CreateReklamationModal.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Plus, Trash2 } from 'lucide-react';
 
 const today = new Date().toISOString().split('T')[0];
 
 const fallbackOptions = {
   filialen: ['Ahaus', 'Münster', 'Telgte', 'Vreden'],
   reklamationsarten: ['Falsche Lieferung', 'Beschädigt', 'Mangelhaft', 'Falsche Menge', 'Sonstiges'],
-  lieferanten: [], // bleibt leer, wird aus DB geladen
+  lieferanten: [],
   einheiten: ['KG', 'Stück', 'Liter', 'lfdm'],
   status: ['Angelegt', 'In Bearbeitung', 'Freigegeben', 'Abgelehnt', 'Erledigt'],
 };
@@ -22,15 +23,19 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     ls_nummer_grund: '',
     versand: false,
     tracking_id: '',
-    artikelnummer: '',
-    ean: '',
-    bestell_menge: '',
-    bestell_einheit: '',
-    rekla_menge: '',
-    rekla_einheit: '',
     status: 'Angelegt',
-    letzte_aenderung: today,
   });
+
+  const [positionen, setPositionen] = useState([
+    {
+      artikelnummer: '',
+      ean: '',
+      bestell_menge: '',
+      bestell_einheit: '',
+      rekla_menge: '',
+      rekla_einheit: '',
+    },
+  ]);
 
   const [options, setOptions] = useState({
     filialen: [],
@@ -41,10 +46,9 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   });
 
   const [loading, setLoading] = useState(true);
-  const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Stammdaten aus DB laden (wie in Code 2)
+  // Stammdaten laden
   useEffect(() => {
     const fetchAllData = async () => {
       const token = sessionStorage.getItem('token');
@@ -66,6 +70,12 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           einheiten: einhRes.data.length ? einhRes.data : fallbackOptions.einheiten,
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
+
+        // Default-Filiale setzen (User-Filiale, falls vorhanden)
+        const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+        if (user.filiale && filRes.data.includes(user.filiale)) {
+          setFormData(prev => ({ ...prev, filiale: user.filiale }));
+        }
       } catch (err) {
         console.error('Fehler beim Laden der Stammdaten:', err);
         setOptions(fallbackOptions);
@@ -77,55 +87,56 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     fetchAllData();
   }, []);
 
-  const handleChange = (e) => {
+  // SodaFixx-Logik
+  useEffect(() => {
+    if (formData.lieferant === 'SodaFixx') {
+      setFormData(prev => ({ ...prev, versand: true }));
+    }
+  }, [formData.lieferant]);
+
+  const handleCommonChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
-      letzte_aenderung: today,
     }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
   };
 
-  const validate = () => {
-    const err = {};
-    if (!formData.art) err.art = true;
-    if (!formData.rekla_nr) err.rekla_nr = true;
-    if (!formData.lieferant) err.lieferant = true;
-    if (!formData.ls_nummer_grund) err.ls_nummer_grund = true;
-    if (!formData.artikelnummer) err.artikelnummer = true;
-    if (!formData.ean) err.ean = true;
-    if (!formData.rekla_menge) err.rekla_menge = true;
-    if (!formData.rekla_einheit) err.rekla_einheit = true;
-    if (formData.versand && !formData.tracking_id) err.tracking_id = true;
-    setErrors(err);
-    return Object.keys(err).length === 0;
+  const handlePositionChange = (index, field, value) => {
+    setPositionen(prev => {
+      const newPos = [...prev];
+      newPos[index] = { ...newPos[index], [field]: value };
+      return newPos;
+    });
   };
 
+  const addPosition = () => {
+    setPositionen(prev => [
+      ...prev,
+      {
+        artikelnummer: '',
+        ean: '',
+        bestell_menge: '',
+        bestell_einheit: '',
+        rekla_menge: '',
+        rekla_einheit: '',
+      },
+    ]);
+  };
+
+  const removePosition = (index) => {
+    if (positionen.length === 1) return; // Mindestens eine behalten
+    setPositionen(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Platzhalter für Speichern (wird in Schritt 3/4 komplett)
   const handleSubmit = async () => {
-    if (!validate()) {
-      alert('Bitte alle Pflichtfelder ausfüllen!');
-      return;
-    }
     setIsSubmitting(true);
-    const token = sessionStorage.getItem('token');
-    try {
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/reklamationen`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      alert('Reklamation erfolgreich angelegt!');
-      onSuccess?.();
-      onClose();
-    } catch (error) {
-      console.error('Fehler beim Anlegen:', error);
-      alert('Fehler beim Speichern – siehe Konsole.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Hier kommt später die echte Validierung + POST
+    console.log('FormData:', formData);
+    console.log('Positionen:', positionen);
+    alert('Speichern noch nicht implementiert – siehe Konsole für Daten.');
+    setIsSubmitting(false);
   };
 
   if (loading) {
@@ -140,19 +151,30 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-80px)] max-w-5xl max-h-[90vh] overflow-y-auto"
+      >
         <div className="p-8">
           <div className="flex justify-between items-start mb-8 border-b pb-4">
             <h2 className="text-3xl font-bold">Neue Reklamation anlegen</h2>
-            <button onClick={onClose} className="text-4xl leading-none hover:text-red-600 transition">×</button>
+            <button onClick={onClose} className="text-4xl leading-none hover:text-red-600">
+              ×
+            </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Gemeinsame Felder – linke und rechte Spalte */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             {/* Linke Spalte */}
             <div className="space-y-5">
               <div>
                 <label className="block font-semibold mb-1">Filiale</label>
-                <select name="filiale" value={formData.filiale} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <select
+                  name="filiale"
+                  value={formData.filiale}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
                   <option value="">-- Auswählen --</option>
                   {options.filialen.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -161,8 +183,36 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
               </div>
 
               <div>
+                <label className="block font-semibold mb-1">Anlegedatum</label>
+                <input
+                  type="date"
+                  name="datum"
+                  value={formData.datum}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
+                <input
+                  type="text"
+                  name="rekla_nr"
+                  value={formData.rekla_nr}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  placeholder="z. B. REK-2026-001"
+                />
+              </div>
+
+              <div>
                 <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
-                <select name="art" value={formData.art} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
+                <select
+                  name="art"
+                  value={formData.art}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
                   <option value="">-- Auswählen --</option>
                   {options.reklamationsarten.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -171,18 +221,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Anlegedatum</label>
-                <input type="date" value={formData.datum} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
-                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleChange} placeholder="z. B. REK-2025-001" className={`w-full px-4 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`} />
-              </div>
-
-              <div>
                 <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
-                <select name="lieferant" value={formData.lieferant} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
+                <select
+                  name="lieferant"
+                  value={formData.lieferant}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
                   <option value="">-- Auswählen --</option>
                   {options.lieferanten.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -192,88 +237,179 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
               <div>
                 <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
-                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleChange} placeholder="z. B. Lieferschein-Nr." className={`w-full px-4 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`} />
+                <input
+                  type="text"
+                  name="ls_nummer_grund"
+                  value={formData.ls_nummer_grund}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                />
               </div>
 
               <div className="flex items-center gap-3">
-                <input type="checkbox" name="versand" checked={formData.versand} onChange={handleChange} className="w-5 h-5" />
+                <input
+                  type="checkbox"
+                  name="versand"
+                  checked={formData.versand}
+                  onChange={handleCommonChange}
+                  disabled={formData.lieferant === 'SodaFixx'}
+                  className="w-5 h-5"
+                />
                 <label className="font-semibold">Versand (Rücksendung)</label>
               </div>
 
               {formData.versand && (
                 <div>
-                  <label className="block font-semibold mb-1">Tracking ID <span className="text-red-600">*</span></label>
-                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleChange} placeholder="z. B. DHL-Tracking" className={`w-full px-4 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}`} />
+                  <label className="block font-semibold mb-1">Tracking ID</label>
+                  <input
+                    type="text"
+                    name="tracking_id"
+                    value={formData.tracking_id}
+                    onChange={handleCommonChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholder="z. B. DHL-Trackingnummer"
+                  />
                 </div>
               )}
             </div>
 
-            {/* Rechte Spalte */}
+            {/* Rechte Spalte: Status */}
             <div className="space-y-5">
               <div>
-                <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
-                <input type="text" name="artikelnummer" value={formData.artikelnummer} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.artikelnummer ? 'border-red-500' : 'border-gray-300'}`} />
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
-                <input type="text" name="ean" value={formData.ean} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.ean ? 'border-red-500' : 'border-gray-300'}`} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold mb-1">Bestellmenge</label>
-                  <input type="number" name="bestell_menge" value={formData.bestell_menge} onChange={handleChange} min="0" step="0.01" className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Bestelleinheit</label>
-                  <select name="bestell_einheit" value={formData.bestell_einheit} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                    <option value="">--</option>
-                    {options.einheiten.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                  <input type="number" name="rekla_menge" value={formData.rekla_menge} onChange={handleChange} min="0" step="0.01" className={`w-full px-4 py-2 border rounded-lg ${errors.rekla_menge ? 'border-red-500' : 'border-gray-300'}`} />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Reklamationseinheit <span className="text-red-600">*</span></label>
-                  <select name="rekla_einheit" value={formData.rekla_einheit} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${errors.rekla_einheit ? 'border-red-500' : 'border-gray-300'}`}>
-                    <option value="">-- Auswählen --</option>
-                    {options.einheiten.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
                 <label className="block font-semibold mb-1">Status</label>
-                <select name="status" value={formData.status} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                  <option value="">-- Auswählen --</option>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleCommonChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                >
                   {options.status.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
               </div>
-
-              <div>
-                <label className="block font-semibold mb-1">Letzte Änderung</label>
-                <input type="date" value={formData.letzte_aenderung} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
-              </div>
             </div>
           </div>
 
+          {/* Positionen */}
+          <div className="mt-10">
+            <h3 className="text-2xl font-bold mb-6">Positionen</h3>
+
+            {positionen.map((pos, index) => (
+              <div key={index} className="bg-gray-50 p-6 rounded-lg mb-6 relative">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
+                      <input
+                        type="text"
+                        value={pos.artikelnummer}
+                        onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
+                      <input
+                        type="text"
+                        value={pos.ean}
+                        onChange={(e) => handlePositionChange(index, 'ean', e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold mb-1">Bestellmenge</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={pos.bestell_menge}
+                          onChange={(e) => handlePositionChange(index, 'bestell_menge', e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Einheit</label>
+                        <select
+                          value={pos.bestell_einheit}
+                          onChange={(e) => handlePositionChange(index, 'bestell_einheit', e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                          <option value="">--</option>
+                          {options.einheiten.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={pos.rekla_menge}
+                          onChange={(e) => handlePositionChange(index, 'rekla_menge', e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
+                        <select
+                          value={pos.rekla_einheit}
+                          onChange={(e) => handlePositionChange(index, 'rekla_einheit', e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                          <option value="">-- Auswählen --</option>
+                          {options.einheiten.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {positionen.length > 1 && (
+                  <button
+                    onClick={() => removePosition(index)}
+                    className="absolute top-4 right-4 text-red-600 hover:text-red-800 transition"
+                    title="Position löschen"
+                  >
+                    <Trash2 size={24} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={addPosition}
+              className="flex items-center gap-2 px-6 py-3 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-semibold"
+            >
+              <Plus size={20} />
+              Neue Position hinzufügen
+            </button>
+          </div>
+
+          {/* Buttons */}
           <div className="flex justify-end gap-4 mt-10 pt-6 border-t">
-            <button onClick={onClose} className="px-8 py-3 text-lg font-medium border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
+            <button
+              onClick={onClose}
+              className="px-8 py-3 text-lg font-medium border border-gray-400 rounded-lg hover:bg-gray-100 transition"
+              disabled={isSubmitting}
+            >
               Abbrechen
             </button>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="px-8 py-3 text-lg font-medium bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70">
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-8 py-3 text-lg font-medium bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70"
+            >
               {isSubmitting ? 'Wird gespeichert...' : 'Reklamation anlegen'}
             </button>
           </div>
