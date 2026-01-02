@@ -129,20 +129,26 @@ const EditReklamationModal = ({ onClose }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
+      // *** DEBUG-LOG – HIER SIEHST DU ALLES ***
+      console.log('Vollständige API-Antwort:', response.data);
+      console.log('reklamation-Objekt:', response.data.reklamation);
+      console.log('Positionen-Array:', response.data.positionen);
+      // *** ENDE DEBUG ***
+
       const data = response.data.reklamation;
       const pos = response.data.positionen || [];
 
       setFormData({
         filiale: data.filiale || '',
         art: data.art || '',
-        datum: data.datum || today, // Aus DB, fallback today
+        datum: data.datum || today,
         rekla_nr: data.rekla_nr || '',
         lieferant: data.lieferant || '',
         ls_nummer_grund: data.ls_nummer_grund || '',
         versand: data.versand || false,
         tracking_id: data.tracking_id || '',
         status: data.status || 'Angelegt',
-        letzte_aenderung: today, // Immer aktuell beim Bearbeiten
+        letzte_aenderung: today,
       });
 
       setPositionen(pos.length > 0 ? pos.map(p => ({
@@ -224,7 +230,6 @@ const EditReklamationModal = ({ onClose }) => {
             <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">×</button>
           </div>
 
-          {/* Suchbereich */}
           <div className="mb-10">
             <h3 className="text-xl font-bold mb-4">Suche nach Reklamation</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -258,7 +263,6 @@ const EditReklamationModal = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Ergebnisliste */}
           <div className="mb-10">
             <h3 className="text-xl font-bold mb-4">Suchergebnisse ({filteredResults.length})</h3>
             {isSearching && <div className="text-center text-gray-600">Suche läuft...</div>}
@@ -276,7 +280,6 @@ const EditReklamationModal = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Bearbeitungsbereich */}
           {selectedReklamation && formData && (
             <div>
               <h3 className="text-xl font-bold mb-6">
