@@ -11,7 +11,7 @@ const fallbackOptions = {
   status: ['Angelegt', 'In Bearbeitung', 'Freigegeben', 'Abgelehnt', 'Erledigt'],
 };
 
-const EditReklamationModal = ({ onClose, onSubmit }) => {
+const EditReklamationModal = ({ onClose }) => {
   const [searchData, setSearchData] = useState({
     filiale: '',
     suchbegriff: '',
@@ -28,14 +28,13 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
     status: [],
   });
 
-  const [allReklamationen, setAllReklamationen] = useState([]); // Alle laden für client-side Filter
+  const [allReklamationen, setAllReklamationen] = useState([]);
   const [filteredResults, setFilteredResults] = useState([]);
-  const [selectedId, setSelectedId] = useState(null); // Für geladene Reklamation
+  const [selectedReklamation, setSelectedReklamation] = useState(null); // Vollständiges Objekt
 
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Stammdaten laden
   useEffect(() => {
     const fetchAllData = async () => {
       const token = sessionStorage.getItem('token');
@@ -48,7 +47,7 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
           axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationsarten`, config),
           axios.get(`${import.meta.env.VITE_API_URL}/api/einheiten`, config),
           axios.get(`${import.meta.env.VITE_API_URL}/api/status`, config),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, config), // Alle laden
+          axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, config),
         ]);
 
         setOptions({
@@ -59,8 +58,8 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
 
-        setAllReklamationen(reklasRes.data); // Alle speichern
-        setFilteredResults(reklasRes.data); // Initial alle anzeigen
+        setAllReklamationen(reklasRes.data);
+        setFilteredResults(reklasRes.data);
       } catch (err) {
         console.error('Fehler beim Laden:', err);
         setOptions(fallbackOptions);
@@ -73,7 +72,6 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
     fetchAllData();
   }, []);
 
-  // Suche: Client-side Filterung
   useEffect(() => {
     const filterResults = () => {
       let results = allReklamationen;
@@ -96,10 +94,7 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
           r.ls_nummer_grund.toLowerCase().includes(term)
         );
       }
-      if (searchData.artikelnummer) {
-        // Für Artikel-Nr. müssten wir Positionen laden – für jetzt skip, oder backend-side erweitern in Zukunft
-        toast.info('Artikel-Nr.-Suche erfordert Positionen – kommend in nächstem Schritt.');
-      }
+      // Artikelnummer-Suche später mit Positionen
 
       setFilteredResults(results);
     };
@@ -109,7 +104,7 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
       const timeout = setTimeout(() => {
         filterResults();
         setIsSearching(false);
-      }, 300); // Debounce für bessere UX
+      }, 300);
 
       return () => clearTimeout(timeout);
     }
@@ -120,9 +115,9 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
     setSearchData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSelect = (id) => {
-    setSelectedId(id);
-    toast.success(`Reklamation ${id} ausgewählt – Bearbeitung lädt...`); // Platzhalter
+  const handleSelect = (reklamation) => {
+    setSelectedReklamation(reklamation);
+    toast.success(`Reklamation ${reklamation.rekla_nr} ausgewählt – Bearbeitungsbereich lädt...`);
   };
 
   if (loading) {
@@ -192,7 +187,7 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
               {filteredResults.map(r => (
                 <div 
                   key={r.id}
-                  onClick={() => handleSelect(r.id)}
+                  onClick={() => handleSelect(r)}
                   className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition border border-gray-200"
                 >
                   <div className="flex justify-between">
@@ -207,10 +202,12 @@ const EditReklamationModal = ({ onClose, onSubmit }) => {
             </div>
           </div>
 
-          {/* Platzhalter für Bearbeitungsbereich (Schritt 2) */}
-          {selectedId && (
+          {/* Bearbeitungsbereich Platzhalter – jetzt mit Rekla-Nr. */}
+          {selectedReklamation && (
             <div>
-              <h3 className="text-xl font-bold mb-4">Bearbeiten von ID {selectedId}</h3>
+              <h3 className="text-xl font-bold mb-4">
+                Bearbeiten von Reklamations-Nr. {selectedReklamation.rekla_nr}
+              </h3>
               <p className="text-gray-600">Bearbeitungsfelder laden hier... (kommt in Schritt 2)</p>
             </div>
           )}
