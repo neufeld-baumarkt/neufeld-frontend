@@ -47,11 +47,10 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     status: [],
   });
 
-  const [errors, setErrors] = useState({}); // Für rote Ränder
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // User-Rolle für Letzte Änderung
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const userRole = (user.role || '').toLowerCase();
   const canEditLetzteAenderung = ['admin', 'supervisor'].includes(userRole);
@@ -93,7 +92,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     fetchAllData();
   }, []);
 
-  // SodaFixx-Logik
   useEffect(() => {
     if (formData.lieferant === 'SodaFixx') {
       setFormData(prev => ({ ...prev, versand: true }));
@@ -106,7 +104,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    // Fehler bei Änderung löschen
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: false }));
     }
@@ -116,12 +113,24 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     setPositionen(prev => {
       const newPos = [...prev];
       newPos[index] = { ...newPos[index], [field]: value };
+
+      // NEU: Automatische Übernahme Bestell → Rekla
+      if (field === 'bestell_menge' && value !== '') {
+        newPos[index].rekla_menge = value;
+      }
+      if (field === 'bestell_einheit' && value !== '') {
+        newPos[index].rekla_einheit = value;
+      }
+
       return newPos;
     });
-    // Positionsfehler löschen
+
     setErrors(prev => {
       const newErrors = { ...prev };
       delete newErrors[`pos_${index}_${field}`];
+      // Auch Rekla-Felder Fehler löschen bei autom. Übernahme
+      if (field === 'bestell_menge') delete newErrors[`pos_${index}_rekla_menge`];
+      if (field === 'bestell_einheit') delete newErrors[`pos_${index}_rekla_einheit`];
       return newErrors;
     });
   };
@@ -143,7 +152,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const removePosition = (index) => {
     if (positionen.length === 1) return;
     setPositionen(prev => prev.filter((_, i) => i !== index));
-    // Fehler der gelöschten Position entfernen
     setErrors(prev => {
       const newErrors = { ...prev };
       Object.keys(newErrors).forEach(key => {
@@ -156,18 +164,14 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const validate = () => {
     const newErrors = {};
 
-    // Gemeinsame Pflichtfelder
     if (!formData.rekla_nr.trim()) newErrors.rekla_nr = true;
     if (!formData.art) newErrors.art = true;
     if (!formData.lieferant) newErrors.lieferant = true;
     if (!formData.ls_nummer_grund.trim()) newErrors.ls_nummer_grund = true;
-
-    // Versand prüfen
     if (formData.versand && !formData.tracking_id.trim()) {
       newErrors.tracking_id = true;
     }
 
-    // Positionen prüfen
     let hasValidPosition = false;
     positionen.forEach((pos, index) => {
       if (
@@ -185,7 +189,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
         pos.bestell_menge ||
         pos.bestell_einheit
       ) {
-        // Teilweise gefüllt → Pflichtfelder prüfen
         if (!pos.artikelnummer.trim()) newErrors[`pos_${index}_artikelnummer`] = true;
         if (!pos.ean.trim()) newErrors[`pos_${index}_ean`] = true;
         if (!pos.rekla_menge) newErrors[`pos_${index}_rekla_menge`] = true;
@@ -210,7 +213,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
     setIsSubmitting(true);
 
-    // Nur vollständige Positionen mitsenden
     const validPositionen = positionen.filter(pos =>
       pos.artikelnummer.trim() &&
       pos.ean.trim() &&
@@ -232,7 +234,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       );
 
       toast.success(`Reklamation ${formData.rekla_nr} erfolgreich angelegt!`);
-      onSuccess(); // Liste neu laden
+      onSuccess();
       onClose();
     } catch (error) {
       console.error('Fehler beim Anlegen:', error);
@@ -354,7 +356,14 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Bestellmenge</label>
-                        <input type="number" step="0.01" value={pos.bestell_menge} onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                        <input 
+                          type="number" 
+                          step="1"   {/* NEU: Ganze Zahlen beim Scrollen */}
+                          min="0"
+                          value={pos.bestell_menge} 
+                          onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)} 
+                          className="w-full px-3 py-2 border rounded-lg" 
+                        />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit</label>
@@ -370,7 +379,14 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                        <input type="number" step="0.01" value={pos.rekla_menge} onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`} />
+                        <input 
+                          type="number" 
+                          step="1"   {/* NEU: Ganze Zahlen beim Scrollen */}
+                          min="0"
+                          value={pos.rekla_menge} 
+                          onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} 
+                          className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`} 
+                        />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
