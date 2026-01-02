@@ -1,19 +1,28 @@
-// src/pages/Reklamationen.jsx – "Reklamation bearbeiten"-Button öffnet jetzt das Edit-Modal (leer)
+// src/pages/Reklamationen.jsx – Mit Filter-Button und Filter-Modal
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CreateReklamationModal from '../components/CreateReklamationModal';
-import EditReklamationModal from '../components/EditReklamationModal'; // NEU
+import EditReklamationModal from '../components/EditReklamationModal';
+import FilterModal from '../components/FilterModal'; // NEU
 
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
+  const [filteredReklas, setFilteredReklas] = useState([]); // Gefilterte Liste
   const [currentPage, setCurrentPage] = useState(1);
   const [activeReklaId, setActiveReklaId] = useState(null);
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false); // NEU
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false); // NEU
+  const [filters, setFilters] = useState({ // NEU
+    filiale: 'Alle',
+    status: 'Alle',
+    reklaNr: '',
+    sortDatum: 'desc'
+  });
 
   // User aus Session
   let user = null;
@@ -45,7 +54,9 @@ export default function Reklamationen() {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setReklas(response.data);
+      const data = response.data;
+      setReklas(data);
+      applyFilters(data, filters); // Filter anwenden
     } catch (error) {
       console.error('Fehler beim Laden der Reklamationen:', error);
     }
@@ -67,8 +78,42 @@ export default function Reklamationen() {
     }
   };
 
-  const pagedData = reklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const totalPages = Math.ceil(reklas.length / PAGE_SIZE);
+  // NEU: Filter und Sortierung anwenden
+  const applyFilters = (data, newFilters) => {
+    let result = [...data];
+
+    if (newFilters.filiale !== 'Alle') {
+      result = result.filter(r => r.filiale === newFilters.filiale);
+    }
+
+    if (newFilters.status !== 'Alle') {
+      result = result.filter(r => r.status === newFilters.status);
+    }
+
+    if (newFilters.reklaNr) {
+      const search = newFilters.reklaNr.toLowerCase();
+      result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
+    }
+
+    // Sortierung nach Datum
+    result.sort((a, b) => {
+      const dateA = new Date(a.datum);
+      const dateB = new Date(b.datum);
+      return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+
+    setFilteredReklas(result);
+    setCurrentPage(1);
+  };
+
+  // NEU: Filter aus Modal übernehmen
+  const handleFilterApply = (newFilters) => {
+    setFilters(newFilters);
+    applyFilters(reklas, newFilters);
+  };
+
+  const pagedData = filteredReklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredReklas.length / PAGE_SIZE);
   const visiblePages = () => {
     const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
     return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
@@ -101,7 +146,6 @@ export default function Reklamationen() {
     setCurrentPage(1);
   };
 
-  // NEU: Öffnet das Edit-Modal leer
   const openEditModal = () => {
     setShowEditModal(true);
   };
@@ -187,7 +231,7 @@ export default function Reklamationen() {
           <span className="text-2xl font-medium">Reklamation anlegen</span>
         </div>
 
-        {/* BEARBEITEN BUTTON – jetzt mit Funktion */}
+        {/* BEARBEITEN BUTTON */}
         {canEdit && (
           <div
             className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
@@ -208,6 +252,17 @@ export default function Reklamationen() {
             <span className="text-2xl font-medium">Reklamation bearbeiten</span>
           </div>
         )}
+
+        {/* NEU: FILTER BUTTON */}
+        <div
+          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+          onClick={() => setShowFilterModal(true)}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="white" viewBox="0 0 24 24">
+            <path d="M3 4h18v2H3V4zm2 4h14v2H5V8zm2 4h10v2H7v-2zm2 4h6v2H9v-2z" />
+          </svg>
+          <span className="text-2xl font-medium">Filter</span>
+        </div>
       </div>
 
       {/* Überschrift */}
@@ -243,7 +298,6 @@ export default function Reklamationen() {
             </div>
           </div>
         ))}
-        {/* Pagination */}
         <div className="flex justify-center items-center gap-3 mt-8 text-lg">
           <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
@@ -342,15 +396,24 @@ export default function Reklamationen() {
         />
       )}
 
-      {/* EDIT-MODAL – öffnet leer */}
+      {/* EDIT-MODAL */}
       {showEditModal && (
         <EditReklamationModal
-          initialData={{}} // leer – später kommt die Suche
+          initialData={{}}
           onClose={() => setShowEditModal(false)}
           onSubmit={() => {
             alert('Speichern kommt später – Modal geöffnet?');
             setShowEditModal(false);
           }}
+        />
+      )}
+
+      {/* NEU: FILTER-MODAL */}
+      {showFilterModal && (
+        <FilterModal
+          onClose={() => setShowFilterModal(false)}
+          onApply={handleFilterApply}
+          currentFilters={filters}
         />
       )}
     </div>
