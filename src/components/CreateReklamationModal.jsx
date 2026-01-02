@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -24,7 +25,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     versand: false,
     tracking_id: '',
     status: 'Angelegt',
-    letzte_aenderung: today, // Neu: Default heute
+    letzte_aenderung: today,
   });
 
   const [positionen, setPositionen] = useState([
@@ -46,10 +47,11 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     status: [],
   });
 
+  const [errors, setErrors] = useState({}); // Für rote Ränder
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // User-Rolle holen für Rechteprüfung
+  // User-Rolle für Letzte Änderung
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const userRole = (user.role || '').toLowerCase();
   const canEditLetzteAenderung = ['admin', 'supervisor'].includes(userRole);
@@ -76,13 +78,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
 
-        // Default-Filiale setzen, falls User eine hat
         if (user.filiale && filRes.data.includes(user.filiale)) {
           setFormData(prev => ({ ...prev, filiale: user.filiale }));
         }
       } catch (err) {
         console.error('Fehler beim Laden der Stammdaten:', err);
         setOptions(fallbackOptions);
+        toast.error('Stammdaten konnten nicht geladen werden – Fallback verwendet.');
       } finally {
         setLoading(false);
       }
@@ -104,6 +106,10 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+    // Fehler bei Änderung löschen
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: false }));
+    }
   };
 
   const handlePositionChange = (index, field, value) => {
@@ -111,6 +117,12 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       const newPos = [...prev];
       newPos[index] = { ...newPos[index], [field]: value };
       return newPos;
+    });
+    // Positionsfehler löschen
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[`pos_${index}_${field}`];
+      return newErrors;
     });
   };
 
@@ -131,14 +143,103 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const removePosition = (index) => {
     if (positionen.length === 1) return;
     setPositionen(prev => prev.filter((_, i) => i !== index));
+    // Fehler der gelöschten Position entfernen
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      Object.keys(newErrors).forEach(key => {
+        if (key.startsWith(`pos_${index}_`)) delete newErrors[key];
+      });
+      return newErrors;
+    });
+  };
+
+  const validate = () => {
+    const newErrors = {};
+
+    // Gemeinsame Pflichtfelder
+    if (!formData.rekla_nr.trim()) newErrors.rekla_nr = true;
+    if (!formData.art) newErrors.art = true;
+    if (!formData.lieferant) newErrors.lieferant = true;
+    if (!formData.ls_nummer_grund.trim()) newErrors.ls_nummer_grund = true;
+
+    // Versand prüfen
+    if (formData.versand && !formData.tracking_id.trim()) {
+      newErrors.tracking_id = true;
+    }
+
+    // Positionen prüfen
+    let hasValidPosition = false;
+    positionen.forEach((pos, index) => {
+      if (
+        pos.artikelnummer.trim() &&
+        pos.ean.trim() &&
+        pos.rekla_menge &&
+        pos.rekla_einheit
+      ) {
+        hasValidPosition = true;
+      } else if (
+        pos.artikelnummer.trim() ||
+        pos.ean.trim() ||
+        pos.rekla_menge ||
+        pos.rekla_einheit ||
+        pos.bestell_menge ||
+        pos.bestell_einheit
+      ) {
+        // Teilweise gefüllt → Pflichtfelder prüfen
+        if (!pos.artikelnummer.trim()) newErrors[`pos_${index}_artikelnummer`] = true;
+        if (!pos.ean.trim()) newErrors[`pos_${index}_ean`] = true;
+        if (!pos.rekla_menge) newErrors[`pos_${index}_rekla_menge`] = true;
+        if (!pos.rekla_einheit) newErrors[`pos_${index}_rekla_einheit`] = true;
+      }
+    });
+
+    if (!hasValidPosition) {
+      toast.error('Mindestens eine vollständige Position erforderlich!');
+      newErrors.noValidPosition = true;
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0 || newErrors.noValidPosition;
   };
 
   const handleSubmit = async () => {
+    if (!validate()) {
+      toast.error('Bitte alle Pflichtfelder ausfüllen!');
+      return;
+    }
+
     setIsSubmitting(true);
-    console.log('FormData:', formData);
-    console.log('Positionen:', positionen);
-    alert('Speichern noch nicht implementiert – siehe Konsole.');
-    setIsSubmitting(false);
+
+    // Nur vollständige Positionen mitsenden
+    const validPositionen = positionen.filter(pos =>
+      pos.artikelnummer.trim() &&
+      pos.ean.trim() &&
+      pos.rekla_menge &&
+      pos.rekla_einheit
+    );
+
+    const payload = {
+      ...formData,
+      positionen: validPositionen,
+    };
+
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/reklamationen`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(`Reklamation ${formData.rekla_nr} erfolgreich angelegt!`);
+      onSuccess(); // Liste neu laden
+      onClose();
+    } catch (error) {
+      console.error('Fehler beim Anlegen:', error);
+      toast.error('Fehler beim Speichern – siehe Konsole oder Backend.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -165,9 +266,8 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             </button>
           </div>
 
-          {/* Gemeinsame Felder – zwei Spalten */}
+          {/* Gemeinsame Felder */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
-            {/* Linke Spalte */}
             <div className="space-y-4">
               <div>
                 <label className="block font-semibold mb-1">Filiale</label>
@@ -182,29 +282,28 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
               </div>
               <div>
                 <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
-                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. REK-2026-001" />
+                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. REK-2026-001" />
               </div>
               <div>
                 <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
-                <select name="art" value={formData.art} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                <select name="art" value={formData.art} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
                   <option value="">-- Auswählen --</option>
                   {options.reklamationsarten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Rechte Spalte */}
             <div className="space-y-4">
               <div>
                 <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
-                <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
                   <option value="">-- Auswählen --</option>
                   {options.lieferanten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
-                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
+                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`} />
               </div>
               <div>
                 <label className="block font-semibold mb-1">Status</label>
@@ -229,8 +328,8 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
               </div>
               {formData.versand && (
                 <div>
-                  <label className="block font-semibold mb-1">Tracking ID</label>
-                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. DHL-Trackingnummer" />
+                  <label className="block font-semibold mb-1">Tracking ID {formData.versand && <span className="text-red-600">*</span>}</label>
+                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. DHL-Trackingnummer" />
                 </div>
               )}
             </div>
@@ -246,11 +345,11 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   <div className="space-y-4">
                     <div>
                       <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
-                      <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                      <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'}`} />
                     </div>
                     <div>
                       <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
-                      <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                      <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_ean`] ? 'border-red-500' : 'border-gray-300'}`} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -271,11 +370,11 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                        <input type="number" step="0.01" value={pos.rekla_menge} onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                        <input type="number" step="0.01" value={pos.rekla_menge} onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`} />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
-                        <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                        <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}>
                           <option value="">-- Auswählen --</option>
                           {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                         </select>
