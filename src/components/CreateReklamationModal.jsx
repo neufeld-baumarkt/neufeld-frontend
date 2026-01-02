@@ -6,6 +6,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { toast } from 'react-hot-toast';
 
 const today = new Date();
+const formatDate = (date) => date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 const fallbackOptions = {
   filialen: ['Ahaus', 'Münster', 'Telgte', 'Vreden'],
@@ -13,6 +14,17 @@ const fallbackOptions = {
   lieferanten: [],
   einheiten: ['KG', 'Stück', 'Liter', 'lfdm'],
   status: ['Angelegt', 'In Bearbeitung', 'Freigegeben', 'Abgelehnt', 'Erledigt'],
+};
+
+const prefixMap = {
+  'SmapOne': 'SMAP-',
+  'Grizzly': 'GR-',
+  // Ergänze weitere bekannte Arten hier, basierend auf VBA-Beispielen
+  'Falsche Lieferung': 'FL-',
+  'Beschädigt': 'BES-',
+  'Mangelhaft': 'MAN-',
+  'Falsche Menge': 'FM-',
+  'Sonstiges': 'SON-',
 };
 
 export default function CreateReklamationModal({ onClose, onSuccess }) {
@@ -26,8 +38,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     lieferant: '',
     ls_nummer_grund: '',
     status: 'Angelegt',
-    versand: false,
-    tracking_id: '',
   });
 
   const [activeTab, setActiveTab] = useState('einzel');
@@ -84,23 +94,23 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   useEffect(() => {
     const fetchAllData = async () => {
       const token = sessionStorage.getItem('token');
-      const config = token ? { headers: { Authorization: Bearer ${token} } } : {};
+      const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
 
       try {
         const [filRes, liefRes, artRes, einhRes, statRes] = await Promise.all([
-          axios.get(${import.meta.env.VITE_API_URL}/api/filialen, config),
-          axios.get(${import.meta.env.VITE_API_URL}/api/lieferanten, config),
-          axios.get(${import.meta.env.VITE_API_URL}/api/reklamationsarten, config),
-          axios.get(${import.meta.env.VITE_API_URL}/api/einheiten, config),
-          axios.get(${import.meta.env.VITE_API_URL}/api/status, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/filialen`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/lieferanten`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationsarten`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/einheiten`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/status`, config),
         ]);
 
         setOptions({
-          filialen: filRes.data?.length ? filRes.data : fallbackOptions.filialen,
-          lieferanten: liefRes.data?.length ? liefRes.data : fallbackOptions.lieferanten,
-          reklamationsarten: artRes.data?.length ? artRes.data : fallbackOptions.reklamationsarten,
-          einheiten: einhRes.data?.length ? einhRes.data : fallbackOptions.einheiten,
-          status: statRes.data?.length ? statRes.data : fallbackOptions.status,
+          filialen: filRes.data.length ? filRes.data : fallbackOptions.filialen,
+          lieferanten: liefRes.data.length ? liefRes.data : fallbackOptions.lieferanten,
+          reklamationsarten: artRes.data.length ? artRes.data : fallbackOptions.reklamationsarten,
+          einheiten: einhRes.data.length ? einhRes.data : fallbackOptions.einheiten,
+          status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
       } catch (err) {
         console.error('Fehler beim Laden der Stammdaten:', err);
@@ -115,69 +125,66 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   }, []);
 
   const handleCommonChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
-
-    setFormData((prev) => {
-      const next = { ...prev, [name]: newValue };
-
-      // Spezielle Logik für Lieferant SodaFixx
-      if (name === 'lieferant') {
-        if (value === 'SodaFixx') {
-          next.versand = true;
-        } else {
-          // Optional: Versand zurücksetzen, wenn nicht SodaFixx
-          // next.versand = false;
-          // next.tracking_id = '';
-        }
-      }
-
-      return next;
-    });
-
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+    if (name === 'art' && !formData.rekla_nr) {
+      const prefix = prefixMap[value] || '';
+      setFormData((prev) => ({ ...prev, rekla_nr: prefix }));
+    }
   };
 
   const handleDatumChange = (date) => {
     setFormData((prev) => ({ ...prev, datum: date }));
-    if (errors.datum) setErrors((prev) => ({ ...prev, datum: '' }));
+    if (errors.datum) {
+      setErrors((prev) => ({ ...prev, datum: '' }));
+    }
   };
 
   const handleSingleChange = (e) => {
     const { name, value } = e.target;
-
     setSinglePosition((prev) => {
-      const next = { ...prev, [name]: value };
-      if (name === 'bestell_einheit' && !next.rekla_einheit) next.rekla_einheit = value;
-      return next;
+      const newPos = { ...prev, [name]: value };
+      if (name === 'bestell_einheit' && !newPos.rekla_einheit) {
+        newPos.rekla_einheit = value;
+      }
+      return newPos;
     });
-
-    const key = single_${name};
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: '' }));
+    if (errors[`single_${name}`]) {
+      setErrors((prev) => ({ ...prev, [`single_${name}`]: '' }));
+    }
   };
 
   const handleMultiChange = (id, e) => {
     const { name, value, checked, type } = e.target;
-    const newValue = type === 'checkbox' ? checked : value;
-
     setMultiPositions((prev) =>
-      prev.map((pos) => {
-        if (pos.id !== id) return pos;
-
-        const next = { ...pos, [name]: newValue };
-
-        // Auto-aktivieren sobald Artikelnummer drin ist
-        if (name === 'artikelnummer' && value) next.active = true;
-
-        // Wenn Bestell-Einheit gesetzt wird und Rekla-Einheit leer ist -> übernehmen
-        if (name === 'bestell_einheit' && !pos.rekla_einheit) next.rekla_einheit = value;
-
-        return next;
-      })
+      prev.map((pos) =>
+        pos.id === id
+          ? {
+              ...pos,
+              [name]: type === 'checkbox' ? checked : value,
+              active: name === 'artikelnummer' && value ? true : pos.active,
+            }
+          : pos
+      )
     );
-
-    const key = multi_\( {id}_ \){name};
-    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: '' }));
+    if (name === 'bestell_einheit') {
+      setMultiPositions((prev) =>
+        prev.map((pos) =>
+          pos.id === id && !pos.rekla_einheit
+            ? { ...pos, rekla_einheit: value }
+            : pos
+        )
+      );
+    }
+    if (errors[`multi_\( {id}_ \){name}`]) {
+      setErrors((prev) => ({ ...prev, [`multi_\( {id}_ \){name}`]: '' }));
+    }
   };
 
   const addMultiPosition = () => {
@@ -209,14 +216,12 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     if (!formData.lieferant) err.lieferant = true;
     if (!formData.ls_nummer_grund) err.ls_nummer_grund = true;
     if (!formData.status) err.status = true;
-    if (formData.versand && !formData.tracking_id) err.tracking_id = true;
     return err;
   };
 
   const validatePositions = () => {
     const err = {};
     let positions = [];
-
     if (activeTab === 'einzel') {
       positions = [singlePosition];
       if (!singlePosition.artikelnummer) err.single_artikelnummer = true;
@@ -225,16 +230,15 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       if (!singlePosition.rekla_einheit) err.single_rekla_einheit = true;
     } else {
       positions = multiPositions.filter((pos) => pos.active);
-
       multiPositions.forEach((pos) => {
-        if (!pos.active) return;
-        if (!pos.artikelnummer) err[multi_${pos.id}_artikelnummer] = true;
-        if (!pos.ean) err[multi_${pos.id}_ean] = true;
-        if (!pos.rekla_menge) err[multi_${pos.id}_rekla_menge] = true;
-        if (!pos.rekla_einheit) err[multi_${pos.id}_rekla_einheit] = true;
+        if (pos.active) {
+          if (!pos.artikelnummer) err[`multi_${pos.id}_artikelnummer`] = true;
+          if (!pos.ean) err[`multi_${pos.id}_ean`] = true;
+          if (!pos.rekla_menge) err[`multi_${pos.id}_rekla_menge`] = true;
+          if (!pos.rekla_einheit) err[`multi_${pos.id}_rekla_einheit`] = true;
+        }
       });
     }
-
     if (positions.length === 0) err.no_positions = true;
     return err;
   };
@@ -252,29 +256,27 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     }
 
     setIsSubmitting(true);
-
     const token = sessionStorage.getItem('token');
     const submitData = {
       ...formData,
-      datum: formData.datum.toISOString().split('T')[0],
+      datum: formData.datum.toISOString().split('T')[0], // ISO für Backend
       positionen:
         activeTab === 'einzel'
           ? [singlePosition]
-          : multiPositions
-              .filter((pos) => pos.active)
-              .map(({ id, active, ...rest }) => rest),
+          : multiPositions.filter((pos) => pos.active).map(({ id, active, ...rest }) => rest),
     };
 
     try {
-      await axios.post(${import.meta.env.VITE_API_URL}/api/reklamationen, submitData, {
-        headers: { Authorization: Bearer ${token} },
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/reklamationen`, submitData, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      toast.success(Die Informationen zu ${formData.rekla_nr} wurden erfolgreich übernommen.);
+      toast.success(`Die Informationen zu ${formData.rekla_nr} wurden erfolgreich übernommen.`);
       onSuccess?.();
-      onClose?.();
+      onClose();
     } catch (error) {
       console.error('Fehler beim Anlegen:', error);
       toast.error('Fehler beim Speichern – siehe Konsole.');
+      // TODO: Handle duplicate rekla_nr if Backend returns specific error
     } finally {
       setIsSubmitting(false);
     }
@@ -289,8 +291,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       </div>
     );
   }
-
-  const isSodaFixx = formData.lieferant === 'SodaFixx';
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
@@ -316,9 +316,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   value={formData.filiale}
                   onChange={handleCommonChange}
                   disabled={!isSuperUser}
-                  className={`w-full px-4 py-2 border rounded-lg ${
-                    errors.filiale ? 'border-red-500' : 'border-gray-300'
-                  } ${!isSuperUser ? 'bg-gray-100' : ''}`}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.filiale ? 'border-red-500' : 'border-gray-300'} ${!isSuperUser ? 'bg-gray-100' : ''}`}
                 >
                   <option value="">-- Auswählen --</option>
                   {options.filialen.map((opt) => (
@@ -335,7 +333,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   name="art"
                   value={formData.art}
                   onChange={handleCommonChange}
-                  className={w-full px-4 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}
                 >
                   <option value="">-- Auswählen --</option>
                   {options.reklamationsarten.map((opt) => (
@@ -354,7 +352,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   selected={formData.datum}
                   onChange={handleDatumChange}
                   dateFormat="dd.MM.yyyy"
-                  className={w-full px-4 py-2 border rounded-lg ${errors.datum ? 'border-red-500' : 'border-gray-300'}}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.datum ? 'border-red-500' : 'border-gray-300'}`}
                 />
               </div>
 
@@ -365,8 +363,8 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   name="rekla_nr"
                   value={formData.rekla_nr}
                   onChange={handleCommonChange}
-                  placeholder="z. B. 2026-001"
-                  className={w-full px-4 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}}
+                  placeholder="z. B. SMAP-2026-001"
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`}
                 />
               </div>
             </div>
@@ -378,7 +376,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   name="lieferant"
                   value={formData.lieferant}
                   onChange={handleCommonChange}
-                  className={w-full px-4 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}
                 >
                   <option value="">-- Auswählen --</option>
                   {options.lieferanten.map((opt) => (
@@ -397,7 +395,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   value={formData.ls_nummer_grund}
                   onChange={handleCommonChange}
                   placeholder="z. B. Lieferschein-Nr. oder Grund"
-                  className={w-full px-4 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`}
                 />
               </div>
             </div>
@@ -409,7 +407,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   name="status"
                   value={formData.status}
                   onChange={handleCommonChange}
-                  className={w-full px-4 py-2 border rounded-lg ${errors.status ? 'border-red-500' : 'border-gray-300'}}
+                  className={`w-full px-4 py-2 border rounded-lg ${errors.status ? 'border-red-500' : 'border-gray-300'}`}
                 >
                   {options.status.map((opt) => (
                     <option key={opt} value={opt}>
@@ -418,33 +416,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   ))}
                 </select>
               </div>
-
-              <div className="flex items-start gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="versand"
-                    checked={formData.versand}
-                    onChange={handleCommonChange}
-                    disabled={isSodaFixx}
-                    className="w-5 h-5"
-                  />
-                  <label className="font-semibold text-[#3A3838]">Versand (Rücksendung)</label>
-                </div>
-                {formData.versand && (
-                  <div className="flex-1">
-                    <label className="block font-semibold mb-1 text-[#3A3838]">Tracking-ID *</label>
-                    <input
-                      type="text"
-                      name="tracking_id"
-                      value={formData.tracking_id}
-                      onChange={handleCommonChange}
-                      placeholder="z. B. GLS-Tracking-Nummer"
-                      className={w-full px-4 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}}
-                    />
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
@@ -452,8 +423,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           <div className="col-span-1 p-4 bg-gray-100 rounded-lg shadow-inner">
             <h3 className="text-lg font-bold mb-2 text-[#800000]">Hinweise</h3>
             <p className="text-sm text-[#3A3838]">
-              <strong>Einzeleingabe:</strong> Für Reklamationen mit nur einer Position.
-              <br />
+              <strong>Einzeleingabe:</strong> Für Reklamationen mit nur einer Position.<br />
               <strong>Mehrfacheingabe:</strong> Für mehrere Positionen in einer Reklamation. Markieren Sie Zeilen mit der Checkbox oder beginnen Sie mit der Artikelnummer-Eingabe, um sie zu aktivieren. Fügen Sie bei Bedarf weitere Zeilen hinzu.
             </p>
           </div>
@@ -464,17 +434,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           <div className="flex border-b">
             <button
               onClick={() => setActiveTab('einzel')}
-              className={`px-6 py-3 font-medium ${
-                activeTab === 'einzel' ? 'border-b-2 border-[#800000] text-[#800000]' : 'text-gray-500'
-              }`}
+              className={`px-6 py-3 font-medium ${activeTab === 'einzel' ? 'border-b-2 border-[#800000] text-[#800000]' : 'text-gray-500'}`}
             >
               Einzeleingabe
             </button>
             <button
               onClick={() => setActiveTab('mehrfach')}
-              className={`px-6 py-3 font-medium ${
-                activeTab === 'mehrfach' ? 'border-b-2 border-[#800000] text-[#800000]' : 'text-gray-500'
-              }`}
+              className={`px-6 py-3 font-medium ${activeTab === 'mehrfach' ? 'border-b-2 border-[#800000] text-[#800000]' : 'text-gray-500'}`}
             >
               Mehrfacheingabe
             </button>
@@ -490,7 +456,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     name="artikelnummer"
                     value={singlePosition.artikelnummer}
                     onChange={handleSingleChange}
-                    className={w-full px-4 py-2 border rounded-lg ${errors.single_artikelnummer ? 'border-red-500' : 'border-gray-300'}}
+                    className={`w-full px-4 py-2 border rounded-lg ${errors.single_artikelnummer ? 'border-red-500' : 'border-gray-300'}`}
                   />
                 </div>
                 <div>
@@ -500,7 +466,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     name="ean"
                     value={singlePosition.ean}
                     onChange={handleSingleChange}
-                    className={w-full px-4 py-2 border rounded-lg ${errors.single_ean ? 'border-red-500' : 'border-gray-300'}}
+                    className={`w-full px-4 py-2 border rounded-lg ${errors.single_ean ? 'border-red-500' : 'border-gray-300'}`}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -543,7 +509,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                       onChange={handleSingleChange}
                       min="0"
                       step="0.01"
-                      className={w-full px-4 py-2 border rounded-lg ${errors.single_rekla_menge ? 'border-red-500' : 'border-gray-300'}}
+                      className={`w-full px-4 py-2 border rounded-lg ${errors.single_rekla_menge ? 'border-red-500' : 'border-gray-300'}`}
                     />
                   </div>
                   <div>
@@ -552,7 +518,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                       name="rekla_einheit"
                       value={singlePosition.rekla_einheit}
                       onChange={handleSingleChange}
-                      className={w-full px-4 py-2 border rounded-lg ${errors.single_rekla_einheit ? 'border-red-500' : 'border-gray-300'}}
+                      className={`w-full px-4 py-2 border rounded-lg ${errors.single_rekla_einheit ? 'border-red-500' : 'border-gray-300'}`}
                     >
                       <option value="">--</option>
                       {options.einheiten.map((opt) => (
@@ -597,9 +563,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                             name="artikelnummer"
                             value={pos.artikelnummer}
                             onChange={(e) => handleMultiChange(pos.id, e)}
-                            className={`w-full border rounded-lg px-2 py-1 ${
-                              errors[multi_${pos.id}_artikelnummer] ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-lg px-2 py-1 \( {errors[`multi_ \){pos.id}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'}`}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -608,9 +572,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                             name="ean"
                             value={pos.ean}
                             onChange={(e) => handleMultiChange(pos.id, e)}
-                            className={`w-full border rounded-lg px-2 py-1 ${
-                              errors[multi_${pos.id}_ean] ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-lg px-2 py-1 \( {errors[`multi_ \){pos.id}_ean`] ? 'border-red-500' : 'border-gray-300'}`}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -647,9 +609,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                             onChange={(e) => handleMultiChange(pos.id, e)}
                             min="0"
                             step="0.01"
-                            className={`w-full border rounded-lg px-2 py-1 ${
-                              errors[multi_${pos.id}_rekla_menge] ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-lg px-2 py-1 \( {errors[`multi_ \){pos.id}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`}
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -657,9 +617,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                             name="rekla_einheit"
                             value={pos.rekla_einheit}
                             onChange={(e) => handleMultiChange(pos.id, e)}
-                            className={`w-full border rounded-lg px-2 py-1 ${
-                              errors[multi_${pos.id}_rekla_einheit] ? 'border-red-500' : 'border-gray-300'
-                            }`}
+                            className={`w-full border rounded-lg px-2 py-1 \( {errors[`multi_ \){pos.id}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}
                           >
                             <option value="">--</option>
                             {options.einheiten.map((opt) => (
@@ -670,7 +628,10 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                           </select>
                         </td>
                         <td className="px-4 py-2">
-                          <button onClick={() => removeMultiPosition(pos.id)} className="text-red-600 hover:text-red-800">
+                          <button
+                            onClick={() => removeMultiPosition(pos.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
                             Löschen
                           </button>
                         </td>
@@ -678,7 +639,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                     ))}
                   </tbody>
                 </table>
-
                 <button
                   onClick={addMultiPosition}
                   className="mt-4 px-4 py-2 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition"
