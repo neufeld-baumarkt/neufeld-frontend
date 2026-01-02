@@ -83,7 +83,6 @@ const EditReklamationModal = ({ onClose }) => {
     fetchAllData();
   }, []);
 
-  // Suche – unverändert
   useEffect(() => {
     const filterResults = () => {
       let results = allReklamationen;
@@ -133,21 +132,17 @@ const EditReklamationModal = ({ onClose }) => {
       const data = response.data.reklamation;
       const pos = response.data.positionen || [];
 
-      // WICHTIG: datum aus DB, letzte_aenderung = today
-      const anlegeDatum = data.datum || today; // Fallback, falls leer
-      const letzteAenderung = today; // Immer aktuell beim Bearbeiten
-
       setFormData({
         filiale: data.filiale || '',
         art: data.art || '',
-        datum: anlegeDatum,
+        datum: data.datum || today, // Aus DB, fallback today
         rekla_nr: data.rekla_nr || '',
         lieferant: data.lieferant || '',
         ls_nummer_grund: data.ls_nummer_grund || '',
         versand: data.versand || false,
         tracking_id: data.tracking_id || '',
         status: data.status || 'Angelegt',
-        letzte_aenderung: letzteAenderung,
+        letzte_aenderung: today, // Immer aktuell beim Bearbeiten
       });
 
       setPositionen(pos.length > 0 ? pos.map(p => ({
@@ -174,8 +169,6 @@ const EditReklamationModal = ({ onClose }) => {
       setLoadingDetails(false);
     }
   };
-
-  // Rest unverändert (handleCommonChange, handlePositionChange, add/remove, etc.)
 
   const handleCommonChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -231,8 +224,57 @@ const EditReklamationModal = ({ onClose }) => {
             <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">×</button>
           </div>
 
-          {/* Suchbereich – unverändert */}
-          {/* ... (wie vorher) ... */}
+          {/* Suchbereich */}
+          <div className="mb-10">
+            <h3 className="text-xl font-bold mb-4">Suche nach Reklamation</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">Filiale</label>
+                  <select name="filiale" value={searchData.filiale} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg">
+                    <option value="">Alle</option>
+                    {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Suchbegriff</label>
+                  <input type="text" name="suchbegriff" value={searchData.suchbegriff} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. Lieferant oder Art" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">Reklamations-Nr.</label>
+                  <input type="text" name="rekla_nr" value={searchData.rekla_nr} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">LS-Nummer / Grund</label>
+                  <input type="text" name="ls_nummer_grund" value={searchData.ls_nummer_grund} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Artikel-Nr.</label>
+                  <input type="text" name="artikelnummer" value={searchData.artikelnummer} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Ergebnisliste */}
+          <div className="mb-10">
+            <h3 className="text-xl font-bold mb-4">Suchergebnisse ({filteredResults.length})</h3>
+            {isSearching && <div className="text-center text-gray-600">Suche läuft...</div>}
+            {!isSearching && filteredResults.length === 0 && <div className="text-center text-gray-600">Keine Ergebnisse gefunden.</div>}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredResults.map(r => (
+                <div key={r.id} onClick={() => handleSelect(r)} className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition border border-gray-200">
+                  <div className="flex justify-between">
+                    <span className="font-bold">{r.rekla_nr}</span>
+                    <span>{r.filiale}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">Datum: {r.datum} | Lieferant: {r.lieferant}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
           {/* Bearbeitungsbereich */}
           {selectedReklamation && formData && (
@@ -313,8 +355,65 @@ const EditReklamationModal = ({ onClose }) => {
                     </div>
                   </div>
 
-                  {/* Positionen – unverändert */}
-                  {/* ... (wie vorher) ... */}
+                  <div>
+                    <h3 className="text-xl font-bold mb-4">Positionen</h3>
+                    {positionen.map((pos, index) => (
+                      <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block font-semibold mb-1">Artikelnummer</label>
+                              <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                            </div>
+                            <div>
+                              <label className="block font-semibold mb-1">EAN</label>
+                              <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block font-semibold mb-1">Bestellmenge</label>
+                                <input type="number" step="1" min="0" value={pos.bestell_menge} onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                              </div>
+                              <div>
+                                <label className="block font-semibold mb-1">Einheit</label>
+                                <select value={pos.bestell_einheit} onChange={e => handlePositionChange(index, 'bestell_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                                  <option value="">--</option>
+                                  {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block font-semibold mb-1">Reklamationsmenge</label>
+                                <input type="number" step="1" min="0" value={pos.rekla_menge} onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                              </div>
+                              <div>
+                                <label className="block font-semibold mb-1">Einheit</label>
+                                <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                                  <option value="">-- Auswählen --</option>
+                                  {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {positionen.length > 1 && (
+                          <button onClick={() => removePosition(index)} className="absolute top-4 right-4 text-red-600 hover:text-red-800">
+                            <Trash2 size={20} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    <button onClick={addPosition} className="flex items-center gap-2 px-5 py-2.5 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-medium">
+                      <Plus size={18} />
+                      Neue Position hinzufügen
+                    </button>
+                  </div>
                 </>
               )}
             </div>
