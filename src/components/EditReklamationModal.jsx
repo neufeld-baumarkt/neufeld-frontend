@@ -4,6 +4,8 @@ import axios from 'axios';
 import { Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const today = new Date().toISOString().split('T')[0]; // Für letzte_aenderung
+
 const fallbackOptions = {
   filialen: ['Ahaus', 'Münster', 'Telgte', 'Vreden'],
   reklamationsarten: ['Falsche Lieferung', 'Beschädigt', 'Mangelhaft', 'Falsche Menge', 'Sonstiges'],
@@ -21,7 +23,7 @@ const EditReklamationModal = ({ onClose }) => {
     artikelnummer: '',
   });
 
-  const [formData, setFormData] = useState(null); // Wird bei Auswahl gefüllt
+  const [formData, setFormData] = useState(null);
   const [positionen, setPositionen] = useState([]);
 
   const [options, setOptions] = useState({
@@ -81,7 +83,6 @@ const EditReklamationModal = ({ onClose }) => {
     fetchAllData();
   }, []);
 
-  // Suche
   useEffect(() => {
     const filterResults = () => {
       let results = allReklamationen;
@@ -134,14 +135,14 @@ const EditReklamationModal = ({ onClose }) => {
       setFormData({
         filiale: data.filiale || '',
         art: data.art || '',
-        datum: data.datum || '',
-        rekla_nr: data.rekla_nr || '',
+        datum: data.datum || '', // Aus DB – readOnly
+        rekla_nr: data.rekla_nr || '', // Bearbeitbar!
         lieferant: data.lieferant || '',
         ls_nummer_grund: data.ls_nummer_grund || '',
         versand: data.versand || false,
         tracking_id: data.tracking_id || '',
         status: data.status || 'Angelegt',
-        letzte_aenderung: data.letzte_aenderung || '',
+        letzte_aenderung: today, // Automatisch aktuelles Datum
       });
 
       setPositionen(pos.length > 0 ? pos.map(p => ({
@@ -160,7 +161,7 @@ const EditReklamationModal = ({ onClose }) => {
         rekla_einheit: '',
       }]);
 
-      toast.success(`Reklamation ${data.rekla_nr} geladen – jetzt bearbeitbar!`);
+      toast.success(`Reklamation ${data.rekla_nr} geladen – bereit zur Bearbeitung!`);
     } catch (err) {
       console.error('Fehler beim Laden der Details:', err);
       toast.error('Details konnten nicht geladen werden.');
@@ -223,7 +224,7 @@ const EditReklamationModal = ({ onClose }) => {
             <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">×</button>
           </div>
 
-          {/* Suchbereich */}
+          {/* Suchbereich – unverändert */}
           <div className="mb-10">
             <h3 className="text-xl font-bold mb-4">Suche nach Reklamation</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -257,7 +258,7 @@ const EditReklamationModal = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Ergebnisliste */}
+          {/* Ergebnisliste – unverändert */}
           <div className="mb-10">
             <h3 className="text-xl font-bold mb-4">Suchergebnisse ({filteredResults.length})</h3>
             {isSearching && <div className="text-center text-gray-600">Suche läuft...</div>}
@@ -286,7 +287,6 @@ const EditReklamationModal = ({ onClose }) => {
                 <div className="text-center text-gray-600">Lade Details...</div>
               ) : (
                 <>
-                  {/* Gemeinsame Felder – wie im Create */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                     <div className="space-y-4">
                       <div>
@@ -298,11 +298,11 @@ const EditReklamationModal = ({ onClose }) => {
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Anlegedatum</label>
-                        <input type="date" name="datum" value={formData.datum} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
+                        <input type="date" value={formData.datum} readOnly className="w-full px-3 py-2 border rounded-lg bg-gray-100 cursor-not-allowed" />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Reklamationsnr.</label>
-                        <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} readOnly className="w-full px-3 py-2 border rounded-lg bg-gray-100" />
+                        <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Art der Reklamation</label>
@@ -355,7 +355,7 @@ const EditReklamationModal = ({ onClose }) => {
                     </div>
                   </div>
 
-                  {/* Positionen – wie im Create */}
+                  {/* Positionen – unverändert */}
                   <div>
                     <h3 className="text-xl font-bold mb-4">Positionen</h3>
                     {positionen.map((pos, index) => (
@@ -420,12 +420,10 @@ const EditReklamationModal = ({ onClose }) => {
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
             <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition">
               Abbrechen
             </button>
-            {/* Speichern & Löschen kommen in Schritt 3 */}
           </div>
         </div>
       </div>
