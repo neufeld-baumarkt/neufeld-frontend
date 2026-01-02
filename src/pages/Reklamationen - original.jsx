@@ -1,29 +1,30 @@
-// src/pages/Reklamationen.jsx
+// src/pages/Reklamationen.jsx – Mit Filter-Button und Filter-Modal
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import CreateReklamationModal from '../components/CreateReklamationModal';
 import EditReklamationModal from '../components/EditReklamationModal';
-import FilterModal from '../components/FilterModal';
+import FilterModal from '../components/FilterModal'; // NEU
 
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
-  const [filteredReklas, setFilteredReklas] = useState([]);
+  const [filteredReklas, setFilteredReklas] = useState([]); // Gefilterte Liste
   const [currentPage, setCurrentPage] = useState(1);
   const [activeReklaId, setActiveReklaId] = useState(null);
   const [reklaDetails, setReklaDetails] = useState({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showFilterModal, setShowFilterModal] = useState(false);
-  const [filters, setFilters] = useState({
+  const [showFilterModal, setShowFilterModal] = useState(false); // NEU
+  const [filters, setFilters] = useState({ // NEU
     filiale: 'Alle',
     status: 'Alle',
     reklaNr: '',
     sortDatum: 'desc'
   });
 
+  // User aus Session
   let user = null;
   try {
     user = JSON.parse(sessionStorage.getItem("user"));
@@ -40,6 +41,7 @@ export default function Reklamationen() {
     rawFiliale.toLowerCase().trim() === "alle" ||
     ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
+  // Bearbeiten erlaubt? Nein bei role "Filiale"
   const canEdit = userRole.toLowerCase() !== 'filiale';
 
   const headlineText = isSuperUser
@@ -54,7 +56,7 @@ export default function Reklamationen() {
       });
       const data = response.data;
       setReklas(data);
-      applyFilters(data, filters);
+      applyFilters(data, filters); // Filter anwenden
     } catch (error) {
       console.error('Fehler beim Laden der Reklamationen:', error);
     }
@@ -76,27 +78,35 @@ export default function Reklamationen() {
     }
   };
 
+  // NEU: Filter und Sortierung anwenden
   const applyFilters = (data, newFilters) => {
     let result = [...data];
+
     if (newFilters.filiale !== 'Alle') {
       result = result.filter(r => r.filiale === newFilters.filiale);
     }
+
     if (newFilters.status !== 'Alle') {
       result = result.filter(r => r.status === newFilters.status);
     }
+
     if (newFilters.reklaNr) {
       const search = newFilters.reklaNr.toLowerCase();
       result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
     }
+
+    // Sortierung nach Datum
     result.sort((a, b) => {
       const dateA = new Date(a.datum);
       const dateB = new Date(b.datum);
       return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
     });
+
     setFilteredReklas(result);
     setCurrentPage(1);
   };
 
+  // NEU: Filter aus Modal übernehmen
   const handleFilterApply = (newFilters) => {
     setFilters(newFilters);
     applyFilters(reklas, newFilters);
@@ -104,7 +114,6 @@ export default function Reklamationen() {
 
   const pagedData = filteredReklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const totalPages = Math.ceil(filteredReklas.length / PAGE_SIZE);
-
   const visiblePages = () => {
     const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
     return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
@@ -143,6 +152,7 @@ export default function Reklamationen() {
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
+      {/* HOVER-ONLY ANIMATIONS */}
       <style jsx>{`
         @keyframes arrowWiggle {
           0%, 100% { transform: translateX(0); }
@@ -158,12 +168,14 @@ export default function Reklamationen() {
         }
       `}</style>
 
+      {/* Rahmen-Design */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
+      {/* Userinfo Dropdown */}
       <div
         className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
         style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
@@ -183,6 +195,7 @@ export default function Reklamationen() {
         )}
       </div>
 
+      {/* ZURÜCK BUTTON */}
       <div
         className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
         onClick={handleZurueck}
@@ -199,7 +212,9 @@ export default function Reklamationen() {
         <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
       </div>
 
+      {/* RECHTE BUTTONS */}
       <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
+        {/* ANLEGEN BUTTON */}
         <div
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
           onClick={() => setShowCreateModal(true)}
@@ -216,6 +231,7 @@ export default function Reklamationen() {
           <span className="text-2xl font-medium">Reklamation anlegen</span>
         </div>
 
+        {/* BEARBEITEN BUTTON */}
         {canEdit && (
           <div
             className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
@@ -237,6 +253,7 @@ export default function Reklamationen() {
           </div>
         )}
 
+        {/* NEU: FILTER BUTTON */}
         <div
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
           onClick={() => setShowFilterModal(true)}
@@ -248,11 +265,13 @@ export default function Reklamationen() {
         </div>
       </div>
 
+      {/* Überschrift */}
       <h1 className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
           style={{ top: '100px', left: '92px' }}>
         {headlineText}
       </h1>
 
+      {/* TABELLE + PAGINATION */}
       <div className="pt-64 px-[80px]">
         <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
           <div>lfd. Nr.</div>
@@ -261,7 +280,6 @@ export default function Reklamationen() {
           <div>Lieferant</div>
           <div className="text-right">Status</div>
         </div>
-
         {pagedData.map(rekla => (
           <div
             key={rekla.id}
@@ -280,7 +298,6 @@ export default function Reklamationen() {
             </div>
           </div>
         ))}
-
         <div className="flex justify-center items-center gap-3 mt-8 text-lg">
           <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
@@ -298,6 +315,7 @@ export default function Reklamationen() {
         </div>
       </div>
 
+      {/* DETAIL-MODAL */}
       {activeReklaId && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
@@ -370,6 +388,7 @@ export default function Reklamationen() {
         </div>
       )}
 
+      {/* ANLEGE-MODAL */}
       {showCreateModal && (
         <CreateReklamationModal
           onClose={() => setShowCreateModal(false)}
@@ -377,13 +396,19 @@ export default function Reklamationen() {
         />
       )}
 
+      {/* EDIT-MODAL */}
       {showEditModal && (
         <EditReklamationModal
+          initialData={{}}
           onClose={() => setShowEditModal(false)}
-          onSuccess={handleCreateSuccess}
+          onSubmit={() => {
+            alert('Speichern kommt später – Modal geöffnet?');
+            setShowEditModal(false);
+          }}
         />
       )}
 
+      {/* NEU: FILTER-MODAL */}
       {showFilterModal && (
         <FilterModal
           onClose={() => setShowFilterModal(false)}

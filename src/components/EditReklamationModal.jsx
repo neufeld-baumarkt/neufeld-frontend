@@ -52,7 +52,7 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const userRole = (user.role || '').toLowerCase();
   const canEditLetzteAenderung = ['admin', 'supervisor'].includes(userRole);
-  const canDelete = canEditLetzteAenderung; // Nur Admin/Supervisor dürfen löschen
+  const canDelete = canEditLetzteAenderung;
 
   useEffect(() => {
     const fetchAllData = async () => {
@@ -90,6 +90,12 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
 
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (formData && formData.lieferant === 'SodaFixx') {
+      setFormData(prev => ({ ...prev, versand: true }));
+    }
+  }, [formData?.lieferant]);
 
   useEffect(() => {
     const filterResults = () => {
@@ -184,9 +190,7 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: false }));
-    }
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: false }));
   };
 
   const handlePositionChange = (index, field, value) => {
@@ -219,13 +223,6 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
   const removePosition = (index) => {
     if (positionen.length === 1) return;
     setPositionen(prev => prev.filter((_, i) => i !== index));
-    setErrors(prev => {
-      const newErrors = { ...prev };
-      Object.keys(newErrors).forEach(key => {
-        if (key.startsWith(`pos_${index}_`)) delete newErrors[key];
-      });
-      return newErrors;
-    });
   };
 
   const validate = () => {
@@ -299,11 +296,11 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
       );
 
       toast.success(`Änderungen an ${formData.rekla_nr} erfolgreich übernommen!`);
-      onSuccess(); // Liste neu laden
+      onSuccess();
       onClose();
     } catch (err) {
       console.error('Fehler beim Speichern:', err);
-      toast.error('Fehler beim Speichern – siehe Konsole oder Backend.');
+      toast.error('Fehler beim Speichern – siehe Konsole.');
     } finally {
       setIsSubmitting(false);
     }
@@ -328,7 +325,7 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
       onClose();
     } catch (err) {
       console.error('Fehler beim Löschen:', err);
-      toast.error('Fehler beim Löschen – Zugriff verweigert oder Backend-Fehler.');
+      toast.error('Löschen fehlgeschlagen – Zugriff verweigert oder Backend-Fehler.');
     } finally {
       setIsSubmitting(false);
     }
@@ -356,13 +353,56 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
             <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">×</button>
           </div>
 
-          {/* Suchbereich – unverändert */}
-          {/* ... (wie vorher) ... */}
+          <div className="mb-10">
+            <h3 className="text-xl font-bold mb-4">Suche nach Reklamation</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">Filiale</label>
+                  <select name="filiale" value={searchData.filiale} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg">
+                    <option value="">Alle</option>
+                    {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Suchbegriff</label>
+                  <input type="text" name="suchbegriff" value={searchData.suchbegriff} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" placeholder="z. B. Lieferant oder Art" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block font-semibold mb-1">Reklamations-Nr.</label>
+                  <input type="text" name="rekla_nr" value={searchData.rekla_nr} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">LS-Nummer / Grund</label>
+                  <input type="text" name="ls_nummer_grund" value={searchData.ls_nummer_grund} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Artikel-Nr.</label>
+                  <input type="text" name="artikelnummer" value={searchData.artikelnummer} onChange={handleSearchChange} className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+              </div>
+            </div>
+          </div>
 
-          {/* Ergebnisliste – unverändert */}
-          {/* ... (wie vorher) ... */}
+          <div className="mb-10">
+            <h3 className="text-xl font-bold mb-4">Suchergebnisse ({filteredResults.length})</h3>
+            {isSearching && <div className="text-center text-gray-600">Suche läuft...</div>}
+            {!isSearching && filteredResults.length === 0 && <div className="text-center text-gray-600">Keine Ergebnisse gefunden.</div>}
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {filteredResults.map(r => (
+                <div key={r.id} onClick={() => handleSelect(r)} className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition border border-gray-200">
+                  <div className="flex justify-between">
+                    <span className="font-bold">{r.rekla_nr}</span>
+                    <span>{r.filiale}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">Datum: {formatDateForInput(r.datum)} | Lieferant: {r.lieferant}</div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          {/* Bearbeitungsbereich */}
           {selectedReklamation && formData && (
             <div>
               <h3 className="text-xl font-bold mb-6">
@@ -373,7 +413,6 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
                 <div className="text-center text-gray-600">Lade Details...</div>
               ) : (
                 <>
-                  {/* Felder – wie vorher, mit roten Rändern bei Fehlern */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                     <div className="space-y-4">
                       <div>
@@ -442,7 +481,6 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
                     </div>
                   </div>
 
-                  {/* Positionen mit Validierung */}
                   <div>
                     <h3 className="text-xl font-bold mb-4">Positionen</h3>
                     {positionen.map((pos, index) => (
@@ -507,7 +545,6 @@ const EditReklamationModal = ({ onClose, onSuccess }) => {
             </div>
           )}
 
-          {/* Buttons – jetzt mit Speichern und Löschen */}
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
             <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
               Abbrechen
