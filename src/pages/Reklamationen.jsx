@@ -46,6 +46,49 @@ export default function Reklamationen() {
     ? "Reklamationsliste"
     : `Reklamationsliste – Filiale ${rawFiliale}`;
 
+  const formatDate = (isoDate) => {
+    if (!isoDate) return "-";
+    return new Date(isoDate).toLocaleDateString('de-DE');
+  };
+
+  const getStatusColor = (status) => {
+    switch ((status || "").toLowerCase()) {
+      case 'angelegt': return 'text-blue-600';
+      case 'bearbeitet':
+      case 'in bearbeitung': return 'text-yellow-600';
+      case 'freigegeben': return 'text-green-600';
+      case 'abgelehnt': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  // lfd.-Anzeige für Listenansicht: min_lfd_nr oder "min+X" (X = count-1)
+  const formatLfdLabelFromListRow = (rekla) => {
+    const min = rekla?.min_lfd_nr;
+    const cntRaw = rekla?.position_count;
+    const cnt = cntRaw == null ? 0 : Number(cntRaw);
+
+    if (min == null) return '#';
+    if (!Number.isFinite(cnt) || cnt <= 1) return String(min);
+    return `${min}+${cnt - 1}`;
+  };
+
+  // lfd.-Anzeige für Modal: nutzt wenn vorhanden die Aggregatfelder aus der Liste,
+  // fällt sonst auf Positionsdaten zurück
+  const formatLfdLabelForModal = (activeId) => {
+    const fromList = reklas.find(r => r.id === activeId);
+    if (fromList) return formatLfdLabelFromListRow(fromList);
+
+    const details = reklaDetails?.[activeId];
+    const pos = details?.positionen || [];
+    const lfdValues = pos.map(p => Number(p?.lfd_nr)).filter(n => Number.isFinite(n));
+    if (lfdValues.length === 0) return '#';
+
+    const min = Math.min(...lfdValues);
+    if (lfdValues.length <= 1) return String(min);
+    return `${min}+${lfdValues.length - 1}`;
+  };
+
   const fetchReklamationen = async () => {
     const token = sessionStorage.getItem('token');
     try {
@@ -62,10 +105,11 @@ export default function Reklamationen() {
 
   useEffect(() => {
     fetchReklamationen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadDetails = async (id) => {
-    const token = sessionStorage.getItem('token');
+    const token = sessionsessionStorage.getItem('token');
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -78,6 +122,7 @@ export default function Reklamationen() {
 
   const applyFilters = (data, newFilters) => {
     let result = [...data];
+
     if (newFilters.filiale !== 'Alle') {
       result = result.filter(r => r.filiale === newFilters.filiale);
     }
@@ -86,13 +131,15 @@ export default function Reklamationen() {
     }
     if (newFilters.reklaNr) {
       const search = newFilters.reklaNr.toLowerCase();
-      result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
+      result = result.filter(r => (r.rekla_nr || "").toLowerCase().includes(search));
     }
+
     result.sort((a, b) => {
       const dateA = new Date(a.datum);
       const dateB = new Date(b.datum);
       return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
     });
+
     setFilteredReklas(result);
     setCurrentPage(1);
   };
@@ -108,21 +155,6 @@ export default function Reklamationen() {
   const visiblePages = () => {
     const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
     return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
-  };
-
-  const formatDate = (isoDate) => {
-    if (!isoDate) return "-";
-    return new Date(isoDate).toLocaleDateString('de-DE');
-  };
-
-  const getStatusColor = (status) => {
-    switch ((status || "").toLowerCase()) {
-      case 'angelegt': return 'text-blue-600';
-      case 'bearbeitet': case 'in bearbeitung': return 'text-yellow-600';
-      case 'freigegeben': return 'text-green-600';
-      case 'abgelehnt': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
   };
 
   const handleZurueck = () => { window.location.href = "/start"; };
@@ -143,7 +175,7 @@ export default function Reklamationen() {
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
-      <style jsx>{`
+      <style>{`
         @keyframes arrowWiggle {
           0%, 100% { transform: translateX(0); }
           50% { transform: translateX(-10px); }
@@ -271,7 +303,7 @@ export default function Reklamationen() {
               if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
             }}
           >
-            <div className="font-bold">#{rekla.laufende_nummer}</div>
+            <div className="font-bold">#{formatLfdLabelFromListRow(rekla)}</div>
             <div>{rekla.rekla_nr}</div>
             <div>{formatDate(rekla.datum)}</div>
             <div className="truncate pr-2">{rekla.lieferant}</div>
@@ -323,6 +355,7 @@ export default function Reklamationen() {
                       ×
                     </button>
                   </div>
+
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>lfd. Nr.</div>
                     <div>Rekla-Nr.</div>
@@ -331,8 +364,9 @@ export default function Reklamationen() {
                     <div>Art</div>
                     <div className="text-right">Status</div>
                   </div>
+
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
-                    <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
+                    <div className="font-bold">#{formatLfdLabelForModal(activeReklaId)}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
                     <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
@@ -341,15 +375,21 @@ export default function Reklamationen() {
                       {reklaDetails[activeReklaId]?.reklamation?.status}
                     </div>
                   </div>
+
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <p className="font-bold text-xl mb-4">
                         Positionen ({reklaDetails[activeReklaId].positionen.length})
                       </p>
+
                       <div className="space-y-3">
                         {reklaDetails[activeReklaId].positionen.map((pos) => (
                           <div key={pos.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                            <div className="flex items-start justify-between gap-6">
+                              <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                              <div className="font-bold text-lg">#{pos.lfd_nr ?? '#'}</div>
+                            </div>
+
                             <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
                             <div className="mt-2 text-sm">
                               <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
@@ -360,6 +400,7 @@ export default function Reklamationen() {
                       </div>
                     </div>
                   )}
+
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
                     Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
                   </div>
