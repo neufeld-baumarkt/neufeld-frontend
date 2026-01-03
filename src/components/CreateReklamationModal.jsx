@@ -204,6 +204,52 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     return Object.keys(newErrors).length === 0 || newErrors.noValidPosition;
   };
 
+  const showEtikettHinweisToast = (items = []) => {
+    if (!items.length) return;
+
+    const toastId = toast(
+      (t) => (
+        <div className="bg-white text-black rounded-xl shadow-2xl border border-gray-200 p-4 w-[min(520px,calc(100vw-40px))]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-base font-extrabold text-[#800000]">🔖 Hinweis – Etikett nicht vergessen</div>
+              <div className="text-sm text-gray-700 mt-1">
+                Bitte Etikett auf den jeweiligen Artikel kleben – mit der passenden <span className="font-semibold">Lfd.-Nr.</span>
+              </div>
+            </div>
+            <button
+              onClick={() => toast.dismiss(t.id)}
+              className="text-xl leading-none text-gray-500 hover:text-red-600"
+              title="Schließen"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mt-3 max-h-44 overflow-auto pr-1">
+            <div className="grid grid-cols-1 gap-2">
+              {items.map((it) => (
+                <div key={`${it.artikelnummer}-${it.lfd_nr}`} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                  <div className="text-sm">
+                    <div className="font-semibold">Artikel: <span className="font-mono">{it.artikelnummer || '—'}</span></div>
+                  </div>
+                  <div className="text-sm font-extrabold text-gray-800">
+                    Lfd.-Nr.: <span className="text-[#800000]">#{it.lfd_nr ?? '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 text-xs text-gray-500">
+            Tipp: Wenn du mehrere Artikel hast, kleb die Etiketten direkt beim Auspacken – dann geht nichts verloren.
+          </div>
+        </div>
+      ),
+      { duration: 12000, id: toastId }
+    );
+  };
+
   const handleSubmit = async () => {
     if (!validate()) {
       toast.error('Bitte alle Pflichtfelder ausfüllen!');
@@ -226,11 +272,38 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
     try {
       const token = sessionStorage.getItem('token');
-      await axios.post(
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      const postRes = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/reklamationen`,
         payload,
-        { headers: { Authorization: `Bearer ${token}` } }
+        config
       );
+
+      const newId = postRes?.data?.id;
+
+      // Detail holen, damit wir die ECHTEN (vom Backend vergebenen) lfd_nr anzeigen können
+      if (newId) {
+        try {
+          const detailRes = await axios.get(
+            `${import.meta.env.VITE_API_URL}/api/reklamationen/${newId}`,
+            config
+          );
+
+          const posFromDb = Array.isArray(detailRes?.data?.positionen) ? detailRes.data.positionen : [];
+          const etikettItems = posFromDb
+            .filter(p => p && (p.artikelnummer || '').toString().trim() !== '' && p.lfd_nr !== null && p.lfd_nr !== undefined)
+            .map(p => ({ artikelnummer: (p.artikelnummer || '').toString(), lfd_nr: p.lfd_nr }))
+            .sort((a, b) => Number(a.lfd_nr) - Number(b.lfd_nr));
+
+          if (etikettItems.length) {
+            showEtikettHinweisToast(etikettItems);
+          }
+        } catch (err) {
+          // Wenn Detail nicht klappt, kein Drama – dann bleibt nur die Erfolgsinfo
+          console.warn('Hinweis-Toast: Detaildaten konnten nicht geladen werden:', err);
+        }
+      }
 
       toast.success(`Reklamation ${formData.rekla_nr} erfolgreich angelegt!`);
       onSuccess();
