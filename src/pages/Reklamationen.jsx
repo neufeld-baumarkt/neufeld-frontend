@@ -30,6 +30,7 @@ export default function Reklamationen() {
   } catch (e) {
     console.warn("Benutzer konnte nicht geladen werden:", e);
   }
+
   const displayName = user?.name || "Unbekannt";
   const rawFiliale = user?.filiale || "";
   const userRole = user?.role || "";
@@ -45,6 +46,37 @@ export default function Reklamationen() {
   const headlineText = isSuperUser
     ? "Reklamationsliste"
     : `Reklamationsliste – Filiale ${rawFiliale}`;
+
+  // ---- lfd. Nr. Anzeige-Logik (Liste + Modal) ----
+  // Erwartet: min_lfd_nr + position_count (kann String sein)
+  const formatLfdDisplay = ({ min_lfd_nr, position_count }) => {
+    if (min_lfd_nr === null || min_lfd_nr === undefined) return "#";
+    const count = Number(position_count ?? 0);
+    if (!Number.isFinite(count) || count <= 0) return `#${min_lfd_nr}`;
+    if (count === 1) return `#${min_lfd_nr}`;
+    return `#${min_lfd_nr}+${count - 1}`;
+  };
+
+  // Falls im Detail-Endpoint nicht min_lfd_nr/position_count drin sind,
+  // berechnen wir es notfalls aus den Positionen.
+  const formatLfdFromDetails = (details) => {
+    const rekla = details?.reklamation;
+    if (rekla?.min_lfd_nr !== undefined && rekla?.position_count !== undefined) {
+      return formatLfdDisplay({ min_lfd_nr: rekla.min_lfd_nr, position_count: rekla.position_count });
+    }
+
+    const pos = details?.positionen || [];
+    const lfdList = pos
+      .map(p => Number(p?.lfd_nr))
+      .filter(n => Number.isFinite(n));
+
+    if (lfdList.length === 0) return "#";
+
+    const min = Math.min(...lfdList);
+    const count = lfdList.length;
+    if (count === 1) return `#${min}`;
+    return `#${min}+${count - 1}`;
+  };
 
   const fetchReklamationen = async () => {
     const token = sessionStorage.getItem('token');
@@ -62,6 +94,7 @@ export default function Reklamationen() {
 
   useEffect(() => {
     fetchReklamationen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadDetails = async (id) => {
@@ -78,6 +111,7 @@ export default function Reklamationen() {
 
   const applyFilters = (data, newFilters) => {
     let result = [...data];
+
     if (newFilters.filiale !== 'Alle') {
       result = result.filter(r => r.filiale === newFilters.filiale);
     }
@@ -86,13 +120,15 @@ export default function Reklamationen() {
     }
     if (newFilters.reklaNr) {
       const search = newFilters.reklaNr.toLowerCase();
-      result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
+      result = result.filter(r => (r.rekla_nr || "").toLowerCase().includes(search));
     }
+
     result.sort((a, b) => {
       const dateA = new Date(a.datum);
       const dateB = new Date(b.datum);
       return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
     });
+
     setFilteredReklas(result);
     setCurrentPage(1);
   };
@@ -118,21 +154,12 @@ export default function Reklamationen() {
   const getStatusColor = (status) => {
     switch ((status || "").toLowerCase()) {
       case 'angelegt': return 'text-blue-600';
-      case 'bearbeitet': case 'in bearbeitung': return 'text-yellow-600';
+      case 'bearbeitet':
+      case 'in bearbeitung': return 'text-yellow-600';
       case 'freigegeben': return 'text-green-600';
       case 'abgelehnt': return 'text-red-600';
       default: return 'text-gray-600';
     }
-  };
-
-  // Neue Hilfsfunktion für die Lfd. Nr. Anzeige in der Liste
-  const formatLfdNr = (rekla) => {
-    if (!rekla.min_lfd_nr) return '–';
-    const base = rekla.min_lfd_nr;
-    if (rekla.position_count > 1) {
-      return `${base}+${rekla.position_count - 1}`;
-    }
-    return `${base}`;
   };
 
   const handleZurueck = () => { window.location.href = "/start"; };
@@ -141,10 +168,12 @@ export default function Reklamationen() {
     sessionStorage.removeItem("token");
     window.location.href = "/";
   };
+
   const handleCreateSuccess = () => {
     fetchReklamationen();
     setCurrentPage(1);
   };
+
   const openEditModal = () => {
     setShowEditModal(true);
   };
@@ -165,11 +194,13 @@ export default function Reklamationen() {
           100% { stroke-dashoffset: 0; }
         }
       `}</style>
+
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
+
       <div
         className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
         style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
@@ -188,6 +219,7 @@ export default function Reklamationen() {
           </div>
         )}
       </div>
+
       <div
         className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
         onClick={handleZurueck}
@@ -199,10 +231,11 @@ export default function Reklamationen() {
           viewBox="0 0 24 24"
           className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
         >
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
         </svg>
         <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
       </div>
+
       <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
         <div
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
@@ -215,10 +248,11 @@ export default function Reklamationen() {
             viewBox="0 0 24 24"
             className="transition-all duration-200 group-hover:animate-[plusPulse_1.4s_ease-in-out_infinite]"
           >
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
           </svg>
           <span className="text-2xl font-medium">Reklamation anlegen</span>
         </div>
+
         {canEdit && (
           <div
             className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
@@ -239,6 +273,7 @@ export default function Reklamationen() {
             <span className="text-2xl font-medium">Reklamation bearbeiten</span>
           </div>
         )}
+
         <div
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
           onClick={() => setShowFilterModal(true)}
@@ -249,18 +284,23 @@ export default function Reklamationen() {
           <span className="text-2xl font-medium">Filter</span>
         </div>
       </div>
-      <h1 className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
-          style={{ top: '100px', left: '92px' }}>
+
+      <h1
+        className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
+        style={{ top: '100px', left: '92px' }}
+      >
         {headlineText}
       </h1>
+
       <div className="pt-64 px-[80px]">
         <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
-          <div>Lfd. Nr.</div>
+          <div>lfd. Nr.</div>
           <div>Rekla-Nr.</div>
           <div>Datum</div>
           <div>Lieferant</div>
           <div className="text-right">Status</div>
         </div>
+
         {pagedData.map(rekla => (
           <div
             key={rekla.id}
@@ -270,8 +310,8 @@ export default function Reklamationen() {
               if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
             }}
           >
-            <div className="font-bold text-[#800000]">
-              {formatLfdNr(rekla)}
+            <div className="font-bold">
+              {formatLfdDisplay({ min_lfd_nr: rekla.min_lfd_nr, position_count: rekla.position_count })}
             </div>
             <div>{rekla.rekla_nr}</div>
             <div>{formatDate(rekla.datum)}</div>
@@ -281,6 +321,7 @@ export default function Reklamationen() {
             </div>
           </div>
         ))}
+
         <div className="flex justify-center items-center gap-3 mt-8 text-lg">
           <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
           <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
@@ -297,13 +338,16 @@ export default function Reklamationen() {
           <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">»</button>
         </div>
       </div>
+
+      {/* Detail-Modal */}
       {activeReklaId && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
           onClick={() => setActiveReklaId(null)}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
+            // WICHTIG: schließen per Klick AUF die Karte (wie gewünscht)
+            onClick={() => setActiveReklaId(null)}
             className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
           >
             <div className="p-8">
@@ -313,15 +357,10 @@ export default function Reklamationen() {
                 </div>
               ) : (
                 <>
-                  <div className="flex justify-between items-start mb-8 border-b pb-4">
+                  <div className="mb-8 border-b pb-4">
                     <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
-                    <button
-                      onClick={() => setActiveReklaId(null)}
-                      className="text-4xl leading-none hover:text-red-600 transition"
-                    >
-                      ×
-                    </button>
                   </div>
+
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>lfd. Nr.</div>
                     <div>Rekla-Nr.</div>
@@ -330,8 +369,9 @@ export default function Reklamationen() {
                     <div>Art</div>
                     <div className="text-right">Status</div>
                   </div>
+
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
-                    <div className="font-bold">#{reklaDetails[activeReklaId]?.reklamation?.laufende_nummer}</div>
+                    <div className="font-bold">{formatLfdFromDetails(reklaDetails[activeReklaId])}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
                     <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
                     <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
@@ -340,6 +380,7 @@ export default function Reklamationen() {
                       {reklaDetails[activeReklaId]?.reklamation?.status}
                     </div>
                   </div>
+
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <p className="font-bold text-xl mb-4">
@@ -348,7 +389,12 @@ export default function Reklamationen() {
                       <div className="space-y-3">
                         {reklaDetails[activeReklaId].positionen.map((pos) => (
                           <div key={pos.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                            <div className="flex justify-between gap-6">
+                              <div className="font-semibold text-lg">{pos.artikelnummer}</div>
+                              <div className="font-bold text-lg text-gray-700">
+                                #{pos.lfd_nr ?? "-"}
+                              </div>
+                            </div>
                             <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
                             <div className="mt-2 text-sm">
                               <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
@@ -359,6 +405,7 @@ export default function Reklamationen() {
                       </div>
                     </div>
                   )}
+
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
                     Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
                   </div>
@@ -368,18 +415,21 @@ export default function Reklamationen() {
           </div>
         </div>
       )}
+
       {showCreateModal && (
         <CreateReklamationModal
           onClose={() => setShowCreateModal(false)}
           onSuccess={handleCreateSuccess}
         />
       )}
+
       {showEditModal && (
         <EditReklamationModal
           onClose={() => setShowEditModal(false)}
           onSuccess={handleCreateSuccess}
         />
       )}
+
       {showFilterModal && (
         <FilterModal
           onClose={() => setShowFilterModal(false)}
