@@ -86,7 +86,7 @@ export default function Reklamationen() {
     }
     if (newFilters.reklaNr) {
       const search = newFilters.reklaNr.toLowerCase();
-      result = result.filter(r => r.rekla_nr.toLowerCase().includes(search));
+      result = result.filter(r => r.rekla_nr && r.rekla_nr.toLowerCase().includes(search));
     }
     result.sort((a, b) => {
       const dateA = new Date(a.datum);
@@ -112,269 +112,178 @@ export default function Reklamationen() {
 
   const formatDate = (isoDate) => {
     if (!isoDate) return "-";
-    return new Date(isoDate).toLocaleDateString('de-DE');
+    const date = new Date(isoDate);
+    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   const getStatusColor = (status) => {
-    switch ((status || "").toLowerCase()) {
-      case 'angelegt': return 'text-blue-600';
-      case 'bearbeitet': case 'in bearbeitung': return 'text-yellow-600';
-      case 'freigegeben': return 'text-green-600';
-      case 'abgelehnt': return 'text-red-600';
+    switch (status) {
+      case 'Angelegt': return 'text-yellow-600';
+      case 'Freigegeben': return 'text-green-600';
+      case 'Erledigt': return 'text-blue-600';
       default: return 'text-gray-600';
     }
   };
 
-  // ✅ lfd.-Nr Anzeige aus Listen-Daten (min_lfd_nr + position_count)
-  const formatLfdFromListRow = (rekla) => {
-    const min = reklа?.min_lfd_nr ?? reklа?.min_lfd_nr; // safety no-op (keeps editor calm)
-    const minNr = (rekla?.min_lfd_nr === null || rekla?.min_lfd_nr === undefined)
-      ? null
-      : Number(rekla.min_lfd_nr);
-
-    const cntRaw = rekla?.position_count;
-    const cnt = (cntRaw === null || cntRaw === undefined) ? null : Number(cntRaw);
-
-    if (!minNr || !Number.isFinite(minNr)) return "#";
-    if (!cnt || !Number.isFinite(cnt) || cnt <= 1) return String(minNr);
-
-    return `${minNr}+${cnt - 1}`;
-  };
-
-  // ✅ lfd.-Nr Anzeige aus Detail-Daten (positionen[].lfd_nr)
-  const formatLfdFromDetails = (details) => {
-    const pos = details?.positionen;
-    if (!Array.isArray(pos) || pos.length === 0) return "#";
-
-    const nums = pos
-      .map(p => Number(p?.lfd_nr))
-      .filter(n => Number.isFinite(n) && n > 0);
-
-    if (nums.length === 0) return "#";
-
-    const min = Math.min(...nums);
-    const cnt = pos.length;
-
-    if (cnt <= 1) return String(min);
-    return `${min}+${cnt - 1}`;
-  };
-
-  const handleZurueck = () => { window.location.href = "/start"; };
-  const handleLogout = () => {
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("token");
-    window.location.href = "/";
+  // Neue Hilfsfunktion für die Lfd. Nr. Anzeige
+  const formatLfdNr = (rekla) => {
+    if (!rekla.min_lfd_nr) return '–';
+    const base = rekla.min_lfd_nr;
+    if (rekla.position_count > 1) {
+      return `${base}+${rekla.position_count - 1}`;
+    }
+    return `${base}`;
   };
 
   const handleCreateSuccess = () => {
     fetchReklamationen();
-    setCurrentPage(1);
-  };
-
-  const openEditModal = () => {
-    setShowEditModal(true);
+    setShowCreateModal(false);
+    setShowEditModal(false);
   };
 
   return (
-    <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
-      <style jsx>{`
-        @keyframes arrowWiggle {
-          0%, 100% { transform: translateX(0); }
-          50% { transform: translateX(-10px); }
-        }
-        @keyframes plusPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.35); }
-        }
-        @keyframes pencilScribble {
-          0% { stroke-dashoffset: 30; }
-          100% { stroke-dashoffset: 0; }
-        }
-      `}</style>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-[#800000] text-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Neufeld Baumarkt GmbH – Reklamationstool</h1>
+          <div className="text-lg">
+            Angemeldet als: <span className="font-semibold">{displayName}</span>
+          </div>
+        </div>
+      </header>
 
-      <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
-      <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
-      <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
-      <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
-      <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold text-[#800000] mb-8">{headlineText}</h1>
 
-      <div
-        className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
-        style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
-        onClick={() => setMenuOpen(!menuOpen)}
-      >
-        Angemeldet als: {displayName}
-        {menuOpen && (
-          <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm" style={{ minWidth: '180px' }}>
-            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
-                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
-                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
-              </svg>
-              <span>Abmelden</span>
+        <div className="flex justify-between items-center mb-6">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-[#800000] text-white px-6 py-3 rounded-lg font-semibold hover:bg-[#600000] transition"
+          >
+            + Neue Reklamation
+          </button>
+          <button
+            onClick={() => setShowFilterModal(true)}
+            className="bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-800 transition"
+          >
+            Filter
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-[#3A3838] text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Lfd. Nr.</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Rekla-Nr.</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Datum</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Lieferant</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Art</th>
+                  <th className="px-6 py-4 text-left text-sm font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {pagedData.map((rekla) => (
+                  <tr
+                    key={rekla.id}
+                    onClick={() => {
+                      setActiveReklaId(rekla.id);
+                      if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
+                    }}
+                    className="hover:bg-gray-50 cursor-pointer transition"
+                  >
+                    <td className="px-6 py-4 font-bold text-[#800000] text-lg">
+                      {formatLfdNr(rekla)}
+                    </td>
+                    <td className="px-6 py-4">{rekla.rekla_nr || '-'}</td>
+                    <td className="px-6 py-4">{formatDate(rekla.datum)}</td>
+                    <td className="px-6 py-4">{rekla.lieferant || '-'}</td>
+                    <td className="px-6 py-4">{rekla.art || '-'}</td>
+                    <td className={`px-6 py-4 font-semibold ${getStatusColor(rekla.status)}`}>
+                      {rekla.status || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="px-6 py-4 flex justify-between items-center border-t">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 bg-gray-300 rounded disabled:opacity-50"
+              >
+                Zurück
+              </button>
+              <div className="flex gap-2">
+                {visiblePages().map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-4 py-2 rounded ${page === currentPage ? 'bg-[#800000] text-white' : 'bg-gray-300'}`}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 bg-gray-300 rounded disabled:opacity-50"
+              >
+                Weiter
+              </button>
             </div>
-          </div>
-        )}
-      </div>
-
-      <div
-        className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-        onClick={handleZurueck}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="36" height="36"
-          fill="white"
-          viewBox="0 0 24 24"
-          className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
-        >
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-        </svg>
-        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
-      </div>
-
-      <div className="absolute top-[180px] right-[80px] flex gap-12 items-center text-white">
-        <div
-          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="36" height="36"
-            fill="white"
-            viewBox="0 0 24 24"
-            className="transition-all duration-200 group-hover:animate-[plusPulse_1.4s_ease-in-out_infinite]"
-          >
-            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-          </svg>
-          <span className="text-2xl font-medium">Reklamation anlegen</span>
+          )}
         </div>
 
-        {canEdit && (
-          <div
-            className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-            onClick={openEditModal}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              <path
-                d="M14 5.5 l-2.5 3"
-                stroke="white"
-                strokeWidth="3"
-                strokeDasharray="30"
-                strokeDashoffset="30"
-                className="transition-all duration-200 group-hover:animate-[pencilScribble_1.6s_ease-in-out_infinite]"
-              />
-            </svg>
-            <span className="text-2xl font-medium">Reklamation bearbeiten</span>
-          </div>
-        )}
-
-        <div
-          className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-          onClick={() => setShowFilterModal(true)}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="white" viewBox="0 0 24 24">
-            <path d="M3 4h18v2H3V4zm2 4h14v2H5V8zm2 4h10v2H7v-2zm2 4h6v2H9v-2z" />
-          </svg>
-          <span className="text-2xl font-medium">Filter</span>
-        </div>
-      </div>
-
-      <h1 className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
-          style={{ top: '100px', left: '92px' }}>
-        {headlineText}
-      </h1>
-
-      <div className="pt-64 px-[80px]">
-        <div className="grid grid-cols-[100px_180px_140px_1fr_120px] text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6">
-          <div>lfd. Nr.</div>
-          <div>Rekla-Nr.</div>
-          <div>Datum</div>
-          <div>Lieferant</div>
-          <div className="text-right">Status</div>
-        </div>
-
-        {pagedData.map(rekla => (
-          <div
-            key={rekla.id}
-            className="grid grid-cols-[100px_180px_140px_1fr_120px] bg-white text-black px-4 py-3 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition"
-            onClick={() => {
-              setActiveReklaId(rekla.id);
-              if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
-            }}
-          >
-            <div className="font-bold">#{formatLfdFromListRow(rekla)}</div>
-            <div>{rekla.rekla_nr}</div>
-            <div>{formatDate(rekla.datum)}</div>
-            <div className="truncate pr-2">{rekla.lieferant}</div>
-            <div className={`text-right font-semibold ${getStatusColor(rekla.status)}`}>
-              {rekla.status}
-            </div>
-          </div>
-        ))}
-
-        <div className="flex justify-center items-center gap-3 mt-8 text-lg">
-          <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">«</button>
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1 disabled:opacity-50">‹</button>
-          {visiblePages().map((page) => (
-            <button
-              key={page}
-              onClick={() => setCurrentPage(page)}
-              className={`px-4 py-2 rounded ${page === currentPage ? 'bg-white text-black font-bold' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-            >
-              {page}
-            </button>
-          ))}
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">›</button>
-          <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} className="px-3 py-1 disabled:opacity-50">»</button>
-        </div>
-      </div>
-
-      {activeReklaId && (
-        <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-          onClick={() => setActiveReklaId(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
-          >
-            <div className="p-8">
-              {!reklaDetails[activeReklaId] ? (
-                <div className="text-center py-20 text-2xl text-gray-600">
-                  Lade Details...
+        {activeReklaId && reklaDetails[activeReklaId] && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-3xl font-bold text-[#800000]">Reklamationsdetails</h2>
+                  <button
+                    onClick={() => setActiveReklaId(null)}
+                    className="text-gray-500 hover:text-gray-700 text-3xl"
+                  >
+                    ×
+                  </button>
                 </div>
-              ) : (
+
                 <>
-                  <div className="flex justify-between items-start mb-8 border-b pb-4">
-                    <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
-                    <button
-                      onClick={() => setActiveReklaId(null)}
-                      className="text-4xl leading-none hover:text-red-600 transition"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
-                    <div>lfd. Nr.</div>
-                    <div>Rekla-Nr.</div>
-                    <div>Datum</div>
-                    <div>Lieferant</div>
-                    <div>Art</div>
-                    <div className="text-right">Status</div>
-                  </div>
-                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
-                    <div className="font-bold">#{formatLfdFromDetails(reklaDetails[activeReklaId])}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
-                    <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.art || "-"}</div>
-                    <div className={`text-right font-semibold ${getStatusColor(reklaDetails[activeReklaId]?.reklamation?.status)}`}>
-                      {reklaDetails[activeReklaId]?.reklamation?.status}
+                  <div className="grid grid-cols-2 gap-8 mb-8">
+                    <div>
+                      <div className="text-sm text-gray-600">Rekla-Nr.</div>
+                      <div className="text-xl font-semibold">{reklaDetails[activeReklaId]?.reklamation?.rekla_nr || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Datum</div>
+                      <div className="text-xl font-semibold">{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Lieferant</div>
+                      <div className="text-xl font-semibold">{reklaDetails[activeReklaId]?.reklamation?.lieferant || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Art</div>
+                      <div className="text-xl font-semibold">{reklaDetails[activeReklaId]?.reklamation?.art || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Status</div>
+                      <div className={`text-xl font-semibold ${getStatusColor(reklaDetails[activeReklaId]?.reklamation?.status)}`}>
+                        {reklaDetails[activeReklaId]?.reklamation?.status || '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-600">Filiale</div>
+                      <div className="text-xl font-semibold">{reklaDetails[activeReklaId]?.reklamation?.filiale || '-'}</div>
                     </div>
                   </div>
+
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <p className="font-bold text-xl mb-4">
@@ -394,37 +303,38 @@ export default function Reklamationen() {
                       </div>
                     </div>
                   )}
+
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
                     Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
                   </div>
                 </>
-              )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {showCreateModal && (
-        <CreateReklamationModal
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={handleCreateSuccess}
-        />
-      )}
+        {showCreateModal && (
+          <CreateReklamationModal
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={handleCreateSuccess}
+          />
+        )}
 
-      {showEditModal && (
-        <EditReklamationModal
-          onClose={() => setShowEditModal(false)}
-          onSuccess={handleCreateSuccess}
-        />
-      )}
+        {showEditModal && (
+          <EditReklamationModal
+            onClose={() => setShowEditModal(false)}
+            onSuccess={handleCreateSuccess}
+          />
+        )}
 
-      {showFilterModal && (
-        <FilterModal
-          onClose={() => setShowFilterModal(false)}
-          onApply={handleFilterApply}
-          currentFilters={filters}
-        />
-      )}
+        {showFilterModal && (
+          <FilterModal
+            onClose={() => setShowFilterModal(false)}
+            onApply={handleFilterApply}
+            currentFilters={filters}
+          />
+        )}
+      </main>
     </div>
   );
 }
