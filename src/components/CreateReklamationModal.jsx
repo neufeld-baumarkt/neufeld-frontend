@@ -50,7 +50,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [sodaFixxWarning, setSodaFixxWarning] = useState(false);
 
   const user = JSON.parse(sessionStorage.getItem('user') || '{}');
   const userRole = (user.role || '').toLowerCase();
@@ -98,26 +97,6 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       setFormData(prev => ({ ...prev, versand: true }));
     }
   }, [formData.lieferant]);
-
-  useEffect(() => {
-    calculateSodaFixxWarning();
-  }, [positionen, formData.lieferant]);
-
-  const calculateSodaFixxWarning = () => {
-    if (formData.lieferant !== 'SodaFixx') {
-      setSodaFixxWarning(false);
-      return;
-    }
-
-    let total = 0;
-    positionen.forEach(pos => {
-      if (pos.rekla_menge) {
-        total += parseFloat(pos.rekla_menge) || 0;
-      }
-    });
-
-    setSodaFixxWarning(total > 18);
-  };
 
   const handleCommonChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -221,29 +200,13 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       newErrors.noValidPosition = true;
     }
 
-    // SodaFixx: Max 18 Stück Gesamt
-    if (formData.lieferant === 'SodaFixx') {
-      let totalReklaMenge = 0;
-      positionen.forEach(pos => {
-        if (pos.rekla_menge) {
-          totalReklaMenge += parseFloat(pos.rekla_menge) || 0;
-        }
-      });
-      if (totalReklaMenge > 18) {
-        newErrors.sodaFixxMenge = true;
-      }
-    }
-
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0 || newErrors.noValidPosition;
   };
 
   const handleSubmit = async () => {
     if (!validate()) {
       toast.error('Bitte alle Pflichtfelder ausfüllen!');
-      if (errors.sodaFixxMenge) {
-        toast.error('Bei SodaFixx dürfen maximal 18 Stück pro Reklamation reklamiert werden!');
-      }
       return;
     }
 
@@ -291,177 +254,177 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto p-8 relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-        <h2 className="text-2xl font-bold mb-8">Neue Reklamation anlegen</h2>
-
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block font-semibold mb-1">Filiale</label>
-              <select name="filiale" value={formData.filiale} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
-                <option value="">-- Auswählen --</option>
-                {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Anlegedatum</label>
-              <input type="date" name="datum" value={formData.datum} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Reklamations-Nr. <span className="text-red-600">*</span></label>
-              <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`} />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
-              <select name="art" value={formData.art} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
-                <option value="">-- Auswählen --</option>
-                {options.reklamationsarten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
-              <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
-                <option value="">-- Auswählen --</option>
-                {options.lieferanten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
-              <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`} />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Status</label>
-              <select name="status" value={formData.status} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
-                {options.status.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Letzte Änderung</label>
-              <input
-                type="date"
-                name="letzte_aenderung"
-                value={formData.letzte_aenderung}
-                onChange={handleCommonChange}
-                readOnly={!canEditLetzteAenderung}
-                className={`w-full px-3 py-2 border rounded-lg ${!canEditLetzteAenderung ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-              />
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <input type="checkbox" name="versand" checked={formData.versand} onChange={handleCommonChange} disabled={formData.lieferant === 'SodaFixx'} className="w-5 h-5" />
-              <label className="font-semibold">Versand (Rücksendung)</label>
-            </div>
-            {formData.versand && (
-              <div>
-                <label className="block font-semibold mb-1">Tracking ID {formData.versand && <span className="text-red-600">*</span>}</label>
-                <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. DHL-Trackingnummer" />
-              </div>
-            )}
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-80px)] max-w-5xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="p-6 md:p-8">
+          <div className="flex justify-between items-start mb-6 border-b pb-4">
+            <h2 className="text-2xl md:text-3xl font-bold">Neue Reklamation anlegen</h2>
+            <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">
+              ×
+            </button>
           </div>
-        </div>
 
-        <div>
-          <h3 className="text-xl font-bold mb-4">Positionen</h3>
-
-          {positionen.map((pos, index) => (
-            <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
-                    <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'}`} />
-                  </div>
-                  <div>
-                    <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
-                    <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_ean`] ? 'border-red-500' : 'border-gray-300'}`} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-semibold mb-1">Bestellmenge</label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        value={pos.bestell_menge}
-                        onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)}
-                        className="w-full px-3 py-2 border rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold mb-1">Einheit</label>
-                      <select value={pos.bestell_einheit} onChange={e => handlePositionChange(index, 'bestell_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
-                        <option value="">--</option>
-                        {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
-                      <input
-                        type="number"
-                        step="1"
-                        min="0"
-                        value={pos.rekla_menge}
-                        onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
-                      <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}>
-                        <option value="">-- Auswählen --</option>
-                        {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div className="space-y-4">
+              <div>
+                <label className="block font-semibold mb-1">Filiale</label>
+                <select name="filiale" value={formData.filiale} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                  <option value="">-- Auswählen --</option>
+                  {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
               </div>
+              <div>
+                <label className="block font-semibold mb-1">Anlegedatum</label>
+                <input type="date" name="datum" value={formData.datum} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
+                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. REK-2026-001" />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
+                <select name="art" value={formData.art} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
+                  <option value="">-- Auswählen --</option>
+                  {options.reklamationsarten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+            </div>
 
-              {positionen.length > 1 && (
-                <button
-                  onClick={() => removePosition(index)}
-                  className="absolute top-4 right-4 text-red-600 hover:text-red-800"
-                  title="Position löschen"
-                >
-                  <Trash2 size={20} />
-                </button>
+            <div className="space-y-4">
+              <div>
+                <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
+                <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
+                  <option value="">-- Auswählen --</option>
+                  {options.lieferanten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
+                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`} />
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Status</label>
+                <select name="status" value={formData.status} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                  {options.status.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Letzte Änderung</label>
+                <input
+                  type="date"
+                  name="letzte_aenderung"
+                  value={formData.letzte_aenderung}
+                  onChange={handleCommonChange}
+                  readOnly={!canEditLetzteAenderung}
+                  className={`w-full px-3 py-2 border rounded-lg ${!canEditLetzteAenderung ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                />
+              </div>
+              <div className="flex items-center gap-3 pt-2">
+                <input type="checkbox" name="versand" checked={formData.versand} onChange={handleCommonChange} disabled={formData.lieferant === 'SodaFixx'} className="w-5 h-5" />
+                <label className="font-semibold">Versand (Rücksendung)</label>
+              </div>
+              {formData.versand && (
+                <div>
+                  <label className="block font-semibold mb-1">Tracking ID {formData.versand && <span className="text-red-600">*</span>}</label>
+                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. DHL-Trackingnummer" />
+                </div>
               )}
             </div>
-          ))}
+          </div>
 
-          {formData.lieferant === 'SodaFixx' && (
-            <div className="text-sm text-gray-600 mb-4">
-              Hinweis: Bei SodaFixx dürfen maximal 18 Stück pro Reklamation reklamiert werden (Gesamtsumme aller Positionen).
-            </div>
-          )}
+          <div>
+            <h3 className="text-xl font-bold mb-4">Positionen</h3>
 
-          {sodaFixxWarning && (
-            <div className="text-red-600 font-semibold mb-4">
-              Warnung: Die Gesamt-Reklamationsmenge überschreitet 18 Stück! Bitte anpassen.
-            </div>
-          )}
+            {positionen.map((pos, index) => (
+              <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
+                      <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'}`} />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
+                      <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_ean`] ? 'border-red-500' : 'border-gray-300'}`} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold mb-1">Bestellmenge</label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={pos.bestell_menge}
+                          onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Einheit</label>
+                        <select value={pos.bestell_einheit} onChange={e => handlePositionChange(index, 'bestell_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                          <option value="">--</option>
+                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
-          <button
-            onClick={addPosition}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-medium"
-          >
-            <Plus size={18} />
-            Neue Position hinzufügen
-          </button>
-        </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={pos.rekla_menge}
+                          onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`}
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
+                        <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}>
+                          <option value="">-- Auswählen --</option>
+                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-        <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
-          <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
-            Abbrechen
-          </button>
-          <button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-2.5 text-base bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70">
-            {isSubmitting ? 'Wird gespeichert...' : 'Reklamation anlegen'}
-          </button>
+                {positionen.length > 1 && (
+                  <button
+                    onClick={() => removePosition(index)}
+                    className="absolute top-4 right-4 text-red-600 hover:text-red-800"
+                    title="Position löschen"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={addPosition}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition font-medium"
+            >
+              <Plus size={18} />
+              Neue Position hinzufügen
+            </button>
+          </div>
+
+          <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
+            <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
+              Abbrechen
+            </button>
+            <button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-2.5 text-base bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70">
+              {isSubmitting ? 'Wird gespeichert...' : 'Reklamation anlegen'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
