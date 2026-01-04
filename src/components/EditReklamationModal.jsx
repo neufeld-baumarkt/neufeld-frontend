@@ -34,7 +34,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
     letzte_aenderung: today,
   });
 
-  // WICHTIG: Wir behalten id/pos_id/lfd_nr im State, aber NICHT editierbar.
+  // WICHTIG: lfd_nr/IDs werden IMMER im State behalten (read-only im UI)
   const [positionen, setPositionen] = useState([]);
 
   const [options, setOptions] = useState({
@@ -52,13 +52,19 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const token = sessionStorage.getItem('token');
+  const user = JSON.parse(sessionStorage.getItem('user') || '{}');
+  const userRole = (user.role || '').toLowerCase();
+  const canEditLetzteAenderung = ['admin', 'supervisor'].includes(userRole);
+  const canDelete = canEditLetzteAenderung;
 
+  useEffect(() => {
+    const fetchAllData = async () => {
+      const token = sessionStorage.getItem('token');
+
+      try {
         const [reklasRes, optsRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/api/reklamationen`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -87,7 +93,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
       }
     };
 
-    fetchData();
+    fetchAllData();
   }, []);
 
   const handleSearch = () => {
@@ -97,7 +103,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
       return;
     }
 
-    const results = allReklamationen.filter(r =>
+    const results = allReklamationen.filter((r) =>
       (r.rekla_nr || '').toLowerCase().includes(term)
     );
 
@@ -116,6 +122,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
   }, [searchNr, allReklamationen]);
 
   const loadReklamationDetails = async (rekla) => {
+    setLoadingDetails(true);
     try {
       const token = sessionStorage.getItem('token');
       const res = await axios.get(
@@ -138,48 +145,58 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
         versand: data.versand || false,
         tracking_id: data.tracking_id || '',
         status: data.status || 'Angelegt',
+        // FIX: echte letzte Änderung anzeigen, nicht stumpf "today"
         letzte_aenderung: formatDateForInput(data.letzte_aenderung) || today,
       });
 
-      // WICHTIG: id / pos_id / lfd_nr NICHT wegwerfen!
-      setPositionen(pos.length > 0 ? pos.map(p => ({
-        id: p.id || null,
-        pos_id: p.pos_id ?? null,
-        lfd_nr: p.lfd_nr ?? null,
-        artikelnummer: p.artikelnummer || '',
-        ean: p.ean || '',
-        bestell_menge: p.bestell_menge || '',
-        bestell_einheit: p.bestell_einheit || '',
-        rekla_menge: p.rekla_menge || '',
-        rekla_einheit: p.rekla_einheit || '',
-      })) : [{
-        id: null,
-        pos_id: null,
-        lfd_nr: null,
-        artikelnummer: '',
-        ean: '',
-        bestell_menge: '',
-        bestell_einheit: '',
-        rekla_menge: '',
-        rekla_einheit: '',
-      }]);
+      // FIX: lfd_nr/IDs NICHT wegwerfen (sonst vergibt Backend neue Nummern!)
+      setPositionen(
+        pos.length > 0
+          ? pos.map((p) => ({
+              // WICHTIG: Sensible Nummern/IDs IMMER mitnehmen (read-only im UI)
+              id: p.id || null,
+              pos_id: p.pos_id ?? null,
+              lfd_nr: p.lfd_nr ?? null,
 
-      setErrors({});
-      toast.success(`Reklamation ${data.rekla_nr || rekla.rekla_nr} geladen.`);
+              artikelnummer: p.artikelnummer || '',
+              ean: p.ean || '',
+              bestell_menge: p.bestell_menge || '',
+              bestell_einheit: p.bestell_einheit || '',
+              rekla_menge: p.rekla_menge || '',
+              rekla_einheit: p.rekla_einheit || '',
+            }))
+          : [
+              {
+                id: null,
+                pos_id: null,
+                lfd_nr: null,
+                artikelnummer: '',
+                ean: '',
+                bestell_menge: '',
+                bestell_einheit: '',
+                rekla_menge: '',
+                rekla_einheit: '',
+              },
+            ]
+      );
+
+      toast.success(`Reklamation ${data.rekla_nr} geladen – bereit zur Bearbeitung!`);
     } catch (err) {
       console.error('Fehler beim Laden der Details:', err);
       toast.error('Fehler beim Laden der Reklamation.');
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
   const handleCommonChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
 
-    setErrors(prev => {
+    setErrors((prev) => {
       const copy = { ...prev };
       delete copy[name];
       return copy;
@@ -187,7 +204,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
   };
 
   const handlePositionChange = (index, field, value) => {
-    setPositionen(prev => {
+    setPositionen((prev) => {
       const newPos = [...prev];
       newPos[index] = { ...newPos[index], [field]: value };
 
@@ -198,7 +215,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
       return newPos;
     });
 
-    setErrors(prev => {
+    setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors[`pos_${index}_${field}`];
       if (field === 'bestell_menge') delete newErrors[`pos_${index}_rekla_menge`];
@@ -208,24 +225,34 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
   };
 
   const addPosition = () => {
-    setPositionen(prev => [
+    setPositionen((prev) => [
       ...prev,
-      { id: null, pos_id: null, lfd_nr: null, artikelnummer: '', ean: '', bestell_menge: '', bestell_einheit: '', rekla_menge: '', rekla_einheit: '' }
+      {
+        id: null,
+        pos_id: null,
+        lfd_nr: null,
+        artikelnummer: '',
+        ean: '',
+        bestell_menge: '',
+        bestell_einheit: '',
+        rekla_menge: '',
+        rekla_einheit: '',
+      },
     ]);
   };
 
   const removePosition = (index) => {
     if (positionen.length === 1) return;
-    setPositionen(prev => prev.filter((_, i) => i !== index));
+    setPositionen((prev) => prev.filter((_, i) => i !== index));
   };
 
   const validate = () => {
     const newErrors = {};
 
+    if (!formData.rekla_nr.trim()) newErrors.rekla_nr = 'Rekla-Nr ist Pflicht';
     if (!formData.filiale) newErrors.filiale = 'Filiale ist Pflicht';
     if (!formData.art) newErrors.art = 'Art ist Pflicht';
     if (!formData.datum) newErrors.datum = 'Datum ist Pflicht';
-    if (!formData.rekla_nr) newErrors.rekla_nr = 'Rekla-Nr ist Pflicht';
     if (!formData.lieferant) newErrors.lieferant = 'Lieferant ist Pflicht';
     if (!formData.status) newErrors.status = 'Status ist Pflicht';
 
@@ -234,8 +261,8 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
     }
 
     positionen.forEach((pos, index) => {
-      if (!pos.artikelnummer) newErrors[`pos_${index}_artikelnummer`] = 'Artikelnummer ist Pflicht';
-      if (!pos.ean) newErrors[`pos_${index}_ean`] = 'EAN ist Pflicht';
+      if (!pos.artikelnummer.trim()) newErrors[`pos_${index}_artikelnummer`] = 'Artikelnummer ist Pflicht';
+      if (!pos.ean.trim()) newErrors[`pos_${index}_ean`] = 'EAN ist Pflicht';
       if (!pos.rekla_menge) newErrors[`pos_${index}_rekla_menge`] = 'Rekla-Menge ist Pflicht';
       if (!pos.rekla_einheit) newErrors[`pos_${index}_rekla_einheit`] = 'Rekla-Einheit ist Pflicht';
     });
@@ -244,25 +271,21 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async () => {
-    if (!selectedReklamation) {
-      toast.error('Bitte zuerst eine Reklamation auswählen.');
-      return;
-    }
-
+  const handleSave = async () => {
     if (!validate()) {
-      toast.error('Bitte Pflichtfelder prüfen.');
+      toast.error('Bitte alle Pflichtfelder ausfüllen!');
       return;
     }
 
     setIsSubmitting(true);
 
-    // Filtert nur "leere" Positionen raus – behält aber id/pos_id/lfd_nr!
-    const validPositionen = positionen.filter(pos =>
-      (pos.artikelnummer || '').trim() &&
-      (pos.ean || '').trim() &&
-      pos.rekla_menge &&
-      pos.rekla_einheit
+    // Filtert leere Positionen – aber behält id/pos_id/lfd_nr automatisch mit
+    const validPositionen = positionen.filter(
+      (pos) =>
+        pos.artikelnummer.trim() &&
+        pos.ean.trim() &&
+        pos.rekla_menge &&
+        pos.rekla_einheit
     );
 
     const payload = {
@@ -283,23 +306,51 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
       onClose();
     } catch (err) {
       console.error('Fehler beim Speichern:', err);
-      toast.error('Fehler beim Speichern der Änderungen.');
+      toast.error('Fehler beim Speichern – siehe Konsole.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleDelete = async () => {
+    if (!canDelete) return;
+
+    if (!window.confirm(`Sollen die Informationen zur Reklamation ${formData.rekla_nr} wirklich gelöscht werden?`)) {
+      return;
+    }
+
+    try {
+      const token = sessionStorage.getItem('token');
+      await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/reklamationen/${selectedReklamation.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(`Reklamation ${formData.rekla_nr} gelöscht!`);
+      onSuccess();
+      onClose();
+    } catch (err) {
+      console.error('Fehler beim Löschen:', err);
+      toast.error('Fehler beim Löschen – siehe Konsole.');
+    }
+  };
+
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-        <div className="bg-white p-6 rounded-lg shadow-lg">Lade Daten...</div>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-12 text-center">
+          <div className="text-2xl">Lade Daten...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-5xl rounded-xl shadow-xl overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white w-full max-w-6xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden"
+      >
         <div className="p-6 border-b flex items-center justify-between">
           <h2 className="text-2xl font-bold">Reklamation bearbeiten</h2>
           <button onClick={onClose} className="text-gray-500 hover:text-black">✕</button>
@@ -321,14 +372,16 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
 
               {filteredResults.length > 0 && (
                 <div className="border rounded p-2 bg-gray-50">
-                  {filteredResults.map(r => (
+                  {filteredResults.map((r) => (
                     <button
                       key={r.id}
                       onClick={() => loadReklamationDetails(r)}
                       className="w-full text-left px-3 py-2 hover:bg-white rounded"
                     >
                       <div className="font-semibold">{r.rekla_nr}</div>
-                      <div className="text-xs text-gray-600">{r.filiale} · {formatDateForInput(r.datum)}</div>
+                      <div className="text-xs text-gray-600">
+                        {r.filiale} · {formatDateForInput(r.datum)}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -340,6 +393,12 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
             </div>
           ) : (
             <div className="space-y-8">
+              {loadingDetails && (
+                <div className="p-4 rounded bg-yellow-50 border border-yellow-200 text-sm">
+                  Lade Detaildaten...
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block font-semibold mb-1">Filiale</label>
@@ -350,7 +409,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     className={`w-full border rounded p-2 ${errors.filiale ? 'border-red-500' : 'border-gray-300'}`}
                   >
                     <option value="">Bitte wählen</option>
-                    {options.filialen.map(f => <option key={f} value={f}>{f}</option>)}
+                    {options.filialen.map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>
                 </div>
 
@@ -363,7 +422,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     className={`w-full border rounded p-2 ${errors.art ? 'border-red-500' : 'border-gray-300'}`}
                   >
                     <option value="">Bitte wählen</option>
-                    {options.reklamationsarten.map(a => <option key={a} value={a}>{a}</option>)}
+                    {options.reklamationsarten.map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
                 </div>
 
@@ -398,7 +457,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     className={`w-full border rounded p-2 ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}
                   >
                     <option value="">Bitte wählen</option>
-                    {options.lieferanten.map(l => <option key={l} value={l}>{l}</option>)}
+                    {options.lieferanten.map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </div>
 
@@ -411,7 +470,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     className={`w-full border rounded p-2 ${errors.status ? 'border-red-500' : 'border-gray-300'}`}
                   >
                     <option value="">Bitte wählen</option>
-                    {options.status.map(s => <option key={s} value={s}>{s}</option>)}
+                    {options.status.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
 
@@ -438,6 +497,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     />
                     <label className="font-semibold">Versand (Rücksendung)</label>
                   </div>
+
                   {formData.versand && (
                     <div>
                       <label className="block font-semibold mb-1">Tracking ID</label>
@@ -451,14 +511,32 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     </div>
                   )}
                 </div>
+
+                <div className="md:col-span-2">
+                  <label className="block font-semibold mb-1">Letzte Änderung</label>
+                  <input
+                    type="date"
+                    name="letzte_aenderung"
+                    value={formData.letzte_aenderung}
+                    onChange={handleCommonChange}
+                    disabled={!canEditLetzteAenderung}
+                    className="w-full border border-gray-300 rounded p-2 disabled:bg-gray-100"
+                  />
+                  {!canEditLetzteAenderung && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Nur Admin/Supervisor dürfen „Letzte Änderung“ direkt ändern.
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
                 <h3 className="text-xl font-bold mb-4">Positionen</h3>
+
                 {positionen.map((pos, index) => (
                   <div key={index} className="bg-gray-50 p-5 rounded-lg mb-5 relative border border-gray-200">
-                    <div className="absolute top-4 left-4 text-xs font-semibold bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
-                      Lfd.-Nr.: {pos.lfd_nr ?? "—"}
+                    <div className="absolute top-3 left-3 text-xs font-semibold bg-white border border-gray-300 rounded px-2 py-1 shadow-sm">
+                      Lfd.-Nr.: {pos.lfd_nr ?? '—'}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -501,7 +579,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                             className="w-full border border-gray-300 rounded p-2"
                           >
                             <option value="">Bitte wählen</option>
-                            {options.einheiten.map(e => <option key={e} value={e}>{e}</option>)}
+                            {options.einheiten.map((e) => <option key={e} value={e}>{e}</option>)}
                           </select>
                         </div>
                       </div>
@@ -525,7 +603,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                             className={`w-full border rounded p-2 ${errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}
                           >
                             <option value="">Bitte wählen</option>
-                            {options.einheiten.map(e => <option key={e} value={e}>{e}</option>)}
+                            {options.einheiten.map((e) => <option key={e} value={e}>{e}</option>)}
                           </select>
                         </div>
                       </div>
@@ -534,7 +612,7 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                     {positionen.length > 1 && (
                       <button
                         onClick={() => removePosition(index)}
-                        className="absolute top-4 right-4 text-red-600 hover:text-red-800"
+                        className="absolute top-3 right-3 text-red-600 hover:text-red-800"
                         title="Position löschen"
                       >
                         <Trash2 size={20} />
@@ -552,6 +630,16 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t">
+                {canDelete && (
+                  <button
+                    onClick={handleDelete}
+                    className="px-5 py-2.5 rounded border border-red-300 text-red-700 hover:bg-red-50"
+                    disabled={isSubmitting}
+                  >
+                    Löschen
+                  </button>
+                )}
+
                 <button
                   onClick={onClose}
                   className="px-5 py-2.5 rounded border border-gray-300 hover:bg-gray-50"
@@ -559,8 +647,9 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
                 >
                   Abbrechen
                 </button>
+
                 <button
-                  onClick={handleSubmit}
+                  onClick={handleSave}
                   className="px-5 py-2.5 rounded bg-[#800000] text-white hover:opacity-90 disabled:opacity-60"
                   disabled={isSubmitting}
                 >
