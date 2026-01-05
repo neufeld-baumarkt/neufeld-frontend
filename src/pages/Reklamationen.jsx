@@ -123,10 +123,26 @@ export default function Reklamationen() {
       result = result.filter(r => (r.rekla_nr || "").toLowerCase().includes(search));
     }
 
+    // ✅ Sortierung: primär Datum, sekundär min_lfd_nr (kleinste lfd. Nr. pro Reklamation)
+    // - Datum bleibt Hauptkriterium (asc/desc via Filter)
+    // - innerhalb des gleichen Datums: nach min_lfd_nr aufsteigend
+    // - fehlende min_lfd_nr (null) immer nach unten
     result.sort((a, b) => {
-      const dateA = new Date(a.datum);
-      const dateB = new Date(b.datum);
-      return newFilters.sortDatum === 'asc' ? dateA - dateB : dateB - dateA;
+      const ta = a?.datum ? new Date(a.datum).getTime() : 0;
+      const tb = b?.datum ? new Date(b.datum).getTime() : 0;
+
+      // Falls Datum ungültig ist, auf 0 fallen lassen (landet bei desc unten, bei asc oben)
+      const da = Number.isFinite(ta) ? ta : 0;
+      const db = Number.isFinite(tb) ? tb : 0;
+
+      if (da !== db) {
+        return newFilters.sortDatum === 'asc' ? da - db : db - da;
+      }
+
+      const la = a?.min_lfd_nr ?? Number.MAX_SAFE_INTEGER;
+      const lb = b?.min_lfd_nr ?? Number.MAX_SAFE_INTEGER;
+
+      return la - lb;
     });
 
     setFilteredReklas(result);
