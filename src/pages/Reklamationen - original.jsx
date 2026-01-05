@@ -1,6 +1,8 @@
 // src/pages/Reklamationen.jsx
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { Bookmark } from 'lucide-react';
+import toast from 'react-hot-toast';
 import CreateReklamationModal from '../components/CreateReklamationModal';
 import EditReklamationModal from '../components/EditReklamationModal';
 import FilterModal from '../components/FilterModal';
@@ -17,6 +19,12 @@ export default function Reklamationen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // ✅ Notiz-State (nur ergänzt – Optik bleibt wie Code 1)
+  const [showNotiz, setShowNotiz] = useState(false);
+  const [notizDraft, setNotizDraft] = useState('');
+  const [notizSaving, setNotizSaving] = useState(false);
+
   const [filters, setFilters] = useState({
     filiale: 'Alle',
     status: 'Alle',
@@ -42,6 +50,9 @@ export default function Reklamationen() {
     ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
   const canEdit = userRole.toLowerCase() !== 'filiale';
+
+  // ✅ Notiz darf nur Admin/Supervisor speichern
+  const canWriteNotiz = ['admin', 'supervisor'].includes(userRole.toLowerCase());
 
   const headlineText = isSuperUser
     ? "Reklamationsliste"
@@ -106,6 +117,45 @@ export default function Reklamationen() {
       setReklaDetails((prev) => ({ ...prev, [id]: res.data }));
     } catch (err) {
       console.error("Fehler beim Laden der Detaildaten:", err);
+    }
+  };
+
+  // ✅ Notiz-Draft automatisch setzen, sobald Details geladen sind (aber NICHT während offen+tippen)
+  useEffect(() => {
+    if (!activeReklaId) return;
+    const details = reklaDetails[activeReklaId];
+    if (!details?.reklamation) return;
+    if (showNotiz) return;
+    setNotizDraft(details.reklamation.notiz ?? '');
+  }, [activeReklaId, reklaDetails, showNotiz]);
+
+  // ✅ Notiz speichern per PATCH
+  const saveNotiz = async (e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+
+    if (!activeReklaId) return;
+
+    if (!canWriteNotiz) {
+      toast.error("Keine Berechtigung: Notiz darf nur Admin/Supervisor speichern.");
+      return;
+    }
+
+    const token = sessionStorage.getItem('token');
+    const payload = { notiz: notizDraft };
+
+    try {
+      setNotizSaving(true);
+      await axios.patch(`${import.meta.env.VITE_API_URL}/api/reklamationen/${activeReklaId}`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success("Notiz gespeichert.");
+      await loadDetails(activeReklaId);
+    } catch (err) {
+      console.error("Fehler beim Speichern der Notiz:", err);
+      toast.error("Notiz konnte nicht gespeichert werden.");
+    } finally {
+      setNotizSaving(false);
     }
   };
 
@@ -328,6 +378,11 @@ export default function Reklamationen() {
             className={`grid ${LIST_GRID} bg-white text-black px-4 py-3 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition`}
             onClick={() => {
               setActiveReklaId(rekla.id);
+
+              // ✅ Notiz-Zustand beim Öffnen resetten (wie in Notiz-Version)
+              setShowNotiz(false);
+              setNotizDraft('');
+
               if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
             }}
           >
@@ -400,9 +455,89 @@ export default function Reklamationen() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-8 border-b pb-4">
+                  {/* ✅ Header mit Notiz-Icon rechts (Layout bleibt sonst identisch) */}
+                  <div className="mb-8 border-b pb-4 flex items-center justify-between gap-6">
                     <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
+
+                    {(() => {
+                      const r = reklaDetails[activeReklaId]?.reklamation;
+                      const hasNotiz = !!(r?.notiz && String(r.notiz).trim().length > 0);
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowNotiz((prev) => !prev);
+                          }}
+                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                            hasNotiz ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 bg-gray-50 text-gray-500"
+                          } hover:opacity-90`}
+                          title={hasNotiz ? "Notiz vorhanden" : "Keine Notiz"}
+                        >
+                          <Bookmark className="w-5 h-5" fill={hasNotiz ? "currentColor" : "none"} />
+                          <span className="text-sm font-semibold">Notiz</span>
+                        </button>
+                      );
+                    })()}
                   </div>
+
+                  {/* ✅ Notizfeld (nur Detailansicht, kein eigenes Modal) */}
+                  {showNotiz && (
+                    <div className="mb-8" onClick={(e) => e.stopPropagation()}>
+                      {(() => {
+                        const r = reklaDetails[activeReklaId]?.reklamation;
+                        const hasMeta = !!(r?.notiz_von || r?.notiz_am);
+
+                        return (
+                          <>
+                            <div className="flex items-end justify-between gap-6 mb-2">
+                              <div className="text-xl font-bold">Interne Notiz</div>
+
+                              {hasMeta && (
+                                <div className="text-sm text-gray-600 text-right">
+                                  {r?.notiz_von ? (
+                                    <div>Notiz von: <span className="font-semibold">{r.notiz_von}</span></div>
+                                  ) : null}
+                                  {r?.notiz_am ? (
+                                    <div>am: <span className="font-semibold">{new Date(r.notiz_am).toLocaleString('de-DE')}</span></div>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+
+                            <textarea
+                              value={notizDraft}
+                              onChange={(e) => setNotizDraft(e.target.value)}
+                              readOnly={!canWriteNotiz}
+                              placeholder={canWriteNotiz ? "Notiz hier eintragen..." : "Keine Berechtigung zum Bearbeiten."}
+                              className={`w-full min-h-[120px] p-4 rounded-lg border resize-y outline-none ${
+                                canWriteNotiz ? "border-gray-300 focus:border-blue-300" : "border-gray-200 bg-gray-50 text-gray-600"
+                              }`}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+
+                            <div className="mt-3 flex items-center justify-between gap-6">
+                              <div className="text-sm text-gray-600">
+                                Löschen = Text leeren + Speichern.
+                              </div>
+
+                              {canWriteNotiz && (
+                                <button
+                                  type="button"
+                                  onClick={saveNotiz}
+                                  disabled={notizSaving}
+                                  className="px-4 py-2 rounded-lg bg-[#800000] text-white font-semibold disabled:opacity-50"
+                                >
+                                  {notizSaving ? "Speichern..." : "Speichern"}
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>lfd. Nr.</div>
