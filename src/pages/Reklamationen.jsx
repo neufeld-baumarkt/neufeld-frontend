@@ -17,6 +17,12 @@ export default function Reklamationen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // Notiz UI (nur im Detail-Modal)
+  const [showNotePanel, setShowNotePanel] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+
   const [filters, setFilters] = useState({
     filiale: 'Alle',
     status: 'Alle',
@@ -42,6 +48,7 @@ export default function Reklamationen() {
     ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
   const canEdit = userRole.toLowerCase() !== 'filiale';
+  const canEditNote = ['admin', 'supervisor'].includes((userRole || '').toLowerCase());
 
   const headlineText = isSuperUser
     ? "Reklamationsliste"
@@ -123,9 +130,7 @@ export default function Reklamationen() {
       result = result.filter(r => (r.rekla_nr || "").toLowerCase().includes(search));
     }
 
-    // ✅ Sortierung: primär Datum, sekundär min_lfd_nr (kleinste lfd. Nr. pro Reklamation)
-    // - Datum bleibt Hauptkriterium (asc/desc via Filter)
-    // - innerhalb des gleichen Datums: nach min_lfd_nr aufsteigend
+    // ✅ Sortierung: primär Datum, sekundär min_lfd_nr
     // - fehlende min_lfd_nr (null) immer nach unten
     result.sort((a, b) => {
       const ta = a?.datum ? new Date(a.datum).getTime() : 0;
@@ -166,6 +171,13 @@ export default function Reklamationen() {
     return new Date(isoDate).toLocaleDateString('de-DE');
   };
 
+  const formatDateTime = (isoDate) => {
+    if (!isoDate) return "-";
+    const d = new Date(isoDate);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleString('de-DE');
+  };
+
   const getStatusColor = (status) => {
     switch ((status || "").toLowerCase()) {
       case 'angelegt': return 'text-blue-600';
@@ -196,6 +208,84 @@ export default function Reklamationen() {
   // List-Grid: genau nach deiner Vorgabe
   // 1 lfdNr (fix) | 2 Datum (fix) | 3 Filiale (fix) | 4 ReklaNr (flex) | 5 Lieferant (flex) | 6 Status (fix rechts)
   const LIST_GRID = "grid-cols-[100px_140px_120px_minmax(0,1fr)_minmax(0,1fr)_120px]";
+
+  const getActiveRekla = () => reklamationFromActive()?.reklamation;
+  const reklamationFromActive = () => (activeReklaId ? reklaDetails?.[activeReklaId] : null);
+
+  const hasNote = () => {
+    const r = getActiveRekla();
+    const n = (r?.notiz ?? "");
+    return typeof n === 'string' && n.trim().length > 0;
+  };
+
+  const showTracking = () => {
+    const r = getActiveRekla();
+    const versand = r?.versand === true; // Option C: nur wenn wirklich true
+    const tid = (r?.tracking_id ?? "").toString().trim();
+    return versand && tid.length > 0;
+  };
+
+  const trackingIdValue = () => {
+    const r = getActiveRekla();
+    return (r?.tracking_id ?? "").toString().trim();
+  };
+
+  const fmtMenge = (menge, einheit) => {
+    const m = (menge ?? "").toString().trim();
+    const e = (einheit ?? "").toString().trim();
+    if (!m && !e) return "-";
+    return `${m || "-"}${e ? ` ${e}` : ""}`;
+  };
+
+  const toggleNotePanel = (e) => {
+    // nicht das Modal schließen
+    e?.stopPropagation?.();
+
+    const r = getActiveRekla();
+    const current = (r?.notiz ?? "").toString();
+    setNoteDraft(current);
+    setShowNotePanel((prev) => !prev);
+  };
+
+  const saveNote = async (e) => {
+    e?.stopPropagation?.();
+
+    if (!activeReklaId) return;
+    if (!canEditNote) return;
+
+    const token = sessionStorage.getItem('token');
+    setNoteSaving(true);
+
+    try {
+      await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/reklamationen/${activeReklaId}`,
+        { notiz: noteDraft },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Reload Details -> sichere Anzeige von notiz_von/notiz_am nach Backend-Update
+      await loadDetails(activeReklaId);
+    } catch (err) {
+      console.error("Fehler beim Speichern der Notiz:", err);
+    } finally {
+      setNoteSaving(false);
+    }
+  };
+
+  const clearNote = async (e) => {
+    e?.stopPropagation?.();
+    if (!canEditNote) return;
+    setNoteDraft('');
+    // speichert dann NULL via Backend (trim => null)
+    await saveNote(e);
+  };
+
+  const closeDetailModal = () => {
+    setActiveReklaId(null);
+    setShowNotePanel(false);
+    setNoteDraft('');
+    setNoteSaving(false);
+  };
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
@@ -328,6 +418,8 @@ export default function Reklamationen() {
             className={`grid ${LIST_GRID} bg-white text-black px-4 py-3 mb-2 rounded-lg shadow cursor-pointer hover:bg-gray-100 transition`}
             onClick={() => {
               setActiveReklaId(rekla.id);
+              setShowNotePanel(false);
+              setNoteDraft('');
               if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
             }}
           >
@@ -386,11 +478,12 @@ export default function Reklamationen() {
       {activeReklaId && (
         <div
           className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-          onClick={() => setActiveReklaId(null)}
+          onClick={closeDetailModal}
         >
           <div
-            // WICHTIG: schließen per Klick AUF die Karte (wie gewünscht)
-            onClick={() => setActiveReklaId(null)}
+            // wie zuvor: Klick auf Karte schließt weiterhin,
+            // aber Icon/Panel stoppen Propagation
+            onClick={() => closeDetailModal()}
             className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
           >
             <div className="p-8">
@@ -400,57 +493,169 @@ export default function Reklamationen() {
                 </div>
               ) : (
                 <>
-                  <div className="mb-8 border-b pb-4">
+                  <div className="mb-6 border-b pb-4 flex items-center justify-between gap-6">
                     <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
+
+                    {/* Notiz Icon (Icon-Klick) */}
+                    <div
+                      className="cursor-pointer select-none"
+                      onClick={toggleNotePanel}
+                      title={hasNote() ? "Notiz vorhanden" : "Keine Notiz"}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="34"
+                        height="34"
+                        viewBox="0 0 24 24"
+                        fill={hasNote() ? "#2563eb" : "#9ca3af"} // blau / grau
+                      >
+                        <path d="M6 2h12a2 2 0 0 1 2 2v18l-8-5-8 5V4a2 2 0 0 1 2-2z" />
+                      </svg>
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
-                    <div>lfd. Nr.</div>
+                  {/* Kopf: lfd Nr. raus, dafür Filiale/LS usw. */}
+                  <div className="grid grid-cols-[220px_160px_140px_1fr_160px_160px] gap-4 mb-4 text-lg font-bold text-gray-700 border-b border-gray-300 pb-3">
                     <div>Rekla-Nr.</div>
                     <div>Datum</div>
+                    <div>Filiale</div>
                     <div>Lieferant</div>
                     <div>Art</div>
                     <div className="text-right">Status</div>
                   </div>
 
-                  <div className="grid grid-cols-[100px_200px_160px_1fr_140px_140px] gap-4 mb-8 text-lg">
-                    <div className="font-bold">{formatLfdFromDetails(reklaDetails[activeReklaId])}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.rekla_nr}</div>
-                    <div>{formatDate(reklaDetails[activeReklaId]?.reklamation?.datum)}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.lieferant}</div>
-                    <div>{reklaDetails[activeReklaId]?.reklamation?.art || "-"}</div>
-                    <div className={`text-right font-semibold ${getStatusColor(reklaDetails[activeReklaId]?.reklamation?.status)}`}>
-                      {reklaDetails[activeReklaId]?.reklamation?.status}
+                  <div className="grid grid-cols-[220px_160px_140px_1fr_160px_160px] gap-4 mb-4 text-lg">
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis" title={getActiveRekla()?.rekla_nr || ""}>
+                      {getActiveRekla()?.rekla_nr || "-"}
+                    </div>
+                    <div>{formatDate(getActiveRekla()?.datum)}</div>
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis" title={getActiveRekla()?.filiale || ""}>
+                      {getActiveRekla()?.filiale || "-"}
+                    </div>
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis" title={getActiveRekla()?.lieferant || ""}>
+                      {getActiveRekla()?.lieferant || "-"}
+                    </div>
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis" title={getActiveRekla()?.art || ""}>
+                      {getActiveRekla()?.art || "-"}
+                    </div>
+                    <div className={`text-right font-semibold ${getStatusColor(getActiveRekla()?.status)}`}>
+                      {getActiveRekla()?.status}
                     </div>
                   </div>
 
+                  {/* Zweite Kopfzeile: LS/Grund + Tracking Option C (nur wenn vorhanden) */}
+                  <div className="grid grid-cols-[1fr_1fr] gap-6 mb-8 text-base text-gray-800">
+                    <div className="whitespace-nowrap overflow-hidden text-ellipsis" title={getActiveRekla()?.ls_nummer_grund || ""}>
+                      <span className="font-semibold">LS/Grund:</span> {getActiveRekla()?.ls_nummer_grund || "-"}
+                    </div>
+
+                    {showTracking() ? (
+                      <div className="text-right whitespace-nowrap overflow-hidden text-ellipsis" title={trackingIdValue()}>
+                        <span className="font-semibold">Tracking-ID:</span> {trackingIdValue()}
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                  </div>
+
+                  {/* Notiz Panel (Icon-Klick) */}
+                  {showNotePanel && (
+                    <div
+                      className="mb-10 bg-gray-50 border border-gray-200 rounded-lg p-5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between gap-6 mb-3">
+                        <div className="font-bold text-xl text-gray-800">Notiz</div>
+                        <div className="text-sm text-gray-600">
+                          {getActiveRekla()?.notiz_von ? (
+                            <>
+                              Von <span className="font-semibold">{getActiveRekla()?.notiz_von}</span>
+                              {" · "}
+                              {formatDateTime(getActiveRekla()?.notiz_am)}
+                            </>
+                          ) : (
+                            <>—</>
+                          )}
+                        </div>
+                      </div>
+
+                      {canEditNote ? (
+                        <>
+                          <textarea
+                            className="w-full min-h-[110px] rounded-md border border-gray-300 p-3 text-base outline-none focus:ring-2 focus:ring-blue-200"
+                            value={noteDraft}
+                            onChange={(e) => setNoteDraft(e.target.value)}
+                            placeholder="Notiz eingeben…"
+                          />
+
+                          <div className="flex justify-end gap-3 mt-4">
+                            <button
+                              className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-800 disabled:opacity-60"
+                              onClick={clearNote}
+                              disabled={noteSaving}
+                              title="Notiz löschen"
+                            >
+                              Löschen
+                            </button>
+                            <button
+                              className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
+                              onClick={saveNote}
+                              disabled={noteSaving}
+                              title="Notiz speichern"
+                            >
+                              {noteSaving ? "Speichere…" : "Speichern"}
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-base text-gray-800 whitespace-pre-wrap">
+                          {hasNote() ? (getActiveRekla()?.notiz || "") : "Keine Notiz vorhanden."}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Positionen kompakter */}
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
-                    <div className="mt-6">
+                    <div className="mt-2">
                       <p className="font-bold text-xl mb-4">
-                        Positionen ({reklaDetails[activeReklaId].positionen.length})
+                        Positionen ({reklaDetails[activeReklaId].positionen.length}) · lfd.: {formatLfdFromDetails(reklaDetails[activeReklaId])}
                       </p>
+
                       <div className="space-y-3">
-                        {reklaDetails[activeReklaId].positionen.map((pos) => (
-                          <div key={pos.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div className="flex justify-between gap-6">
-                              <div className="font-semibold text-lg">{pos.artikelnummer}</div>
-                              <div className="font-bold text-lg text-gray-700">
-                                #{pos.lfd_nr ?? "-"}
+                        {reklaDetails[activeReklaId].positionen.map((pos) => {
+                          const reklaM = fmtMenge(pos?.rekla_menge, pos?.rekla_einheit);
+                          const bestM = fmtMenge(pos?.bestell_menge, pos?.bestell_einheit);
+
+                          return (
+                            <div key={pos.id} className="bg-gray-50 px-5 py-4 rounded-lg border border-gray-200">
+                              <div className="flex justify-between items-start gap-6">
+                                <div className="font-semibold text-lg whitespace-nowrap overflow-hidden text-ellipsis" title={pos.artikelnummer || ""}>
+                                  {pos.artikelnummer || "-"}
+                                </div>
+                                <div className="font-bold text-lg text-gray-700 whitespace-nowrap">
+                                  #{pos.lfd_nr ?? "-"}
+                                </div>
+                              </div>
+
+                              <div className="text-sm text-gray-600 whitespace-nowrap overflow-hidden text-ellipsis" title={pos.ean || ""}>
+                                EAN: {pos.ean || "-"}
+                              </div>
+
+                              <div className="mt-2 text-sm text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">
+                                <span className="font-medium">Reklamiert:</span> {reklaM}
+                                <span className="mx-3 text-gray-400">|</span>
+                                <span className="font-medium">Bestellt:</span> {bestM}
                               </div>
                             </div>
-                            <div className="text-sm text-gray-600">EAN: {pos.ean || "-"}</div>
-                            <div className="mt-2 text-sm">
-                              <span className="font-medium">Reklamierte Menge:</span> {pos.rekla_menge} {pos.rekla_einheit}<br />
-                              <span className="font-medium">Bestellte Menge:</span> {pos.bestell_menge} {pos.bestell_einheit}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
 
                   <div className="mt-10 pt-6 border-t text-right text-sm text-gray-600">
-                    Letzte Änderung: {formatDate(reklaDetails[activeReklaId]?.reklamation?.letzte_aenderung)}
+                    Letzte Änderung: {formatDate(getActiveRekla()?.letzte_aenderung)}
                   </div>
                 </>
               )}
