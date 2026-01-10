@@ -20,7 +20,7 @@ export default function Reklamationen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // ✅ Notiz-State (nur ergänzt – Optik bleibt wie Code 1)
+  // ✅ Notiz-State
   const [showNotiz, setShowNotiz] = useState(false);
   const [notizDraft, setNotizDraft] = useState('');
   const [notizSaving, setNotizSaving] = useState(false);
@@ -50,8 +50,6 @@ export default function Reklamationen() {
     ['supervisor', 'manager', 'admin'].includes(userRole.toLowerCase());
 
   const canEdit = userRole.toLowerCase() !== 'filiale';
-
-  // ✅ Notiz darf nur Admin/Supervisor speichern
   const canWriteNotiz = ['admin', 'supervisor'].includes(userRole.toLowerCase());
 
   const headlineText = isSuperUser
@@ -79,6 +77,7 @@ export default function Reklamationen() {
       applyFilters(data, filters);
     } catch (error) {
       console.error('Fehler beim Laden der Reklamationen:', error);
+      toast.error('Reklamationen konnten nicht geladen werden.');
     }
   };
 
@@ -96,6 +95,7 @@ export default function Reklamationen() {
       setReklaDetails((prev) => ({ ...prev, [id]: res.data }));
     } catch (err) {
       console.error("Fehler beim Laden der Detaildaten:", err);
+      toast.error('Detaildaten konnten nicht geladen werden.');
     }
   };
 
@@ -111,7 +111,6 @@ export default function Reklamationen() {
   // ✅ Notiz speichern per PATCH
   const saveNotiz = async (e) => {
     if (e?.stopPropagation) e.stopPropagation();
-
     if (!activeReklaId) return;
 
     if (!canWriteNotiz) {
@@ -124,6 +123,7 @@ export default function Reklamationen() {
 
     try {
       setNotizSaving(true);
+
       await axios.patch(`${import.meta.env.VITE_API_URL}/api/reklamationen/${activeReklaId}`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -219,7 +219,7 @@ export default function Reklamationen() {
     setShowEditModal(true);
   };
 
-  // List-Grid: genau nach deiner Vorgabe
+  // List-Grid: exakt wie in deinem Ist-Stand
   const LIST_GRID = "grid-cols-[100px_140px_120px_minmax(0,1fr)_minmax(0,1fr)_120px]";
 
   return (
@@ -337,7 +337,7 @@ export default function Reklamationen() {
       </h1>
 
       <div className="pt-64 px-[80px]">
-        {/* Header: exakt deine Spaltenreihenfolge */}
+        {/* Header */}
         <div className={`grid ${LIST_GRID} text-left font-bold text-gray-300 border-b border-gray-500 pb-2 mb-6`}>
           <div>lfd. Nr.</div>
           <div>Datum</div>
@@ -361,34 +361,17 @@ export default function Reklamationen() {
               if (!reklaDetails[rekla.id]) loadDetails(rekla.id);
             }}
           >
-            {/* 1) lfd. Nr. */}
             <div className="font-bold">
               {formatLfdDisplay({ min_lfd_nr: rekla.min_lfd_nr, position_count: rekla.position_count })}
             </div>
-
-            {/* 2) Datum */}
             <div>{formatDate(rekla.datum)}</div>
-
-            {/* 3) Filiale */}
             <div>{rekla.filiale || "-"}</div>
-
-            {/* 4) Rekla-Nr */}
-            <div
-              className="whitespace-nowrap overflow-hidden text-ellipsis pr-2"
-              title={rekla.rekla_nr || ""}
-            >
+            <div className="whitespace-nowrap overflow-hidden text-ellipsis pr-2" title={rekla.rekla_nr || ""}>
               {rekla.rekla_nr || "-"}
             </div>
-
-            {/* 5) Lieferant */}
-            <div
-              className="whitespace-nowrap overflow-hidden text-ellipsis pr-2"
-              title={rekla.lieferant || ""}
-            >
+            <div className="whitespace-nowrap overflow-hidden text-ellipsis pr-2" title={rekla.lieferant || ""}>
               {rekla.lieferant || "-"}
             </div>
-
-            {/* 6) Status */}
             <div className={`text-right font-semibold ${getStatusColor(rekla.status)}`}>
               {rekla.status}
             </div>
@@ -419,7 +402,6 @@ export default function Reklamationen() {
           onClick={() => setActiveReklaId(null)}
         >
           <div
-            // WICHTIG: schließen per Klick AUF die Karte
             onClick={() => setActiveReklaId(null)}
             className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
           >
@@ -430,7 +412,6 @@ export default function Reklamationen() {
                 </div>
               ) : (
                 <>
-                  {/* Kopfbereich: ruhig, flach. lfd. Nr. ist hier bewusst NICHT drin. */}
                   <div className="mb-5 border-b pb-3 flex items-center justify-between gap-6">
                     <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
 
@@ -457,7 +438,6 @@ export default function Reklamationen() {
                     })()}
                   </div>
 
-                  {/* Notizfeld (sekundär, klappt nur auf Klick auf Icon auf) */}
                   {showNotiz && (
                     <div className="mb-6" onClick={(e) => e.stopPropagation()}>
                       {(() => {
@@ -514,7 +494,6 @@ export default function Reklamationen() {
                     </div>
                   )}
 
-                  {/* Kopf-Daten kompakt: ReklaNr, Datum, Filiale, Lieferant, Art, Status */}
                   {(() => {
                     const r = reklaDetails[activeReklaId]?.reklamation || {};
                     const hasTracking = r?.versand === true && !!(r?.tracking_id && String(r.tracking_id).trim().length > 0);
@@ -551,7 +530,6 @@ export default function Reklamationen() {
                           </div>
                         </div>
 
-                        {/* LS-Nummer/Grund: bleibt im Kopf, möglichst ohne Umbruch, ellipsis + Tooltip */}
                         {showLs && (
                           <div className="mt-3 text-sm text-gray-700 flex gap-2 items-center">
                             <span className="font-semibold text-gray-500 whitespace-nowrap">LS / Grund:</span>
@@ -565,7 +543,6 @@ export default function Reklamationen() {
                           </div>
                         )}
 
-                        {/* Tracking-ID Option C: nur wenn versand===true UND tracking_id vorhanden */}
                         {hasTracking && (
                           <div className="mt-1 text-sm text-gray-700 flex gap-2 items-center">
                             <span className="font-semibold text-gray-500 whitespace-nowrap">Tracking-ID:</span>
@@ -578,7 +555,6 @@ export default function Reklamationen() {
                     );
                   })()}
 
-                  {/* Positionen: flacher, weniger Zeilen, keine "Blasen" */}
                   {reklaDetails[activeReklaId].positionen?.length > 0 && (
                     <div className="mt-6">
                       <div className="flex items-baseline justify-between mb-2">
@@ -591,37 +567,26 @@ export default function Reklamationen() {
                         {reklaDetails[activeReklaId].positionen.map((pos) => {
                           const artikel = pos?.artikelnummer ?? "-";
                           const ean = pos?.ean ?? "-";
-
                           const reklaMenge = pos?.rekla_menge ?? "-";
                           const reklaEinheit = pos?.rekla_einheit ?? "";
                           const bestellMenge = pos?.bestell_menge ?? "-";
                           const bestellEinheit = pos?.bestell_einheit ?? "";
-
                           const lfd = (pos?.lfd_nr ?? null);
 
                           return (
-                            <div
-                              key={pos.id}
-                              className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
-                            >
+                            <div key={pos.id} className="border border-gray-200 rounded-lg px-3 py-2 bg-white">
                               <div className="grid grid-cols-[minmax(0,1fr)_220px_140px] gap-3 items-center">
-                                {/* Artikelnummer - nicht umbrechen */}
                                 <div className="font-semibold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={String(artikel)}>
                                   {artikel}
                                 </div>
-
-                                {/* EAN - nicht umbrechen */}
                                 <div className="text-sm text-gray-700 whitespace-nowrap overflow-hidden text-ellipsis" title={String(ean)}>
                                   EAN: {ean}
                                 </div>
-
-                                {/* lfd. Nr. Position - rechts */}
                                 <div className="text-right font-bold text-gray-700 whitespace-nowrap">
                                   #{lfd ?? "-"}
                                 </div>
                               </div>
 
-                              {/* Mengen: alles in einer Zeile */}
                               <div className="mt-1 text-sm text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">
                                 <span className="font-medium">Rekla:</span> {reklaMenge} {reklaEinheit}
                                 <span className="mx-2 text-gray-400">|</span>
