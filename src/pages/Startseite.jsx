@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import nbLogo from '../assets/NB_EST23.PNG';
 
 function Startseite() {
   let user = null;
@@ -73,7 +72,7 @@ function Startseite() {
         {menuOpen && (
           <div
             className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
-            style={{ minWidth: '160px' }}
+            style={{ minWidth: '180px' }}
           >
             <div
               onClick={handleLogout}
@@ -85,6 +84,7 @@ function Startseite() {
               </svg>
               <span>Abmelden</span>
             </div>
+
             <div className="mt-2 text-xs text-black/70">
               Rolle: <span className="font-semibold">{role}</span>
             </div>
@@ -93,7 +93,10 @@ function Startseite() {
       </div>
 
       {/* HAUPTMENÜ LINKS */}
-      <div className="absolute text-4xl font-bold text-white flex items-center gap-1" style={{ marginLeft: '100px', marginTop: '30px' }}>
+      <div
+        className="absolute text-4xl font-bold text-white flex items-center gap-1"
+        style={{ marginLeft: '100px', marginTop: '30px' }}
+      >
         <button
           onClick={() => setMenuGridOpen(!menuGridOpen)}
           className="p-1 rounded hover:bg-white/10"
@@ -133,7 +136,7 @@ function Startseite() {
         </div>
       </div>
 
-      {/* LOGO – PROFESSIONELL ZENTRIERT (INHALTSBEREICH, NICHT AUF RÄNDER/HEADER) */}
+      {/* LOGO – aus /public (kein Import, kein Vite-Parse) */}
       <div
         className="absolute z-0 flex items-center justify-center pointer-events-none"
         style={{
@@ -144,7 +147,6 @@ function Startseite() {
         }}
       >
         <div className="relative flex items-center justify-center">
-          {/* dezenter Glow passend zum CI, kein Kirmes-Effekt */}
           <div
             className="absolute rounded-full blur-2xl opacity-30"
             style={{
@@ -154,7 +156,7 @@ function Startseite() {
             }}
           />
           <img
-            src={nbLogo}
+            src="/NB_EST23.PNG"
             alt="Neufeld Baumarkt GmbH – Logo"
             className="relative select-none"
             style={{
