@@ -402,7 +402,7 @@ export default function Reklamationen() {
           onClick={() => setActiveReklaId(null)}
         >
           <div
-            onClick={() => setActiveReklaId(null)}
+            onClick={(e) => e.stopPropagation()}
             className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-160px)] max-w-7xl max-h-[90vh] overflow-y-auto"
           >
             <div className="p-8">
@@ -415,27 +415,43 @@ export default function Reklamationen() {
                   <div className="mb-5 border-b pb-3 flex items-center justify-between gap-6">
                     <h2 className="text-3xl font-bold">Reklamationsdetails</h2>
 
-                    {(() => {
-                      const r = reklaDetails[activeReklaId]?.reklamation;
-                      const hasNotiz = !!(r?.notiz && String(r.notiz).trim().length > 0);
+                    <div className="flex items-center gap-3">
+                      {(() => {
+                        const r = reklaDetails[activeReklaId]?.reklamation;
+                        const hasNotiz = !!(r?.notiz && String(r.notiz).trim().length > 0);
 
-                      return (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowNotiz((prev) => !prev);
-                          }}
-                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                            hasNotiz ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 bg-gray-50 text-gray-500"
-                          } hover:opacity-90`}
-                          title={hasNotiz ? "Notiz vorhanden" : "Keine Notiz"}
-                        >
-                          <Bookmark className="w-5 h-5" fill={hasNotiz ? "currentColor" : "none"} />
-                          <span className="text-sm font-semibold">Notiz</span>
-                        </button>
-                      );
-                    })()}
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowNotiz((prev) => !prev);
+                            }}
+                            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border ${
+                              hasNotiz ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200 bg-gray-50 text-gray-500"
+                            } hover:opacity-90`}
+                            title={hasNotiz ? "Notiz vorhanden" : "Keine Notiz"}
+                          >
+                            <Bookmark className="w-5 h-5" fill={hasNotiz ? "currentColor" : "none"} />
+                            <span className="text-sm font-semibold">Notiz</span>
+                          </button>
+                        );
+                      })()}
+
+                      {/* X oben rechts: schließt das Modal */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveReklaId(null);
+                        }}
+                        aria-label="Schließen"
+                        title="Schließen"
+                        className="w-10 h-10 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100 hover:text-black flex items-center justify-center text-2xl leading-none"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
 
                   {showNotiz && (
