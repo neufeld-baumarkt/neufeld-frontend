@@ -6,8 +6,9 @@ function Startseite() {
   try {
     user = JSON.parse(sessionStorage.getItem('user'));
   } catch (e) {
-    console.warn('❗ Benutzer konnte nicht geladen werden:', e);
+    console.warn('Benutzer konnte nicht geladen werden:', e);
   }
+
   const displayName = user?.name || 'Unbekannt';
   const role = user?.role || 'Unbekannt';
 
@@ -28,7 +29,7 @@ function Startseite() {
 
   return (
     <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
-      {/* FIXES GRUNDLAYOUT (UNVERÄNDERT) */}
+      {/* FIXES GRUNDLAYOUT (UNVERAENDERT) */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
       <div
@@ -74,17 +75,13 @@ function Startseite() {
             className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
             style={{ minWidth: '180px' }}
           >
-            <div
-              onClick={handleLogout}
-              className="hover:bg-gray-100 cursor-pointer flex items-center gap-2"
-            >
+            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
                 <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
                 <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
               </svg>
               <span>Abmelden</span>
             </div>
-
             <div className="mt-2 text-xs text-black/70">
               Rolle: <span className="font-semibold">{role}</span>
             </div>
@@ -92,7 +89,7 @@ function Startseite() {
         )}
       </div>
 
-      {/* HAUPTMENÜ LINKS */}
+      {/* HAUPTMENUE LINKS */}
       <div
         className="absolute text-4xl font-bold text-white flex items-center gap-1"
         style={{ marginLeft: '100px', marginTop: '30px' }}
@@ -106,7 +103,7 @@ function Startseite() {
             <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
           </svg>
         </button>
-        Hauptmenü
+        Hauptmenue
       </div>
 
       <div
@@ -123,7 +120,7 @@ function Startseite() {
           </div>
           <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
             <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstoerungen</span>
           </div>
           <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
             <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
@@ -133,39 +130,6 @@ function Startseite() {
             <img src="/icons/materialshop.png" alt="Materialshop" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Materialshop</span>
           </div>
-        </div>
-      </div>
-
-      {/* LOGO – aus /public (kein Import, kein Vite-Parse) */}
-      <div
-        className="absolute z-0 flex items-center justify-center pointer-events-none"
-        style={{
-          left: '95px',
-          right: '80px',
-          top: '200px',
-          bottom: '60px',
-        }}
-      >
-        <div className="relative flex items-center justify-center">
-          <div
-            className="absolute rounded-full blur-2xl opacity-30"
-            style={{
-              width: '520px',
-              height: '520px',
-              background: 'radial-gradient(circle, rgba(128,0,0,0.55) 0%, rgba(128,0,0,0.0) 70%)',
-            }}
-          />
-          <img
-            src="/NB_EST23.PNG"
-            alt="Neufeld Baumarkt GmbH – Logo"
-            className="relative select-none"
-            style={{
-              width: 'min(46vh, 440px)',
-              height: 'auto',
-              filter: 'drop-shadow(10px 14px 18px rgba(0,0,0,0.55))',
-            }}
-            draggable={false}
-          />
         </div>
       </div>
     </div>
