@@ -14,6 +14,12 @@ import {
   getVisiblePages,
 } from '../lib/reklamationen/reklamationenLogic';
 
+import {
+  formatDate,
+  formatLfdDisplay,
+  getStatusColor,
+} from '../lib/reklamationen/reklamationenFormat';
+
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
@@ -62,16 +68,6 @@ export default function Reklamationen() {
   const headlineText = isSuperUser
     ? "Reklamationsliste"
     : `Reklamationsliste – Filiale ${rawFiliale}`;
-
-  // ---- lfd. Nr. Anzeige-Logik (Liste + Modal) ----
-  // Erwartet: min_lfd_nr + position_count (kann String sein)
-  const formatLfdDisplay = ({ min_lfd_nr, position_count }) => {
-    if (min_lfd_nr === null || min_lfd_nr === undefined) return "#";
-    const count = Number(position_count ?? 0);
-    if (!Number.isFinite(count) || count <= 0) return `#${min_lfd_nr}`;
-    if (count === 1) return `#${min_lfd_nr}`;
-    return `#${min_lfd_nr}+${count - 1}`;
-  };
 
   const fetchReklamationen = async () => {
     const token = sessionStorage.getItem('token');
@@ -161,22 +157,6 @@ export default function Reklamationen() {
   const { pagedData, totalPages } = paginateReklas(filteredReklas, currentPage, PAGE_SIZE);
 
   const visiblePages = () => getVisiblePages(currentPage, totalPages);
-
-  const formatDate = (isoDate) => {
-    if (!isoDate) return "-";
-    return new Date(isoDate).toLocaleDateString('de-DE');
-  };
-
-  const getStatusColor = (status) => {
-    switch ((status || "").toLowerCase()) {
-      case 'angelegt': return 'text-blue-600';
-      case 'bearbeitet':
-      case 'in bearbeitung': return 'text-yellow-600';
-      case 'freigegeben': return 'text-green-600';
-      case 'abgelehnt': return 'text-red-600';
-      default: return 'text-gray-600';
-    }
-  };
 
   const handleZurueck = () => { window.location.href = "/start"; };
   const handleLogout = () => {
