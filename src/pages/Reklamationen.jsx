@@ -8,6 +8,12 @@ import FilterModal from '../components/FilterModal';
 import ReklamationDetailModal from '../components/reklamationen/ReklamationDetailModal';
 import ReklamationenList from '../components/reklamationen/ReklamationenList';
 
+import {
+  filterAndSortReklas,
+  paginateReklas,
+  getVisiblePages,
+} from '../lib/reklamationen/reklamationenLogic';
+
 const PAGE_SIZE = 10;
 
 export default function Reklamationen() {
@@ -139,38 +145,9 @@ export default function Reklamationen() {
     }
   };
 
+  // ✅ M3: Filter+Sort auslagern (pure functions)
   const applyFilters = (data, newFilters) => {
-    let result = [...data];
-
-    if (newFilters.filiale !== 'Alle') {
-      result = result.filter(r => r.filiale === newFilters.filiale);
-    }
-    if (newFilters.status !== 'Alle') {
-      result = result.filter(r => r.status === newFilters.status);
-    }
-    if (newFilters.reklaNr) {
-      const search = newFilters.reklaNr.toLowerCase();
-      result = result.filter(r => (r.rekla_nr || "").toLowerCase().includes(search));
-    }
-
-    // ✅ Sortierung: primär Datum, sekundär min_lfd_nr
-    result.sort((a, b) => {
-      const ta = a?.datum ? new Date(a.datum).getTime() : 0;
-      const tb = b?.datum ? new Date(b.datum).getTime() : 0;
-
-      const da = Number.isFinite(ta) ? ta : 0;
-      const db = Number.isFinite(tb) ? tb : 0;
-
-      if (da !== db) {
-        return newFilters.sortDatum === 'asc' ? da - db : db - da;
-      }
-
-      const la = a?.min_lfd_nr ?? Number.MAX_SAFE_INTEGER;
-      const lb = b?.min_lfd_nr ?? Number.MAX_SAFE_INTEGER;
-
-      return la - lb;
-    });
-
+    const result = filterAndSortReklas(data, newFilters);
     setFilteredReklas(result);
     setCurrentPage(1);
   };
@@ -180,13 +157,10 @@ export default function Reklamationen() {
     applyFilters(reklas, newFilters);
   };
 
-  const pagedData = filteredReklas.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-  const totalPages = Math.ceil(filteredReklas.length / PAGE_SIZE);
+  // ✅ M3: Pagination auslagern (pure functions)
+  const { pagedData, totalPages } = paginateReklas(filteredReklas, currentPage, PAGE_SIZE);
 
-  const visiblePages = () => {
-    const start = Math.floor((currentPage - 1) / 5) * 5 + 1;
-    return Array.from({ length: Math.min(5, totalPages - start + 1) }, (_, i) => start + i);
-  };
+  const visiblePages = () => getVisiblePages(currentPage, totalPages);
 
   const formatDate = (isoDate) => {
     if (!isoDate) return "-";
