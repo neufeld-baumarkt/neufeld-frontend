@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 function Startseite() {
   let user = null;
@@ -21,8 +22,22 @@ function Startseite() {
     navigate('/');
   };
 
-  const handleNavigate = (path) => {
+  // Nur Routen erlauben, die wirklich existieren (sonst fällt App.jsx auf Login zurück)
+  const implementedRoutes = new Set([
+    '/reklamationen',
+    // '/budget' kommt später, sobald Budget.jsx + Route existieren
+  ]);
+
+  const handleNavigate = (path, label) => {
+    // Menü immer schließen
     setMenuGridOpen(false);
+
+    // Noch nicht implementiert → Toast statt Navigation (verhindert Login-Fallback)
+    if (!implementedRoutes.has(path)) {
+      toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
+      return;
+    }
+
     navigate(path);
   };
 
@@ -45,13 +60,17 @@ function Startseite() {
         by Peter Neufeld
       </div>
 
-      <div className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
-           style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
-           onClick={() => setMenuOpen(!menuOpen)}>
+      <div
+        className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
+        style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
         Angemeldet als: {displayName}
         {menuOpen && (
-          <div className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
-               style={{ minWidth: '160px' }}>
+          <div
+            className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
+            style={{ minWidth: '160px' }}
+          >
             <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
                 <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
@@ -80,19 +99,22 @@ function Startseite() {
         onMouseLeave={() => setMenuGridOpen(false)}
       >
         <div className="flex flex-col items-start gap-4 px-6 py-4 text-black text-left">
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen')}>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen', 'Reklamationen')}>
             <img src="/icons/reklamation.png" alt="Reklamation" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Reklamationen</span>
           </div>
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
+
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen', 'Technikstörungen')}>
             <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
           </div>
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
+
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste', 'Budgetliste')}>
             <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Budgetliste</span>
           </div>
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop')}>
+
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop', 'Materialshop')}>
             <img src="/icons/materialshop.png" alt="Materialshop" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Materialshop</span>
           </div>
