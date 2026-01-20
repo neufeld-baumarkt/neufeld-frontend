@@ -5,7 +5,8 @@ import Startseite from './pages/Startseite';
 import Forbidden from './pages/Forbidden';
 import SupervisorPanel from './pages/SupervisorPanel';
 import AdminPanel from './pages/AdminPanel';
-import Reklamationen from './pages/Reklamationen'; // ⬅️ hinzugefügt
+import Reklamationen from './pages/Reklamationen';
+import Budget from './pages/Budget';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
 
@@ -25,12 +26,22 @@ function App() {
         }
       />
 
-      {/* NEU: Geschützte Reklamationsseite – noch ohne Rollenprüfung */}
+      {/* Reklamationen */}
       <Route
         path="/reklamationen"
         element={
           <ProtectedRoute>
             <Reklamationen />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Budgetliste (MS3) */}
+      <Route
+        path="/budgetliste"
+        element={
+          <ProtectedRoute>
+            <Budget />
           </ProtectedRoute>
         }
       />

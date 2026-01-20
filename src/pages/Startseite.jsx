@@ -10,7 +10,6 @@ function Startseite() {
     console.warn('❗ Benutzer konnte nicht geladen werden:', e);
   }
   const displayName = user?.name || 'Unbekannt';
-  const role = user?.role || 'Unbekannt';
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuGridOpen, setMenuGridOpen] = useState(false);
@@ -22,17 +21,15 @@ function Startseite() {
     navigate('/');
   };
 
-  // Nur Routen erlauben, die wirklich existieren (sonst fällt App.jsx auf Login zurück)
+  // Nur Routen erlauben, die wirklich existieren
   const implementedRoutes = new Set([
     '/reklamationen',
-    // '/budget' kommt später, sobald Budget.jsx + Route existieren
+    '/budgetliste',
   ]);
 
-  const handleNavigate = (path, label) => {
-    // Menü immer schließen
+  const handleNavigate = (path) => {
     setMenuGridOpen(false);
 
-    // Noch nicht implementiert → Toast statt Navigation (verhindert Login-Fallback)
     if (!implementedRoutes.has(path)) {
       toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
       return;
@@ -99,22 +96,22 @@ function Startseite() {
         onMouseLeave={() => setMenuGridOpen(false)}
       >
         <div className="flex flex-col items-start gap-4 px-6 py-4 text-black text-left">
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen', 'Reklamationen')}>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen')}>
             <img src="/icons/reklamation.png" alt="Reklamation" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Reklamationen</span>
           </div>
 
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen', 'Technikstörungen')}>
-            <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
-          </div>
-
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste', 'Budgetliste')}>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
             <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Budgetliste</span>
           </div>
 
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop', 'Materialshop')}>
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
+            <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
+          </div>
+
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop')}>
             <img src="/icons/materialshop.png" alt="Materialshop" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Materialshop</span>
           </div>
