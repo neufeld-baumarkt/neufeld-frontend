@@ -28,21 +28,6 @@ function safeParseUser() {
   }
 }
 
-function parseAmount(value) {
-  const s = String(value ?? '').trim().replace(',', '.');
-  const n = Number.parseFloat(s);
-  if (!Number.isFinite(n)) return null;
-  return n;
-}
-
-function formatAsInput(value) {
-  if (value === null || value === undefined) return '';
-  const n = parseAmount(value);
-  if (n === null) return '';
-  // Für Eingabe: keine Tausenderpunkte, einfach Standard-String
-  return String(n.toFixed(2));
-}
-
 export default function Budget() {
   const user = safeParseUser();
 
@@ -52,9 +37,6 @@ export default function Budget() {
   // Verifiziert: Filiale-User haben role === "Filiale"
   const isFilialeUser = role === 'Filiale';
   const isSuperUser = !isFilialeUser; // Zentralrolle (Admin/Supervisor/Manager-1/GF/…)
-
-  // Umsatz darf nur Admin/Supervisor pflegen (Backend-Recht)
-  const canEditUmsatz = role === 'Admin' || role === 'Supervisor';
 
   const { year: defaultYear, week: defaultWeek } = useMemo(() => getIsoWeekYear(new Date()), []);
   const [jahr, setJahr] = useState(defaultYear);
@@ -70,11 +52,6 @@ export default function Budget() {
   const [loadingBookings, setLoadingBookings] = useState(false);
   const [bookings, setBookings] = useState([]);
   const [weekSummaryFromBookings, setWeekSummaryFromBookings] = useState(null);
-
-  // Umsatz UI State
-  const [umsatzInput, setUmsatzInput] = useState('');
-  const [umsatzDirty, setUmsatzDirty] = useState(false);
-  const [savingUmsatz, setSavingUmsatz] = useState(false);
 
   const headlineText = isSuperUser
     ? 'Budgetliste'
@@ -122,19 +99,8 @@ export default function Budget() {
       setData(res.data);
     } catch (err) {
       console.error('Fehler beim Laden der Budgetdaten:', err);
-
-      // Wichtig: wenn Backend eine strukturierte Message liefert (z. B. 404),
-      // geben wir diese an das UI weiter, damit BudgetDataPanel einen sinnvollen State zeigen kann.
-      const payload = err?.response?.data;
-      if (payload && typeof payload === 'object') {
-        setData(payload);
-        // Kein generisches "konnte nicht geladen werden", sonst wirkt es wie "kaputt".
-        const msg = payload?.message || 'Budgetdaten nicht vorhanden.';
-        toast.error(msg);
-      } else {
-        toast.error('Budgetdaten konnten nicht geladen werden.');
-        setData(null);
-      }
+      toast.error('Budgetdaten konnten nicht geladen werden.');
+      setData(null);
     } finally {
       setLoadingBudget(false);
     }
@@ -250,72 +216,13 @@ export default function Budget() {
     }
   };
 
-  const mergedBudgetData = data || weekSummaryFromBookings || null;
-
-  // Umsatz-Input initialisieren (aber nicht während User tippt überschreiben)
-  useEffect(() => {
-    setUmsatzDirty(false);
-
-    const current = mergedBudgetData?.umsatz_vorwoche_brutto;
-    setUmsatzInput(formatAsInput(current));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jahr, kw, effectiveFiliale]);
-
-  useEffect(() => {
-    if (umsatzDirty) return;
-    const current = mergedBudgetData?.umsatz_vorwoche_brutto;
-    setUmsatzInput(formatAsInput(current));
-  }, [mergedBudgetData, umsatzDirty]);
-
-  const saveUmsatz = async () => {
-    const auth = getAuth();
-    if (!auth) return;
-    if (!requireFilialeIfNeeded()) return;
-
-    if (!canEditUmsatz) {
-      toast.error('Keine Berechtigung: Umsatz darf nur Admin/Supervisor pflegen.');
-      return;
-    }
-
-    const n = parseAmount(umsatzInput);
-    if (n === null) {
-      toast.error('Umsatz ist ungültig.');
-      return;
-    }
-    if (n < 0) {
-      toast.error('Umsatz darf nicht negativ sein.');
-      return;
-    }
-
-    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/umsatz`);
-    const body = { umsatz_vorwoche_brutto: n };
-
-    try {
-      setSavingUmsatz(true);
-      const res = await axios.put(url, body, {
-        headers: { Authorization: `Bearer ${auth.token}` },
-      });
-
-      toast.success('Umsatz gespeichert.');
-      setUmsatzDirty(false);
-
-      // Response ist v_week_summary -> direkt als Budgetdaten setzen und dann alles neu ziehen
-      setData(res.data);
-      await fetchBookings();
-    } catch (err) {
-      console.error('Fehler beim Speichern Umsatz Vorwoche:', err);
-      const msg = err?.response?.data?.message || 'Umsatz konnte nicht gespeichert werden.';
-      toast.error(msg);
-    } finally {
-      setSavingUmsatz(false);
-    }
-  };
-
   useEffect(() => {
     // Initial + bei Steuerung
     reloadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jahr, kw, effectiveFiliale]);
+
+  const mergedBudgetData = data || weekSummaryFromBookings || null;
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
@@ -340,26 +247,6 @@ export default function Budget() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Umsatz-Vorwoche UI: nur Admin/Supervisor */}
-          {canEditUmsatz && (
-            <div className="flex items-center gap-3 bg-white/10 rounded-xl px-4 py-3">
-              <span className="text-lg font-semibold whitespace-nowrap">Umsatz Vorwoche</span>
-              <input
-                value={umsatzInput}
-                onChange={(e) => { setUmsatzInput(e.target.value); setUmsatzDirty(true); }}
-                placeholder="z. B. 11900,00"
-                className="w-[180px] px-3 py-2 rounded-lg bg-white/10 text-white outline-none"
-              />
-              <button
-                onClick={saveUmsatz}
-                disabled={savingUmsatz || loadingBudget || loadingBookings}
-                className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
-              >
-                {savingUmsatz ? 'Speichere…' : 'Speichern'}
-              </button>
-            </div>
-          )}
-
           <button
             onClick={reloadAll}
             disabled={loadingBudget || loadingBookings}
