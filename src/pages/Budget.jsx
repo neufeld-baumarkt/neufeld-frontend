@@ -7,6 +7,7 @@ import BudgetHeader from '../components/budget/BudgetHeader';
 import BudgetWeekNavigator from '../components/budget/BudgetWeekNavigator';
 import FilialePicker from '../components/budget/FilialePicker';
 import BudgetDataPanel from '../components/budget/BudgetDataPanel';
+import BudgetBookingsPanel from '../components/budget/BudgetBookingsPanel';
 
 function getIsoWeekYear(date = new Date()) {
   // ISO week calculation (no libs)
@@ -18,23 +19,24 @@ function getIsoWeekYear(date = new Date()) {
   return { year: d.getUTCFullYear(), week: weekNo };
 }
 
-export default function Budget() {
-  let user = null;
+function safeParseUser() {
   try {
-    user = JSON.parse(sessionStorage.getItem('user'));
+    return JSON.parse(sessionStorage.getItem('user'));
   } catch (e) {
     console.warn('Benutzer konnte nicht geladen werden:', e);
+    return null;
   }
+}
+
+export default function Budget() {
+  const user = safeParseUser();
 
   const rawFiliale = user?.filiale || '';
-  const userRole = (user?.role || '').toLowerCase();
+  const role = user?.role || '';
 
-  const isSuperUser =
-    !rawFiliale ||
-    rawFiliale.trim() === '' ||
-    rawFiliale.trim() === '-' ||
-    rawFiliale.toLowerCase().trim() === 'alle' ||
-    ['supervisor', 'manager', 'admin'].includes(userRole);
+  // Verifiziert: Filiale-User haben role === "Filiale"
+  const isFilialeUser = role === 'Filiale';
+  const isSuperUser = !isFilialeUser; // Zentralrolle (Admin/Supervisor/Manager-1/GF/…)
 
   const { year: defaultYear, week: defaultWeek } = useMemo(() => getIsoWeekYear(new Date()), []);
   const [jahr, setJahr] = useState(defaultYear);
@@ -44,53 +46,183 @@ export default function Budget() {
   const [filiale, setFiliale] = useState(isSuperUser ? 'Ahaus' : (rawFiliale || ''));
   const effectiveFiliale = isSuperUser ? filiale : rawFiliale;
 
-  const [loading, setLoading] = useState(false);
+  const [loadingBudget, setLoadingBudget] = useState(false);
   const [data, setData] = useState(null);
+
+  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [bookings, setBookings] = useState([]);
+  const [weekSummaryFromBookings, setWeekSummaryFromBookings] = useState(null);
 
   const headlineText = isSuperUser
     ? 'Budgetliste'
     : `Budgetliste – Filiale ${rawFiliale}`;
 
-  const fetchBudget = async () => {
+  const getAuth = () => {
     const token = sessionStorage.getItem('token');
     if (!token) {
       toast.error('Kein Zugriffstoken gefunden.');
-      return;
+      return null;
     }
+    return { token };
+  };
 
+  const requireFilialeIfNeeded = () => {
     if (!jahr || !kw) {
       toast.error('Jahr oder KW fehlt.');
-      return;
+      return false;
     }
-
     if (isSuperUser && (!effectiveFiliale || effectiveFiliale.trim() === '')) {
       toast.error('Bitte eine Filiale auswählen.');
-      return;
+      return false;
     }
+    return true;
+  };
 
+  const buildBudgetUrl = (path) => {
     const baseUrl = import.meta.env.VITE_API_URL;
-    const url = `${baseUrl}/api/budget/${jahr}/${kw}${isSuperUser ? `?filiale=${encodeURIComponent(effectiveFiliale)}` : ''}`;
+    const qp = isSuperUser ? `?filiale=${encodeURIComponent(effectiveFiliale)}` : '';
+    return `${baseUrl}${path}${qp}`;
+  };
+
+  const fetchBudget = async () => {
+    const auth = getAuth();
+    if (!auth) return;
+    if (!requireFilialeIfNeeded()) return;
+
+    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}`);
 
     try {
-      setLoading(true);
+      setLoadingBudget(true);
       const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${auth.token}` },
       });
-
       setData(res.data);
     } catch (err) {
       console.error('Fehler beim Laden der Budgetdaten:', err);
       toast.error('Budgetdaten konnten nicht geladen werden.');
       setData(null);
     } finally {
-      setLoading(false);
+      setLoadingBudget(false);
+    }
+  };
+
+  const fetchBookings = async () => {
+    const auth = getAuth();
+    if (!auth) return;
+    if (!requireFilialeIfNeeded()) return;
+
+    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/bookings`);
+
+    try {
+      setLoadingBookings(true);
+      const res = await axios.get(url, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+
+      const payload = res.data || {};
+      setBookings(Array.isArray(payload.bookings) ? payload.bookings : []);
+      setWeekSummaryFromBookings(payload.week_summary || null);
+    } catch (err) {
+      console.error('Fehler beim Laden der Buchungen:', err);
+      toast.error('Buchungen konnten nicht geladen werden.');
+      setBookings([]);
+      setWeekSummaryFromBookings(null);
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const reloadAll = async () => {
+    // bewusst nacheinander, damit UI nicht flackert + Fehler klarer sind
+    await fetchBudget();
+    await fetchBookings();
+  };
+
+  const createBooking = async (bookingBody) => {
+    const auth = getAuth();
+    if (!auth) return false;
+    if (!requireFilialeIfNeeded()) return false;
+
+    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/bookings`);
+
+    try {
+      setLoadingBookings(true);
+      await axios.post(url, bookingBody, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+
+      toast.success('Buchung angelegt.');
+      await reloadAll();
+      return true;
+    } catch (err) {
+      console.error('Fehler beim Anlegen der Buchung:', err);
+      const msg = err?.response?.data?.message || 'Buchung konnte nicht angelegt werden.';
+      toast.error(msg);
+      return false;
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const updateBooking = async (id, bookingBody) => {
+    const auth = getAuth();
+    if (!auth) return false;
+
+    const baseUrl = import.meta.env.VITE_API_URL;
+    const url = `${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`;
+
+    try {
+      setLoadingBookings(true);
+      await axios.put(url, bookingBody, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+
+      toast.success('Buchung gespeichert.');
+      await reloadAll();
+      return true;
+    } catch (err) {
+      console.error('Fehler beim Speichern der Buchung:', err);
+      const msg = err?.response?.data?.message || 'Buchung konnte nicht gespeichert werden.';
+      toast.error(msg);
+      return false;
+    } finally {
+      setLoadingBookings(false);
+    }
+  };
+
+  const deleteBooking = async (id) => {
+    const auth = getAuth();
+    if (!auth) return false;
+
+    const baseUrl = import.meta.env.VITE_API_URL;
+    const url = `${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`;
+
+    try {
+      setLoadingBookings(true);
+      await axios.delete(url, {
+        headers: { Authorization: `Bearer ${auth.token}` },
+      });
+
+      toast.success('Buchung gelöscht.');
+      await reloadAll();
+      return true;
+    } catch (err) {
+      console.error('Fehler beim Löschen der Buchung:', err);
+      const msg = err?.response?.data?.message || 'Buchung konnte nicht gelöscht werden.';
+      toast.error(msg);
+      return false;
+    } finally {
+      setLoadingBookings(false);
     }
   };
 
   useEffect(() => {
-    fetchBudget();
+    // Initial + bei Steuerung
+    reloadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jahr, kw, effectiveFiliale]);
+
+  const mergedBudgetData = data || weekSummaryFromBookings || null;
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
@@ -116,23 +248,35 @@ export default function Budget() {
 
         <div className="flex items-center gap-4">
           <button
-            onClick={fetchBudget}
-            disabled={loading}
+            onClick={reloadAll}
+            disabled={loadingBudget || loadingBookings}
             className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
           >
-            {loading ? 'Lade…' : 'Neu laden'}
+            {(loadingBudget || loadingBookings) ? 'Lade…' : 'Neu laden'}
           </button>
         </div>
       </div>
 
-      {/* 
-        🔥🔥🔥 HIER BITTE DIE POSITION ÄNDERN, DU BLINDFISCH 🐟 🔥🔥🔥
-        Dieser top-Wert steuert, WIE WEIT UNTEN die Budget-Kacheln beginnen.
-        Wenn sich Kacheln mit Headline oder "Zurück zum Hauptmenü" überlappen:
-        👉 einfach z. B. von top-[270px] auf top-[320px] oder top-[340px] erhöhen.
-      */}
-      <div className="absolute top-[310px] left-[90px] right-[80px] bottom-[40px] overflow-auto">
-        <BudgetDataPanel data={data} loading={loading} />
+      <div className="absolute top-[310px] left-[90px] right-[80px] bottom-[40px] overflow-auto pr-2">
+        <BudgetDataPanel data={mergedBudgetData} loading={loadingBudget} />
+
+        <div className="mt-8">
+          <BudgetBookingsPanel
+            jahr={jahr}
+            kw={kw}
+            effectiveFiliale={effectiveFiliale}
+            isSuperUser={isSuperUser}
+            isFilialeUser={isFilialeUser}
+            userRole={role}
+            bookings={bookings}
+            weekSummary={weekSummaryFromBookings}
+            loading={loadingBookings}
+            onReload={fetchBookings}
+            onCreate={createBooking}
+            onUpdate={updateBooking}
+            onDelete={deleteBooking}
+          />
+        </div>
       </div>
     </div>
   );
