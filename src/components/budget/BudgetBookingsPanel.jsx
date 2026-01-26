@@ -12,7 +12,17 @@ function toNumber(value) {
 function formatCurrency(value) {
   const n = toNumber(value);
   if (n === null) return '—';
-  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+// Anzeige immer als NEGATIV – egal wie gespeichert/angelegt.
+// Backend bleibt Wahrheit (Summen/Views etc. nicht anfassen).
+function formatCurrencyAsNegative(value) {
+  const n = toNumber(value);
+  if (n === null) return '—';
+  const abs = Math.abs(n);
+  const text = abs.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  return `-${text}`;
 }
 
 function formatDate(value) {
@@ -28,24 +38,16 @@ function normalizeRole(role) {
 
 function canWriteTyp({ isFilialeUser, role, typ }) {
   // Backend ist Wahrheit – UI blendet nur passend ein.
-  // Verifiziertes Rollenformat: "Filiale" | "Supervisor" | "Admin" | "Manager-1" | "Geschäftsführer" (u. a.)
   const r = normalizeRole(role);
 
-  if (isFilialeUser) {
-    return typ === 'bestellung';
-  }
+  if (isFilialeUser) return typ === 'bestellung';
 
-  // Zentralrollen:
-  if (r === 'Admin' || r === 'Supervisor') {
-    return true; // dürfen alle Typen schreiben
-  }
+  if (r === 'Admin' || r === 'Supervisor') return true;
 
-  // Manager-1 / Geschäftsführer dürfen aktionsvorab, aber nicht abgabe/korrektur (laut SSoT)
   if (r === 'Manager-1' || r === 'Geschäftsführer') {
     return typ === 'aktionsvorab' || typ === 'bestellung';
   }
 
-  // Fallback: konservativ
   return false;
 }
 
@@ -54,13 +56,9 @@ function allowedCreateTypes({ isFilialeUser, role }) {
 
   if (isFilialeUser) return ['bestellung'];
 
-  if (r === 'Admin' || r === 'Supervisor') {
-    return ['bestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
-  }
+  if (r === 'Admin' || r === 'Supervisor') return ['bestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
 
-  if (r === 'Manager-1' || r === 'Geschäftsführer') {
-    return ['bestellung', 'aktionsvorab'];
-  }
+  if (r === 'Manager-1' || r === 'Geschäftsführer') return ['bestellung', 'aktionsvorab'];
 
   return [];
 }
@@ -70,7 +68,7 @@ function titleForTyp(typ) {
     case 'bestellung':
       return 'Bestellung';
     case 'aktionsvorab':
-      return 'Aktionsvorab';
+      return 'Aktion';
     case 'abgabe':
       return 'Abgabe';
     case 'korrektur':
@@ -133,7 +131,6 @@ export default function BudgetBookingsPanel({
   const canCreateAnything = createTypes.length > 0;
 
   const totalVerbraucht = useMemo(() => {
-    // weekSummary.verbraucht ist laut API String – wir formatieren sauber
     return weekSummary?.verbraucht ?? null;
   }, [weekSummary]);
 
@@ -166,7 +163,6 @@ export default function BudgetBookingsPanel({
   };
 
   const handleSubmit = async (payload) => {
-    // payload ist bereits UI-validiert (BookingModal)
     if (editBooking) {
       const ok = await onUpdate(editBooking.id, payload);
       if (ok) {
@@ -177,26 +173,24 @@ export default function BudgetBookingsPanel({
     }
 
     const ok = await onCreate(payload);
-    if (ok) {
-      setModalOpen(false);
-      setEditBooking(null);
-    }
+    if (ok) setModalOpen(false);
   };
 
-  const subtitleParts = [];
-  if (effectiveFiliale) subtitleParts.push(effectiveFiliale);
-  if (jahr) subtitleParts.push(String(jahr));
-  if (kw) subtitleParts.push(`KW ${kw}`);
-  if (totalVerbraucht !== null && totalVerbraucht !== undefined) {
-    subtitleParts.push(`Verbraucht: ${formatCurrency(totalVerbraucht)}`);
-  }
+  const resolvedFilialeLabel = isSuperUser ? (effectiveFiliale || '—') : effectiveFiliale;
 
   return (
-    <div className="bg-white/10 rounded-2xl p-6 shadow-[3px_3px_6px_rgba(0,0,0,0.35)]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <div className="bg-white/5 rounded-2xl p-6 shadow-[3px_3px_6px_rgba(0,0,0,0.5)]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-2xl font-bold">Buchungen dieser Woche</div>
-          <div className="text-white/70 mt-1">{subtitleParts.join(' · ')}</div>
+          <div className="text-white/70 mt-1">
+            {resolvedFilialeLabel} · {jahr} · KW {kw}
+            {weekSummary ? (
+              <span className="ml-3">
+                Verbraucht: <span className="font-semibold">{formatCurrency(totalVerbraucht)}</span>
+              </span>
+            ) : null}
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -210,7 +204,7 @@ export default function BudgetBookingsPanel({
 
           <button
             onClick={openCreate}
-            disabled={!canCreateAnything}
+            disabled={loading || !canCreateAnything}
             className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
           >
             + Buchung
@@ -218,78 +212,74 @@ export default function BudgetBookingsPanel({
         </div>
       </div>
 
-      <div className="mt-5 overflow-auto">
-        {bookings.length === 0 ? (
-          <div className="text-white/70 py-6">Keine Buchungen vorhanden.</div>
+      <div className="mt-5 border-t border-white/10 pt-4">
+        {loading ? (
+          <div className="text-white/70">Buchungen werden geladen…</div>
+        ) : bookings.length === 0 ? (
+          <div className="text-white/70">Keine Buchungen für diese Woche vorhanden.</div>
         ) : (
-          <table className="min-w-[980px] w-full text-left">
-            <thead className="text-white/70">
-              <tr>
-                <th className="py-2 pr-4 whitespace-nowrap">Datum</th>
-                <th className="py-2 pr-4 whitespace-nowrap">Typ</th>
-                <th className="py-2 pr-4 min-w-[240px]">Beschreibung</th>
-                <th className="py-2 pr-4 min-w-[240px]">Details</th>
-                <th className="py-2 pr-4 whitespace-nowrap text-right">Betrag</th>
-                <th className="py-2 pr-0 whitespace-nowrap text-right">Aktion</th>
-              </tr>
-            </thead>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-white/70">
+                <tr>
+                  <th className="py-2 pr-4 whitespace-nowrap">Datum</th>
+                  <th className="py-2 pr-4 whitespace-nowrap">Typ</th>
+                  <th className="py-2 pr-4 min-w-[240px]">Beschreibung</th>
+                  <th className="py-2 pr-4 min-w-[240px]">Details</th>
+                  <th className="py-2 pr-4 whitespace-nowrap text-right">Betrag</th>
+                  <th className="py-2 pr-0 whitespace-nowrap text-right">Aktion</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bookings.map((b) => {
+                  const dateValue = b.datum || b.created_at;
+                  const canWrite = canWriteTyp({ isFilialeUser, role: userRole, typ: b.typ });
+                  const metaLine = buildMetaLine(b);
 
-            <tbody>
-              {bookings.map((b) => {
-                const dateValue = b.datum || b.created_at;
-                const canWrite = canWriteTyp({ isFilialeUser, role: userRole, typ: b.typ });
-                const metaLine = buildMetaLine(b);
-
-                return (
-                  <tr key={b.id} className="border-t border-white/10">
-                    <td className="py-3 pr-4 whitespace-nowrap">{formatDate(dateValue)}</td>
-
-                    <td className="py-3 pr-4 whitespace-nowrap">
-                      <span className={`inline-flex px-3 py-1 rounded-full text-sm ${badgeClasses(b.typ)}`}>
-                        {titleForTyp(b.typ)}
-                      </span>
-                    </td>
-
-                    <td className="py-3 pr-4">
-                      <div className="font-semibold">{b.beschreibung || '—'}</div>
-                      <div className="text-white/60 text-sm">
-                        Erstellt: {formatDate(b.created_at)}
-                        {b.created_by ? ` · von ${b.created_by}` : ''}
-                      </div>
-                    </td>
-
-                    <td className="py-3 pr-4">
-                      {metaLine ? <div className="text-white/80">{metaLine}</div> : <div className="text-white/40">—</div>}
-                    </td>
-
-                    <td className="py-3 pr-4 whitespace-nowrap text-right font-semibold">
-                      {formatCurrency(b.betrag)}
-                    </td>
-
-                    <td className="py-3 pr-0 whitespace-nowrap text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <button
-                          onClick={() => openEdit(b)}
-                          disabled={!canWrite}
-                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
-                        >
-                          Bearbeiten
-                        </button>
-
-                        <button
-                          onClick={() => confirmDelete(b)}
-                          disabled={!canWrite}
-                          className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
-                        >
-                          Löschen
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={b.id} className="border-t border-white/10 align-top">
+                      <td className="py-3 pr-4 whitespace-nowrap">{formatDate(dateValue)}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses(b.typ)}`}>
+                          {titleForTyp(b.typ)}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <div className="font-semibold">{b.beschreibung || '—'}</div>
+                        <div className="text-white/50 text-xs mt-1">
+                          Erstellt: {formatDate(b.created_at)}{b.created_by ? ` · von ${b.created_by}` : ''}
+                        </div>
+                      </td>
+                      <td className="py-3 pr-4">
+                        {metaLine ? <div className="text-white/80">{metaLine}</div> : <div className="text-white/40">—</div>}
+                      </td>
+                      <td className="py-3 pr-4 whitespace-nowrap text-right font-semibold">
+                        <span className="text-red-400">{formatCurrencyAsNegative(b.betrag)}</span>
+                      </td>
+                      <td className="py-3 pr-0 whitespace-nowrap text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            onClick={() => openEdit(b)}
+                            disabled={!canWrite}
+                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-40"
+                          >
+                            Bearbeiten
+                          </button>
+                          <button
+                            onClick={() => confirmDelete(b)}
+                            disabled={!canWrite}
+                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-40"
+                          >
+                            Löschen
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

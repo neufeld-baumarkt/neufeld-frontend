@@ -27,16 +27,16 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatEuro(value) {
+function formatEuroValue(value) {
   const n = toNumber(value);
-  if (n === null) return '—';
-  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
+  if (n === null) return { text: '—', isNegative: false };
 
-function formatInt(value) {
-  const n = toNumber(value);
-  if (n === null) return '—';
-  return String(Math.trunc(n));
+  const text = n.toLocaleString('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + ' €';
+
+  return { text, isNegative: n < 0 };
 }
 
 export default function BudgetDataPanel({ data, loading }) {
@@ -50,20 +50,23 @@ export default function BudgetDataPanel({ data, loading }) {
     data.message &&
     String(data.message).includes('Keine Budgetdaten');
 
-  // Verifiziertes Payload-Beispiel:
-  // umsatz_vorwoche_brutto, budget_freigegeben_netto, verbraucht, rest_netto, offene_buchungen
-  // + Fallback-Keys für Altstände
-  const preferredFields = [
-    { label: 'Filiale', keys: ['filiale'], kind: 'text' },
-    { label: 'Jahr', keys: ['jahr'], kind: 'int' },
-    { label: 'KW', keys: ['kw'], kind: 'int' },
-
-    { label: 'Umsatz Vorwoche (brutto)', keys: ['umsatz_vorwoche_brutto', 'umsatz_vorwoche'], kind: 'euro' },
-    { label: 'Budget freigegeben (netto)', keys: ['budget_freigegeben_netto', 'budget_freigegeben', 'budget'], kind: 'euro' },
-    { label: 'Verbraucht', keys: ['verbraucht'], kind: 'euro' },
-    { label: 'Rest (netto)', keys: ['rest_netto', 'rest'], kind: 'euro' },
-
-    { label: 'Offene Buchungen', keys: ['offene_buchungen', 'open_bookings'], kind: 'int' },
+  // Für die UI bleibt NUR das Wichtige:
+  // - Budget freigegeben (netto)
+  // - Verbraucht
+  // - Rest (netto)
+  const keyTiles = [
+    {
+      label: 'Budget freigegeben (netto)',
+      keys: ['budget_freigegeben_netto', 'budget_freigegeben', 'budget'],
+    },
+    {
+      label: 'Verbraucht',
+      keys: ['verbraucht'],
+    },
+    {
+      label: 'Rest (netto)',
+      keys: ['rest_netto', 'rest'],
+    },
   ];
 
   const pickValue = (obj, keys) => {
@@ -71,15 +74,6 @@ export default function BudgetDataPanel({ data, loading }) {
       if (obj && Object.prototype.hasOwnProperty.call(obj, k)) return obj[k];
     }
     return undefined;
-  };
-
-  const formatByKind = (kind, value) => {
-    if (value === undefined || value === null) return null;
-    if (typeof value === 'string' && value.trim() === '') return null;
-
-    if (kind === 'euro') return formatEuro(value);
-    if (kind === 'int') return formatInt(value);
-    return String(value);
   };
 
   if (loading && !data) {
@@ -96,8 +90,7 @@ export default function BudgetDataPanel({ data, loading }) {
       <div className="bg-white/10 rounded-2xl p-6">
         <div className="text-2xl font-semibold">Keine Budgetdaten vorhanden</div>
         <div className="text-white/70 mt-2">
-          Für <strong>{data.filiale}</strong>, Jahr <strong>{data.jahr}</strong>, KW{' '}
-          <strong>{data.kw}</strong> existiert noch kein Budgetdatensatz.
+          Für diese Auswahl existiert noch kein Budgetdatensatz.
         </div>
         <div className="text-white/50 mt-4 text-sm">
           Hinweis: Die Woche wird erst sichtbar, sobald ein Umsatz initialisiert wurde.
@@ -126,16 +119,23 @@ export default function BudgetDataPanel({ data, loading }) {
         >
           <div className="text-2xl font-bold mb-4">Budget-Übersicht</div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {preferredFields.map((f) => {
-              const raw = pickValue(row, f.keys);
-              const display = formatByKind(f.kind, raw);
-              if (display === null) return null;
+          {/* Nur 3 relevante Kacheln */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {keyTiles.map((t) => {
+              const raw = pickValue(row, t.keys);
+              const { text, isNegative } = formatEuroValue(raw);
 
               return (
-                <div key={f.label} className="bg-white/10 rounded-xl p-4">
-                  <div className="text-white/70 text-sm">{f.label}</div>
-                  <div className="text-xl font-semibold break-words">{display}</div>
+                <div key={t.label} className="bg-white/10 rounded-xl p-4">
+                  <div className="text-white/70 text-sm">{t.label}</div>
+                  <div
+                    className={[
+                      'text-2xl font-bold break-words',
+                      isNegative ? 'text-red-400' : 'text-white',
+                    ].join(' ')}
+                  >
+                    {text}
+                  </div>
                 </div>
               );
             })}

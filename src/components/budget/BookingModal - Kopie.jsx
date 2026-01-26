@@ -69,6 +69,8 @@ function normalizeLieferantenResponse(payload) {
 }
 
 function shouldRequireLieferant(typ) {
+  // Vorgabe: Lieferant Pflicht. Ohne Admin-Flows zu sprengen:
+  // Pflicht bei den operativen Typen, die wirklich genutzt werden.
   return typ === 'bestellung' || typ === 'aktionsvorab';
 }
 
@@ -104,17 +106,12 @@ export default function BookingModal({
   const loadLieferanten = async () => {
     const token = sessionStorage.getItem('token');
     if (!token) return;
-
     const baseUrl = import.meta.env.VITE_API_URL;
     if (!baseUrl) return;
 
-    // ✅ VERIFIZIERT: Backend mountet stammdatenRoutes unter /api (nicht /api/stammdaten)
-    // routes/stammdaten.js: router.get('/lieferanten' ...)
-    const url = `${baseUrl}/api/lieferanten`;
-
     try {
       setLieferantenLoading(true);
-      const res = await axios.get(url, {
+      const res = await axios.get(`${baseUrl}/api/stammdaten/lieferanten`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setLieferantenOptions(normalizeLieferantenResponse(res.data));
@@ -179,7 +176,7 @@ export default function BookingModal({
 
     const payload = {
       typ,
-      // UI zeigt immer negativ – fachlich senden wir als POSITIV (Ausgabe)
+      // UI zeigt immer negativ – fachlich senden wir als POSITIV (Ausgabe),
       // und normalisieren User-Eingaben (z. B. -600 -> 600)
       betrag: Math.abs(parseAmount(betrag)),
     };
