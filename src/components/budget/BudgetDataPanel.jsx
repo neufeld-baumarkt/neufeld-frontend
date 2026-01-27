@@ -31,18 +31,39 @@ function formatEuroValue(value) {
   const n = toNumber(value);
   if (n === null) return { text: '—', isNegative: false };
 
-  const text = n.toLocaleString('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + ' €';
+  const text =
+    n.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + ' €';
 
   return { text, isNegative: n < 0 };
 }
 
-export default function BudgetDataPanel({ data, loading }) {
-  const [showRaw, setShowRaw] = useState(false);
+function formatNumber(value) {
+  const n = toNumber(value);
+  if (n === null) return '—';
+  return n.toLocaleString('de-DE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
+function formatBool(value) {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Ja' : 'Nein';
+  const s = String(value).trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'ja') return 'Ja';
+  if (s === 'false' || s === '0' || s === 'nein') return 'Nein';
+  return String(value);
+}
+
+export default function BudgetDataPanel({ data, loading }) {
   const rows = useMemo(() => normalizeToArray(data), [data]);
+
+  // Per-Row UI-State (falls jemals mehr als 1 Row kommt)
+  const [detailsOpenByIdx, setDetailsOpenByIdx] = useState({});
+  const [showRawByIdx, setShowRawByIdx] = useState({});
 
   const isNoDataMessage =
     data &&
@@ -74,6 +95,14 @@ export default function BudgetDataPanel({ data, loading }) {
       if (obj && Object.prototype.hasOwnProperty.call(obj, k)) return obj[k];
     }
     return undefined;
+  };
+
+  const toggleDetails = (idx) => {
+    setDetailsOpenByIdx((prev) => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const toggleRaw = (idx) => {
+    setShowRawByIdx((prev) => ({ ...prev, [idx]: !prev[idx] }));
   };
 
   if (loading && !data) {
@@ -112,53 +141,111 @@ export default function BudgetDataPanel({ data, loading }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {rows.map((row, idx) => (
-        <div
-          key={idx}
-          className="bg-white/10 rounded-2xl p-6 shadow-[3px_3px_6px_rgba(0,0,0,0.35)]"
-        >
-          <div className="text-2xl font-bold mb-4">Budget-Übersicht</div>
+      {rows.map((row, idx) => {
+        const detailsOpen = Boolean(detailsOpenByIdx[idx]);
+        const showRaw = Boolean(showRawByIdx[idx]);
 
-          {/* Nur 3 relevante Kacheln */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {keyTiles.map((t) => {
-              const raw = pickValue(row, t.keys);
-              const { text, isNegative } = formatEuroValue(raw);
+        const umsatz = pickValue(row, ['umsatz_vorwoche_brutto']);
+        const offene = pickValue(row, ['offene_buchungen']);
+        const freigegeben = pickValue(row, ['freigegeben']);
 
-              return (
-                <div key={t.label} className="bg-white/10 rounded-xl p-4">
-                  <div className="text-white/70 text-sm">{t.label}</div>
-                  <div
-                    className={[
-                      'text-2xl font-bold break-words',
-                      isNegative ? 'text-red-400' : 'text-white',
-                    ].join(' ')}
-                  >
-                    {text}
+        return (
+          <div
+            key={idx}
+            className="bg-white/10 rounded-2xl p-6 shadow-[3px_3px_6px_rgba(0,0,0,0.35)]"
+          >
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="text-2xl font-bold">Budget-Übersicht</div>
+              {loading && <div className="text-white/70">Aktualisiere…</div>}
+            </div>
+
+            {/* Immer sichtbar: nur 3 relevante Kacheln */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {keyTiles.map((t) => {
+                const raw = pickValue(row, t.keys);
+                const { text, isNegative } = formatEuroValue(raw);
+
+                return (
+                  <div key={t.label} className="bg-white/10 rounded-xl p-4">
+                    <div className="text-white/70 text-sm">{t.label}</div>
+                    <div
+                      className={[
+                        'text-2xl font-bold break-words',
+                        isNegative ? 'text-red-400' : 'text-white',
+                      ].join(' ')}
+                    >
+                      {text}
+                    </div>
                   </div>
+                );
+              })}
+            </div>
+
+            {/* Kompakt: Details einklappbar */}
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => toggleDetails(idx)}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 transition"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold">Details</span>
+                  {(umsatz !== undefined ||
+                    offene !== undefined ||
+                    freigegeben !== undefined ||
+                    showRaw) && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/80">
+                      verfügbar
+                    </span>
+                  )}
                 </div>
-              );
-            })}
+                <span className="text-xl leading-none">{detailsOpen ? '▴' : '▾'}</span>
+              </button>
+
+              {detailsOpen && (
+                <div className="mt-4 bg-black/20 rounded-xl p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="bg-white/10 rounded-lg p-3">
+                      <div className="text-white/70 text-xs">Umsatz Vorwoche (brutto)</div>
+                      <div className="text-white font-semibold">
+                        {formatNumber(umsatz)}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/10 rounded-lg p-3">
+                      <div className="text-white/70 text-xs">Offene Buchungen</div>
+                      <div className="text-white font-semibold">
+                        {offene === undefined || offene === null ? '—' : String(offene)}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/10 rounded-lg p-3">
+                      <div className="text-white/70 text-xs">Freigegeben</div>
+                      <div className="text-white font-semibold">{formatBool(freigegeben)}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleRaw(idx)}
+                      className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                    >
+                      {showRaw ? 'Raw JSON ausblenden' : 'Raw JSON anzeigen'}
+                    </button>
+                  </div>
+
+                  {showRaw && (
+                    <pre className="mt-4 bg-black/30 rounded-xl p-4 overflow-auto text-sm">
+                      {JSON.stringify(row, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-
-          <div className="mt-5 flex items-center gap-4">
-            <button
-              onClick={() => setShowRaw((s) => !s)}
-              className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-            >
-              {showRaw ? 'Raw JSON ausblenden' : 'Raw JSON anzeigen'}
-            </button>
-
-            {loading && <div className="text-white/70">Aktualisiere…</div>}
-          </div>
-
-          {showRaw && (
-            <pre className="mt-4 bg-black/30 rounded-xl p-4 overflow-auto text-sm">
-              {JSON.stringify(row, null, 2)}
-            </pre>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
