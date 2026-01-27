@@ -44,31 +44,16 @@ function buildTypeOptions(allowedTypes, isEdit, existingTyp) {
   return allowedTypes || [];
 }
 
-// ✅ EINZIGE ÄNDERUNG: Robust gegen payload.rows + mehr Feldnamen
 function normalizeLieferantenResponse(payload) {
   if (!payload) return [];
-
-  const arr = Array.isArray(payload)
-    ? payload
-    : (payload.lieferanten || payload.items || payload.rows || payload.data || []);
-
+  const arr = Array.isArray(payload) ? payload : (payload.lieferanten || payload.items || []);
   if (!Array.isArray(arr)) return [];
 
   const values = arr
     .map((x) => {
       if (!x) return null;
       if (typeof x === 'string') return x.trim();
-      if (typeof x === 'object') {
-        return String(
-          x.bezeichnung ??
-            x.name ??
-            x.value ??
-            x.lieferant ??
-            x.lieferanten_name ??
-            x.lieferantenname ??
-            ''
-        ).trim();
-      }
+      if (typeof x === 'object') return String(x.bezeichnung ?? x.name ?? x.value ?? '').trim();
       return null;
     })
     .filter((x) => x && x.length > 0);

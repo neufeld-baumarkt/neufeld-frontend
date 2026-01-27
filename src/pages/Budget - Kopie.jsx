@@ -39,120 +39,8 @@ function formatAsInput(value) {
   if (value === null || value === undefined) return '';
   const n = parseAmount(value);
   if (n === null) return '';
+  // Für Eingabe: keine Tausenderpunkte, einfach Standard-String
   return String(n.toFixed(2));
-}
-
-function toNumber(value) {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  const s = String(value).trim().replace(',', '.');
-  const n = Number.parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-}
-
-function formatCurrency(value) {
-  const n = toNumber(value);
-  if (n === null) return '—';
-  return (
-    n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
-  );
-}
-
-function UmsatzVorwocheModal({
-  open,
-  onClose,
-  umsatzInput,
-  setUmsatzInput,
-  setUmsatzDirty,
-  canEditUmsatz,
-  savingUmsatz,
-  disabledByLoading,
-  onSave,
-  currentValue,
-}) {
-  useEffect(() => {
-    if (!open) return;
-
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  const disabled = !canEditUmsatz || savingUmsatz || disabledByLoading;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-black/70 px-4 flex items-center justify-center"
-      onMouseDown={(e) => {
-        // Klick auf Overlay schließt, Klick im Modal nicht
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-md bg-[#2f2d2d] rounded-2xl border border-white/10 shadow-[6px_6px_18px_rgba(0,0,0,0.7)] overflow-hidden">
-        <div className="p-5 border-b border-white/10 flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xl font-bold">Umsatz Vorwoche</div>
-            <div className="text-white/70 text-sm mt-1">
-              Aktuell: <span className="font-semibold">{formatCurrency(currentValue)}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-          >
-            Schließen
-          </button>
-        </div>
-
-        <div className="p-5">
-          {!canEditUmsatz ? (
-            <div className="bg-white/10 rounded-xl p-4 text-white/80">
-              Keine Berechtigung: Umsatz darf nur Admin/Supervisor pflegen.
-            </div>
-          ) : (
-            <>
-              <label className="flex flex-col gap-2">
-                <span className="text-white/80 font-semibold">Umsatz (brutto)</span>
-                <input
-                  value={umsatzInput}
-                  onChange={(e) => {
-                    setUmsatzInput(e.target.value);
-                    setUmsatzDirty(true);
-                  }}
-                  placeholder="z. B. 11900,00"
-                  inputMode="decimal"
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 text-white outline-none focus:ring-2 focus:ring-white/30"
-                />
-              </label>
-
-              <div className="mt-4 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={disabled}
-                  className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
-                >
-                  {savingUmsatz ? 'Speichere…' : 'Speichern'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function Budget() {
@@ -188,10 +76,9 @@ export default function Budget() {
   const [umsatzDirty, setUmsatzDirty] = useState(false);
   const [savingUmsatz, setSavingUmsatz] = useState(false);
 
-  // Modal State (nur für kleine Displays sinnvoll genutzt)
-  const [umsatzModalOpen, setUmsatzModalOpen] = useState(false);
-
-  const headlineText = isSuperUser ? 'Budgetliste' : `Budgetliste – Filiale ${rawFiliale}`;
+  const headlineText = isSuperUser
+    ? 'Budgetliste'
+    : `Budgetliste – Filiale ${rawFiliale}`;
 
   const getAuth = () => {
     const token = sessionStorage.getItem('token');
@@ -236,9 +123,12 @@ export default function Budget() {
     } catch (err) {
       console.error('Fehler beim Laden der Budgetdaten:', err);
 
+      // Wichtig: wenn Backend eine strukturierte Message liefert (z. B. 404),
+      // geben wir diese an das UI weiter, damit BudgetDataPanel einen sinnvollen State zeigen kann.
       const payload = err?.response?.data;
       if (payload && typeof payload === 'object') {
         setData(payload);
+        // Kein generisches "konnte nicht geladen werden", sonst wirkt es wie "kaputt".
         const msg = payload?.message || 'Budgetdaten nicht vorhanden.';
         toast.error(msg);
       } else {
@@ -277,6 +167,7 @@ export default function Budget() {
   };
 
   const reloadAll = async () => {
+    // bewusst nacheinander, damit UI nicht flackert + Fehler klarer sind
     await fetchBudget();
     await fetchBookings();
   };
@@ -364,6 +255,7 @@ export default function Budget() {
   // Umsatz-Input initialisieren (aber nicht während User tippt überschreiben)
   useEffect(() => {
     setUmsatzDirty(false);
+
     const current = mergedBudgetData?.umsatz_vorwoche_brutto;
     setUmsatzInput(formatAsInput(current));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,11 +299,9 @@ export default function Budget() {
       toast.success('Umsatz gespeichert.');
       setUmsatzDirty(false);
 
+      // Response ist v_week_summary -> direkt als Budgetdaten setzen und dann alles neu ziehen
       setData(res.data);
       await fetchBookings();
-
-      // Modal nach Save schließen (falls offen)
-      setUmsatzModalOpen(false);
     } catch (err) {
       console.error('Fehler beim Speichern Umsatz Vorwoche:', err);
       const msg = err?.response?.data?.message || 'Umsatz konnte nicht gespeichert werden.';
@@ -422,26 +312,19 @@ export default function Budget() {
   };
 
   useEffect(() => {
+    // Initial + bei Steuerung
     reloadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jahr, kw, effectiveFiliale]);
-
-  const disabledByLoading = loadingBudget || loadingBookings;
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
       {/* Layout-Rahmen (identisch Stil) */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
-      <div
-        className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]"
-        style={{ height: '7px' }}
-      ></div>
+      <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
-      <div
-        className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]"
-        style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}
-      ></div>
+      <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
       <BudgetHeader headlineText={headlineText} />
 
@@ -449,55 +332,40 @@ export default function Budget() {
       <div className="absolute top-[230px] left-[90px] right-[80px] flex flex-wrap items-center justify-between gap-6">
         <div className="flex flex-wrap items-center gap-6">
           <BudgetWeekNavigator jahr={jahr} kw={kw} setJahr={setJahr} setKw={setKw} />
-          <FilialePicker isSuperUser={isSuperUser} filiale={filiale} setFiliale={setFiliale} />
+          <FilialePicker
+            isSuperUser={isSuperUser}
+            filiale={filiale}
+            setFiliale={setFiliale}
+          />
         </div>
 
         <div className="flex items-center gap-4">
           {/* Umsatz-Vorwoche UI: nur Admin/Supervisor */}
           {canEditUmsatz && (
-            <>
-              {/* >= sm: Inline wie bisher */}
-              <div className="hidden sm:flex items-center gap-3 bg-white/10 rounded-xl px-4 py-3">
-                <span className="text-lg font-semibold whitespace-nowrap">Umsatz Vorwoche</span>
-                <input
-                  value={umsatzInput}
-                  onChange={(e) => {
-                    setUmsatzInput(e.target.value);
-                    setUmsatzDirty(true);
-                  }}
-                  placeholder="z. B. 11900,00"
-                  className="w-[180px] px-3 py-2 rounded-lg bg-white/10 text-white outline-none"
-                />
-                <button
-                  onClick={saveUmsatz}
-                  disabled={savingUmsatz || disabledByLoading}
-                  className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
-                >
-                  {savingUmsatz ? 'Speichere…' : 'Speichern'}
-                </button>
-              </div>
-
-              {/* < sm: kompakter Button -> Modal */}
-              <div className="flex sm:hidden items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUmsatzModalOpen(true)}
-                  disabled={disabledByLoading}
-                  className="px-4 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
-                  title="Umsatz Vorwoche bearbeiten"
-                >
-                  Umsatz Vorwoche
-                </button>
-              </div>
-            </>
+            <div className="flex items-center gap-3 bg-white/10 rounded-xl px-4 py-3">
+              <span className="text-lg font-semibold whitespace-nowrap">Umsatz Vorwoche</span>
+              <input
+                value={umsatzInput}
+                onChange={(e) => { setUmsatzInput(e.target.value); setUmsatzDirty(true); }}
+                placeholder="z. B. 11900,00"
+                className="w-[180px] px-3 py-2 rounded-lg bg-white/10 text-white outline-none"
+              />
+              <button
+                onClick={saveUmsatz}
+                disabled={savingUmsatz || loadingBudget || loadingBookings}
+                className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
+              >
+                {savingUmsatz ? 'Speichere…' : 'Speichern'}
+              </button>
+            </div>
           )}
 
           <button
             onClick={reloadAll}
-            disabled={disabledByLoading}
+            disabled={loadingBudget || loadingBookings}
             className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
           >
-            {disabledByLoading ? 'Lade…' : 'Neu laden'}
+            {(loadingBudget || loadingBookings) ? 'Lade…' : 'Neu laden'}
           </button>
         </div>
       </div>
@@ -523,20 +391,6 @@ export default function Budget() {
           />
         </div>
       </div>
-
-      {/* Modal (nur für kleine Displays relevant, aber technisch überall nutzbar) */}
-      <UmsatzVorwocheModal
-        open={umsatzModalOpen}
-        onClose={() => setUmsatzModalOpen(false)}
-        umsatzInput={umsatzInput}
-        setUmsatzInput={setUmsatzInput}
-        setUmsatzDirty={setUmsatzDirty}
-        canEditUmsatz={canEditUmsatz}
-        savingUmsatz={savingUmsatz}
-        disabledByLoading={disabledByLoading}
-        onSave={saveUmsatz}
-        currentValue={mergedBudgetData?.umsatz_vorwoche_brutto}
-      />
     </div>
   );
 }
