@@ -58,6 +58,17 @@ function formatBool(value) {
   return String(value);
 }
 
+function formatPercent(value) {
+  const n = toNumber(value);
+  if (n === null) return '—';
+  return (
+    n.toLocaleString('de-DE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + ' %'
+  );
+}
+
 export default function BudgetDataPanel({ data, loading }) {
   const rows = useMemo(() => normalizeToArray(data), [data]);
 
@@ -145,9 +156,29 @@ export default function BudgetDataPanel({ data, loading }) {
         const detailsOpen = Boolean(detailsOpenByIdx[idx]);
         const showRaw = Boolean(showRawByIdx[idx]);
 
-        const umsatz = pickValue(row, ['umsatz_vorwoche_brutto']);
+        // Wochenwerte
+        const umsatzBrutto = pickValue(row, ['umsatz_vorwoche_brutto']);
+        const umsatzNetto = pickValue(row, ['umsatz_vorwoche_netto']);
         const offene = pickValue(row, ['offene_buchungen']);
         const freigegeben = pickValue(row, ['freigegeben']);
+
+        // YTD / kumuliert (können bei Filiale fehlen oder bei alten Responses)
+        const umsatzYtdNetto = pickValue(row, ['umsatz_ytd_netto']);
+        const budgetYtdNetto = pickValue(row, ['budget_ytd_netto']);
+        const verbrauchtYtd = pickValue(row, ['verbraucht_ytd']);
+        const restYtdNetto = pickValue(row, ['rest_ytd_netto']);
+        const budgetSatzYtdProzent = pickValue(row, ['budget_satz_ytd_prozent']);
+
+        // Anzeige für Euro-Werte
+        const euroTilesYtd = [
+          { label: 'Umsatz YTD (netto)', value: umsatzYtdNetto },
+          { label: 'Budget YTD (netto)', value: budgetYtdNetto },
+          { label: 'Verbraucht YTD', value: verbrauchtYtd },
+          { label: 'Rest YTD (netto)', value: restYtdNetto },
+        ];
+
+        const percentTileAvailable =
+          budgetSatzYtdProzent !== undefined && budgetSatzYtdProzent !== null;
 
         return (
           <div
@@ -190,9 +221,15 @@ export default function BudgetDataPanel({ data, loading }) {
               >
                 <div className="flex items-center gap-3">
                   <span className="font-semibold">Details</span>
-                  {(umsatz !== undefined ||
+                  {(umsatzBrutto !== undefined ||
+                    umsatzNetto !== undefined ||
                     offene !== undefined ||
                     freigegeben !== undefined ||
+                    umsatzYtdNetto !== undefined ||
+                    budgetYtdNetto !== undefined ||
+                    verbrauchtYtd !== undefined ||
+                    restYtdNetto !== undefined ||
+                    budgetSatzYtdProzent !== undefined ||
                     showRaw) && (
                     <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/80">
                       verfügbar
@@ -204,12 +241,16 @@ export default function BudgetDataPanel({ data, loading }) {
 
               {detailsOpen && (
                 <div className="mt-4 bg-black/20 rounded-xl p-4">
+                  {/* Wochen-Details */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div className="bg-white/10 rounded-lg p-3">
                       <div className="text-white/70 text-xs">Umsatz Vorwoche (brutto)</div>
-                      <div className="text-white font-semibold">
-                        {formatNumber(umsatz)}
-                      </div>
+                      <div className="text-white font-semibold">{formatNumber(umsatzBrutto)}</div>
+                    </div>
+
+                    <div className="bg-white/10 rounded-lg p-3">
+                      <div className="text-white/70 text-xs">Umsatz Vorwoche (netto)</div>
+                      <div className="text-white font-semibold">{formatNumber(umsatzNetto)}</div>
                     </div>
 
                     <div className="bg-white/10 rounded-lg p-3">
@@ -222,6 +263,42 @@ export default function BudgetDataPanel({ data, loading }) {
                     <div className="bg-white/10 rounded-lg p-3">
                       <div className="text-white/70 text-xs">Freigegeben</div>
                       <div className="text-white font-semibold">{formatBool(freigegeben)}</div>
+                    </div>
+                  </div>
+
+                  {/* YTD / kumuliert */}
+                  <div className="mt-5">
+                    <div className="text-white/80 font-semibold mb-2">Kumuliert (YTD)</div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      {euroTilesYtd.map((t) => {
+                        const { text, isNegative } = formatEuroValue(t.value);
+                        return (
+                          <div key={t.label} className="bg-white/10 rounded-lg p-3">
+                            <div className="text-white/70 text-xs">{t.label}</div>
+                            <div
+                              className={[
+                                'text-white font-semibold break-words',
+                                isNegative ? 'text-red-400' : 'text-white',
+                              ].join(' ')}
+                            >
+                              {text}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      <div className="bg-white/10 rounded-lg p-3">
+                        <div className="text-white/70 text-xs">Budget-Satz YTD</div>
+                        <div className="text-white font-semibold">
+                          {percentTileAvailable ? formatPercent(budgetSatzYtdProzent) : '—'}
+                        </div>
+                        {!percentTileAvailable && (
+                          <div className="text-white/50 text-[11px] mt-1">
+                            (nicht verfügbar)
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

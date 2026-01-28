@@ -77,8 +77,8 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           status: statRes.data.length ? statRes.data : fallbackOptions.status,
         });
 
-        if (user.filiale && filRes.data.includes(user.filiale)) {
-          setFormData(prev => ({ ...prev, filiale: user.filiale }));
+        if (user.filiale && Array.isArray(filRes.data) && filRes.data.includes(user.filiale)) {
+          setFormData((prev) => ({ ...prev, filiale: user.filiale }));
         }
       } catch (err) {
         console.error('Fehler beim Laden der Stammdaten:', err);
@@ -94,23 +94,23 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
   useEffect(() => {
     if (formData.lieferant === 'SodaFixx') {
-      setFormData(prev => ({ ...prev, versand: true }));
+      setFormData((prev) => ({ ...prev, versand: true }));
     }
   }, [formData.lieferant]);
 
   const handleCommonChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: false }));
+      setErrors((prev) => ({ ...prev, [name]: false }));
     }
   };
 
   const handlePositionChange = (index, field, value) => {
-    setPositionen(prev => {
+    setPositionen((prev) => {
       const newPos = [...prev];
       newPos[index] = { ...newPos[index], [field]: value };
 
@@ -125,7 +125,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       return newPos;
     });
 
-    setErrors(prev => {
+    setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors[`pos_${index}_${field}`];
       if (field === 'bestell_menge') delete newErrors[`pos_${index}_rekla_menge`];
@@ -135,7 +135,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
   };
 
   const addPosition = () => {
-    setPositionen(prev => [
+    setPositionen((prev) => [
       ...prev,
       {
         artikelnummer: '',
@@ -150,10 +150,10 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
   const removePosition = (index) => {
     if (positionen.length === 1) return;
-    setPositionen(prev => prev.filter((_, i) => i !== index));
-    setErrors(prev => {
+    setPositionen((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
       const newErrors = { ...prev };
-      Object.keys(newErrors).forEach(key => {
+      Object.keys(newErrors).forEach((key) => {
         if (key.startsWith(`pos_${index}_`)) delete newErrors[key];
       });
       return newErrors;
@@ -167,27 +167,28 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     if (!formData.art) newErrors.art = true;
     if (!formData.lieferant) newErrors.lieferant = true;
     if (!formData.ls_nummer_grund.trim()) newErrors.ls_nummer_grund = true;
-    if (formData.versand && !formData.tracking_id.trim()) {
-      newErrors.tracking_id = true;
-    }
+    if (formData.versand && !formData.tracking_id.trim()) newErrors.tracking_id = true;
 
     let hasValidPosition = false;
+
     positionen.forEach((pos, index) => {
-      if (
+      const isComplete =
         pos.artikelnummer.trim() &&
         pos.ean.trim() &&
         pos.rekla_menge &&
-        pos.rekla_einheit
-      ) {
-        hasValidPosition = true;
-      } else if (
+        pos.rekla_einheit;
+
+      const hasAny =
         pos.artikelnummer.trim() ||
         pos.ean.trim() ||
         pos.rekla_menge ||
         pos.rekla_einheit ||
         pos.bestell_menge ||
-        pos.bestell_einheit
-      ) {
+        pos.bestell_einheit;
+
+      if (isComplete) {
+        hasValidPosition = true;
+      } else if (hasAny) {
         if (!pos.artikelnummer.trim()) newErrors[`pos_${index}_artikelnummer`] = true;
         if (!pos.ean.trim()) newErrors[`pos_${index}_ean`] = true;
         if (!pos.rekla_menge) newErrors[`pos_${index}_rekla_menge`] = true;
@@ -201,20 +202,25 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0 || newErrors.noValidPosition;
+
+    // WICHTIG: Wenn noValidPosition gesetzt ist, darf validate NICHT true liefern.
+    return Object.keys(newErrors).length === 0;
   };
 
   const showEtikettHinweisToast = (items = []) => {
     if (!items.length) return;
 
-    const toastId = toast(
+    toast(
       (t) => (
         <div className="bg-white text-black rounded-xl shadow-2xl border border-gray-200 p-4 w-[min(520px,calc(100vw-40px))]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-base font-extrabold text-[#800000]">🔖 Hinweis – Etikett nicht vergessen</div>
+              <div className="text-base font-extrabold text-[#800000]">
+                🔖 Hinweis – Etikett nicht vergessen
+              </div>
               <div className="text-sm text-gray-700 mt-1">
-                Bitte Etikett auf den jeweiligen Artikel kleben – mit der passenden <span className="font-semibold">Lfd.-Nr.</span>
+                Bitte Etikett auf den jeweiligen Artikel kleben – mit der passenden{' '}
+                <span className="font-semibold">Lfd.-Nr.</span>
               </div>
             </div>
             <button
@@ -229,9 +235,14 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           <div className="mt-3 max-h-44 overflow-auto pr-1">
             <div className="grid grid-cols-1 gap-2">
               {items.map((it) => (
-                <div key={`${it.artikelnummer}-${it.lfd_nr}`} className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                <div
+                  key={`${it.artikelnummer}-${it.lfd_nr}`}
+                  className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"
+                >
                   <div className="text-sm">
-                    <div className="font-semibold">Artikel: <span className="font-mono">{it.artikelnummer || '—'}</span></div>
+                    <div className="font-semibold">
+                      Artikel: <span className="font-mono">{it.artikelnummer || '—'}</span>
+                    </div>
                   </div>
                   <div className="text-sm font-extrabold text-gray-800">
                     Lfd.-Nr.: <span className="text-[#800000]">#{it.lfd_nr ?? '—'}</span>
@@ -246,7 +257,7 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           </div>
         </div>
       ),
-      { duration: 12000, id: toastId }
+      { duration: 12000 }
     );
   };
 
@@ -258,11 +269,8 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
     setIsSubmitting(true);
 
-    const validPositionen = positionen.filter(pos =>
-      pos.artikelnummer.trim() &&
-      pos.ean.trim() &&
-      pos.rekla_menge &&
-      pos.rekla_einheit
+    const validPositionen = positionen.filter(
+      (pos) => pos.artikelnummer.trim() && pos.ean.trim() && pos.rekla_menge && pos.rekla_einheit
     );
 
     const payload = {
@@ -292,15 +300,20 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
 
           const posFromDb = Array.isArray(detailRes?.data?.positionen) ? detailRes.data.positionen : [];
           const etikettItems = posFromDb
-            .filter(p => p && (p.artikelnummer || '').toString().trim() !== '' && p.lfd_nr !== null && p.lfd_nr !== undefined)
-            .map(p => ({ artikelnummer: (p.artikelnummer || '').toString(), lfd_nr: p.lfd_nr }))
+            .filter(
+              (p) =>
+                p &&
+                (p.artikelnummer || '').toString().trim() !== '' &&
+                p.lfd_nr !== null &&
+                p.lfd_nr !== undefined
+            )
+            .map((p) => ({ artikelnummer: (p.artikelnummer || '').toString(), lfd_nr: p.lfd_nr }))
             .sort((a, b) => Number(a.lfd_nr) - Number(b.lfd_nr));
 
           if (etikettItems.length) {
             showEtikettHinweisToast(etikettItems);
           }
         } catch (err) {
-          // Wenn Detail nicht klappt, kein Drama – dann bleibt nur die Erfolgsinfo
           console.warn('Hinweis-Toast: Detaildaten konnten nicht geladen werden:', err);
         }
       }
@@ -309,6 +322,16 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       onSuccess();
       onClose();
     } catch (error) {
+      const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      const msgFromBackend = error?.response?.data?.message;
+
+      // DEIN WUNSCH: Blockierendes Alert, nur OK, keine Alternative.
+      if (status === 409 && code === 'REKLA_NR_EXISTS' && msgFromBackend) {
+        window.alert(msgFromBackend);
+        return;
+      }
+
       console.error('Fehler beim Anlegen:', error);
       toast.error('Fehler beim Speichern – siehe Konsole oder Backend.');
     } finally {
@@ -344,44 +367,115 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
             <div className="space-y-4">
               <div>
                 <label className="block font-semibold mb-1">Filiale</label>
-                <select name="filiale" value={formData.filiale} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
+                <select
+                  name="filiale"
+                  value={formData.filiale}
+                  onChange={handleCommonChange}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
                   <option value="">-- Auswählen --</option>
-                  {options.filialen.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {options.filialen.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="block font-semibold mb-1">Anlegedatum</label>
-                <input type="date" name="datum" value={formData.datum} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg" />
+                <input
+                  type="date"
+                  name="datum"
+                  value={formData.datum}
+                  onChange={handleCommonChange}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Reklamationsnr. <span className="text-red-600">*</span></label>
-                <input type="text" name="rekla_nr" value={formData.rekla_nr} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.rekla_nr ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. REK-2026-001" />
+                <label className="block font-semibold mb-1">
+                  Reklamationsnr. <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="rekla_nr"
+                  value={formData.rekla_nr}
+                  onChange={handleCommonChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    errors.rekla_nr ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="z. B. REK-2026-001"
+                />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Art der Reklamation <span className="text-red-600">*</span></label>
-                <select name="art" value={formData.art} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.art ? 'border-red-500' : 'border-gray-300'}`}>
+                <label className="block font-semibold mb-1">
+                  Art der Reklamation <span className="text-red-600">*</span>
+                </label>
+                <select
+                  name="art"
+                  value={formData.art}
+                  onChange={handleCommonChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    errors.art ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
                   <option value="">-- Auswählen --</option>
-                  {options.reklamationsarten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {options.reklamationsarten.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block font-semibold mb-1">Lieferant <span className="text-red-600">*</span></label>
-                <select name="lieferant" value={formData.lieferant} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.lieferant ? 'border-red-500' : 'border-gray-300'}`}>
+                <label className="block font-semibold mb-1">
+                  Lieferant <span className="text-red-600">*</span>
+                </label>
+                <select
+                  name="lieferant"
+                  value={formData.lieferant}
+                  onChange={handleCommonChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    errors.lieferant ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
                   <option value="">-- Auswählen --</option>
-                  {options.lieferanten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  {options.lieferanten.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block font-semibold mb-1">LS-Nummer / Grund <span className="text-red-600">*</span></label>
-                <input type="text" name="ls_nummer_grund" value={formData.ls_nummer_grund} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'}`} />
+                <label className="block font-semibold mb-1">
+                  LS-Nummer / Grund <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="ls_nummer_grund"
+                  value={formData.ls_nummer_grund}
+                  onChange={handleCommonChange}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    errors.ls_nummer_grund ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                />
               </div>
               <div>
                 <label className="block font-semibold mb-1">Status</label>
-                <select name="status" value={formData.status} onChange={handleCommonChange} className="w-full px-3 py-2 border rounded-lg">
-                  {options.status.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleCommonChange}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  {options.status.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -392,17 +486,37 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   value={formData.letzte_aenderung}
                   onChange={handleCommonChange}
                   readOnly={!canEditLetzteAenderung}
-                  className={`w-full px-3 py-2 border rounded-lg ${!canEditLetzteAenderung ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  className={`w-full px-3 py-2 border rounded-lg ${
+                    !canEditLetzteAenderung ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                 />
               </div>
               <div className="flex items-center gap-3 pt-2">
-                <input type="checkbox" name="versand" checked={formData.versand} onChange={handleCommonChange} disabled={formData.lieferant === 'SodaFixx'} className="w-5 h-5" />
+                <input
+                  type="checkbox"
+                  name="versand"
+                  checked={formData.versand}
+                  onChange={handleCommonChange}
+                  disabled={formData.lieferant === 'SodaFixx'}
+                  className="w-5 h-5"
+                />
                 <label className="font-semibold">Versand (Rücksendung)</label>
               </div>
               {formData.versand && (
                 <div>
-                  <label className="block font-semibold mb-1">Tracking ID {formData.versand && <span className="text-red-600">*</span>}</label>
-                  <input type="text" name="tracking_id" value={formData.tracking_id} onChange={handleCommonChange} className={`w-full px-3 py-2 border rounded-lg ${errors.tracking_id ? 'border-red-500' : 'border-gray-300'}`} placeholder="z. B. DHL-Trackingnummer" />
+                  <label className="block font-semibold mb-1">
+                    Tracking ID {formData.versand && <span className="text-red-600">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    name="tracking_id"
+                    value={formData.tracking_id}
+                    onChange={handleCommonChange}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      errors.tracking_id ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="z. B. DHL-Trackingnummer"
+                  />
                 </div>
               )}
             </div>
@@ -416,12 +530,30 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div>
-                      <label className="block font-semibold mb-1">Artikelnummer <span className="text-red-600">*</span></label>
-                      <input type="text" value={pos.artikelnummer} onChange={e => handlePositionChange(index, 'artikelnummer', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'}`} />
+                      <label className="block font-semibold mb-1">
+                        Artikelnummer <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={pos.artikelnummer}
+                        onChange={(e) => handlePositionChange(index, 'artikelnummer', e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          errors[`pos_${index}_artikelnummer`] ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
                     </div>
                     <div>
-                      <label className="block font-semibold mb-1">EAN <span className="text-red-600">*</span></label>
-                      <input type="text" value={pos.ean} onChange={e => handlePositionChange(index, 'ean', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_ean`] ? 'border-red-500' : 'border-gray-300'}`} />
+                      <label className="block font-semibold mb-1">
+                        EAN <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={pos.ean}
+                        onChange={(e) => handlePositionChange(index, 'ean', e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          errors[`pos_${index}_ean`] ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -431,15 +563,23 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                           step="1"
                           min="0"
                           value={pos.bestell_menge}
-                          onChange={e => handlePositionChange(index, 'bestell_menge', e.target.value)}
+                          onChange={(e) => handlePositionChange(index, 'bestell_menge', e.target.value)}
                           className="w-full px-3 py-2 border rounded-lg"
                         />
                       </div>
                       <div>
                         <label className="block font-semibold mb-1">Einheit</label>
-                        <select value={pos.bestell_einheit} onChange={e => handlePositionChange(index, 'bestell_einheit', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
+                        <select
+                          value={pos.bestell_einheit}
+                          onChange={(e) => handlePositionChange(index, 'bestell_einheit', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        >
                           <option value="">--</option>
-                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          {options.einheiten.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -448,21 +588,37 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block font-semibold mb-1">Reklamationsmenge <span className="text-red-600">*</span></label>
+                        <label className="block font-semibold mb-1">
+                          Reklamationsmenge <span className="text-red-600">*</span>
+                        </label>
                         <input
                           type="number"
                           step="1"
                           min="0"
                           value={pos.rekla_menge}
-                          onChange={e => handlePositionChange(index, 'rekla_menge', e.target.value)}
-                          className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'}`}
+                          onChange={(e) => handlePositionChange(index, 'rekla_menge', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            errors[`pos_${index}_rekla_menge`] ? 'border-red-500' : 'border-gray-300'
+                          }`}
                         />
                       </div>
                       <div>
-                        <label className="block font-semibold mb-1">Einheit <span className="text-red-600">*</span></label>
-                        <select value={pos.rekla_einheit} onChange={e => handlePositionChange(index, 'rekla_einheit', e.target.value)} className={`w-full px-3 py-2 border rounded-lg ${errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'}`}>
+                        <label className="block font-semibold mb-1">
+                          Einheit <span className="text-red-600">*</span>
+                        </label>
+                        <select
+                          value={pos.rekla_einheit}
+                          onChange={(e) => handlePositionChange(index, 'rekla_einheit', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-lg ${
+                            errors[`pos_${index}_rekla_einheit`] ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                        >
                           <option value="">-- Auswählen --</option>
-                          {options.einheiten.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          {options.einheiten.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -491,10 +647,18 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
           </div>
 
           <div className="flex justify-end gap-4 mt-8 pt-6 border-t">
-            <button onClick={onClose} className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition" disabled={isSubmitting}>
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 text-base border border-gray-400 rounded-lg hover:bg-gray-100 transition"
+              disabled={isSubmitting}
+            >
               Abbrechen
             </button>
-            <button onClick={handleSubmit} disabled={isSubmitting} className="px-6 py-2.5 text-base bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70">
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="px-6 py-2.5 text-base bg-[#800000] text-white rounded-lg hover:bg-[#990000] transition disabled:opacity-70"
+            >
               {isSubmitting ? 'Wird gespeichert...' : 'Reklamation anlegen'}
             </button>
           </div>
