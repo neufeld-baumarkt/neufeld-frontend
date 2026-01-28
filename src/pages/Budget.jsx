@@ -53,22 +53,53 @@ function toNumber(value) {
 function formatCurrency(value) {
   const n = toNumber(value);
   if (n === null) return '—';
-  return (
-    n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €'
-  );
+  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-function UmsatzVorwocheModal({
+function parseNumber(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const s = String(value).trim().replace(',', '.');
+  const n = Number.parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatPercentUiFromDecimal(decimal01) {
+  const n = parseNumber(decimal01);
+  if (n === null) return '';
+  return String((n * 100).toFixed(2));
+}
+
+function toDecimal01FromPercentUi(percentUi) {
+  const n = parseNumber(percentUi);
+  if (n === null) return null;
+  return n / 100;
+}
+
+function BudgetSettingsModal({
   open,
   onClose,
+  jahr,
+  kw,
+  effectiveFiliale,
+
+  // Umsatz
+  canEditUmsatz,
   umsatzInput,
   setUmsatzInput,
   setUmsatzDirty,
-  canEditUmsatz,
   savingUmsatz,
-  disabledByLoading,
-  onSave,
-  currentValue,
+  onSaveUmsatz,
+  currentUmsatzValue,
+
+  // Rule
+  canEditRule,
+  ruleLoading,
+  ruleSaving,
+  percentUi,
+  setPercentUi,
+  mwstUi,
+  onSaveRule,
 }) {
   useEffect(() => {
     if (!open) return;
@@ -82,22 +113,19 @@ function UmsatzVorwocheModal({
 
   if (!open) return null;
 
-  const disabled = !canEditUmsatz || savingUmsatz || disabledByLoading;
-
   return (
     <div
       className="fixed inset-0 z-50 bg-black/70 px-4 flex items-center justify-center"
       onMouseDown={(e) => {
-        // Klick auf Overlay schließt, Klick im Modal nicht
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="w-full max-w-md bg-[#2f2d2d] rounded-2xl border border-white/10 shadow-[6px_6px_18px_rgba(0,0,0,0.7)] overflow-hidden">
+      <div className="w-full max-w-2xl bg-[#2f2d2d] rounded-2xl border border-white/10 shadow-[6px_6px_18px_rgba(0,0,0,0.7)] overflow-hidden">
         <div className="p-5 border-b border-white/10 flex items-start justify-between gap-4">
           <div>
-            <div className="text-xl font-bold">Umsatz Vorwoche</div>
+            <div className="text-xl font-bold">Budget-Einstellungen</div>
             <div className="text-white/70 text-sm mt-1">
-              Aktuell: <span className="font-semibold">{formatCurrency(currentValue)}</span>
+              {jahr} · KW {kw} · Filiale: <span className="font-semibold">{effectiveFiliale || '—'}</span>
             </div>
           </div>
           <button
@@ -109,46 +137,95 @@ function UmsatzVorwocheModal({
           </button>
         </div>
 
-        <div className="p-5">
-          {!canEditUmsatz ? (
-            <div className="bg-white/10 rounded-xl p-4 text-white/80">
-              Keine Berechtigung: Umsatz darf nur Admin/Supervisor pflegen.
+        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Umsatz Vorwoche */}
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/10">
+            <div className="text-lg font-semibold">Umsatz Vorwoche</div>
+            <div className="text-white/70 text-sm mt-1">
+              Aktuell: <span className="font-semibold">{formatCurrency(currentUmsatzValue)}</span>
             </div>
-          ) : (
-            <>
-              <label className="flex flex-col gap-2">
-                <span className="text-white/80 font-semibold">Umsatz (brutto)</span>
-                <input
-                  value={umsatzInput}
-                  onChange={(e) => {
-                    setUmsatzInput(e.target.value);
-                    setUmsatzDirty(true);
-                  }}
-                  placeholder="z. B. 11900,00"
-                  inputMode="decimal"
-                  className="w-full px-3 py-2 rounded-lg bg-white/10 text-white outline-none focus:ring-2 focus:ring-white/30"
-                />
-              </label>
 
-              <div className="mt-4 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={onSave}
-                  disabled={disabled}
-                  className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
-                >
-                  {savingUmsatz ? 'Speichere…' : 'Speichern'}
-                </button>
+            {!canEditUmsatz ? (
+              <div className="mt-4 bg-black/20 rounded-xl p-3 text-white/80">
+                Keine Berechtigung: Umsatz darf nur Admin/Supervisor pflegen.
               </div>
-            </>
-          )}
+            ) : (
+              <>
+                <label className="flex flex-col gap-2 mt-4">
+                  <span className="text-white/80 font-semibold">Umsatz (brutto)</span>
+                  <input
+                    value={umsatzInput}
+                    onChange={(e) => {
+                      setUmsatzInput(e.target.value);
+                      setUmsatzDirty(true);
+                    }}
+                    placeholder="z. B. 11900,00"
+                    inputMode="decimal"
+                    className="w-full px-3 py-2 rounded-lg bg-white/10 text-white outline-none focus:ring-2 focus:ring-white/30"
+                  />
+                </label>
+
+                <div className="mt-4 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={onSaveUmsatz}
+                    disabled={savingUmsatz}
+                    className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
+                  >
+                    {savingUmsatz ? 'Speichere…' : 'Speichern'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Budget-Regel */}
+          <div className="bg-white/10 rounded-2xl p-4 border border-white/10">
+            <div className="text-lg font-semibold">Budget-Regel (global)</div>
+            <div className="text-white/70 text-sm mt-1">
+              Gilt für alle Filialen – nur {jahr} · KW {kw}
+            </div>
+
+            {!canEditRule ? (
+              <div className="mt-4 bg-black/20 rounded-xl p-3 text-white/80">
+                Keine Berechtigung: Regel darf nur Admin/Supervisor pflegen.
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-white/80 font-semibold whitespace-nowrap">Satz</span>
+                  <input
+                    value={percentUi}
+                    onChange={(e) => setPercentUi(e.target.value)}
+                    inputMode="decimal"
+                    placeholder={ruleLoading ? 'Lade…' : 'z. B. 48.00'}
+                    disabled={ruleLoading || ruleSaving}
+                    className="w-[140px] px-3 py-2 rounded-lg bg-white/10 text-white outline-none disabled:opacity-60"
+                  />
+                  <span className="text-white/80 font-semibold">%</span>
+                </div>
+
+                <div className="text-white/60 text-sm mt-3">
+                  MwSt: <span className="font-semibold">{mwstUi || '—'}</span>
+                </div>
+
+                <div className="mt-4 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={onSaveRule}
+                    disabled={ruleLoading || ruleSaving}
+                    className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
+                  >
+                    {ruleSaving ? 'Speichere…' : 'Speichern'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-white/10 text-white/60 text-sm">
+          Hinweis: Änderungen wirken sofort nach dem Speichern (Neu laden).
         </div>
       </div>
     </div>
@@ -161,19 +238,17 @@ export default function Budget() {
   const rawFiliale = user?.filiale || '';
   const role = user?.role || '';
 
-  // Verifiziert: Filiale-User haben role === "Filiale"
   const isFilialeUser = role === 'Filiale';
-  const isSuperUser = !isFilialeUser; // Zentralrolle (Admin/Supervisor/Manager-1/GF/…)
+  const isSuperUser = !isFilialeUser;
 
-  // Umsatz darf nur Admin/Supervisor pflegen (Backend-Recht)
   const canEditUmsatz = role === 'Admin' || role === 'Supervisor';
+  const canEditRule = role === 'Admin' || role === 'Supervisor';
 
   const { year: defaultYear, week: defaultWeek } = useMemo(() => getIsoWeekYear(new Date()), []);
   const [jahr, setJahr] = useState(defaultYear);
   const [kw, setKw] = useState(defaultWeek);
 
-  // Filiale: Filial-User fix, SuperUser auswählbar
-  const [filiale, setFiliale] = useState(isSuperUser ? 'Ahaus' : (rawFiliale || ''));
+  const [filiale, setFiliale] = useState(isSuperUser ? 'Ahaus' : rawFiliale);
   const effectiveFiliale = isSuperUser ? filiale : rawFiliale;
 
   const [loadingBudget, setLoadingBudget] = useState(false);
@@ -188,50 +263,53 @@ export default function Budget() {
   const [umsatzDirty, setUmsatzDirty] = useState(false);
   const [savingUmsatz, setSavingUmsatz] = useState(false);
 
-  // Modal State (nur für kleine Displays sinnvoll genutzt)
-  const [umsatzModalOpen, setUmsatzModalOpen] = useState(false);
+  // Settings Modal
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Rule State (für Modal)
+  const [ruleLoading, setRuleLoading] = useState(false);
+  const [ruleSaving, setRuleSaving] = useState(false);
+  const [percentUi, setPercentUi] = useState('');
+  const [mwstUi, setMwstUi] = useState('');
 
   const headlineText = isSuperUser ? 'Budgetliste' : `Budgetliste – Filiale ${rawFiliale}`;
 
-  const getAuth = () => {
+  const baseUrl = import.meta.env.VITE_API_URL;
+
+  const getToken = () => {
     const token = sessionStorage.getItem('token');
     if (!token) {
       toast.error('Kein Zugriffstoken gefunden.');
       return null;
     }
-    return { token };
+    return token;
   };
 
-  const requireFilialeIfNeeded = () => {
+  const requireBasics = () => {
     if (!jahr || !kw) {
       toast.error('Jahr oder KW fehlt.');
       return false;
     }
-    if (isSuperUser && (!effectiveFiliale || effectiveFiliale.trim() === '')) {
+    if (!effectiveFiliale || effectiveFiliale.trim() === '') {
       toast.error('Bitte eine Filiale auswählen.');
       return false;
     }
     return true;
   };
 
-  const buildBudgetUrl = (path) => {
-    const baseUrl = import.meta.env.VITE_API_URL;
-    const qp = isSuperUser ? `?filiale=${encodeURIComponent(effectiveFiliale)}` : '';
-    return `${baseUrl}${path}${qp}`;
-  };
-
   const fetchBudget = async () => {
-    const auth = getAuth();
-    if (!auth) return;
-    if (!requireFilialeIfNeeded()) return;
-
-    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}`);
+    const token = getToken();
+    if (!token) return;
+    if (!requireBasics()) return;
 
     try {
       setLoadingBudget(true);
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+
+      const res = await axios.get(`${baseUrl}/api/budget/week-summary`, {
+        params: { jahr, kw, filiale: effectiveFiliale },
+        headers: { Authorization: `Bearer ${token}` },
       });
+
       setData(res.data);
     } catch (err) {
       console.error('Fehler beim Laden der Budgetdaten:', err);
@@ -239,8 +317,7 @@ export default function Budget() {
       const payload = err?.response?.data;
       if (payload && typeof payload === 'object') {
         setData(payload);
-        const msg = payload?.message || 'Budgetdaten nicht vorhanden.';
-        toast.error(msg);
+        toast.error(payload?.message || 'Budgetdaten nicht vorhanden.');
       } else {
         toast.error('Budgetdaten konnten nicht geladen werden.');
         setData(null);
@@ -251,20 +328,20 @@ export default function Budget() {
   };
 
   const fetchBookings = async () => {
-    const auth = getAuth();
-    if (!auth) return;
-    if (!requireFilialeIfNeeded()) return;
-
-    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/bookings`);
+    const token = getToken();
+    if (!token) return;
+    if (!requireBasics()) return;
 
     try {
       setLoadingBookings(true);
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+
+      const res = await axios.get(`${baseUrl}/api/budget/bookings`, {
+        params: { jahr, kw, filiale: effectiveFiliale },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const payload = res.data || {};
-      setBookings(Array.isArray(payload.bookings) ? payload.bookings : []);
+      setBookings(Array.isArray(payload.bookings) ? payload.bookings : Array.isArray(payload) ? payload : []);
       setWeekSummaryFromBookings(payload.week_summary || null);
     } catch (err) {
       console.error('Fehler beim Laden der Buchungen:', err);
@@ -281,26 +358,25 @@ export default function Budget() {
     await fetchBookings();
   };
 
+  // Booking CRUD (unverändert vorhanden)
   const createBooking = async (bookingBody) => {
-    const auth = getAuth();
-    if (!auth) return false;
-    if (!requireFilialeIfNeeded()) return false;
+    const token = getToken();
+    if (!token) return false;
+    if (!requireBasics()) return false;
 
-    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/bookings`);
+    const payload = { ...bookingBody, jahr, kw, filiale: effectiveFiliale };
 
     try {
       setLoadingBookings(true);
-      await axios.post(url, bookingBody, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+      await axios.post(`${baseUrl}/api/budget/bookings`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       toast.success('Buchung angelegt.');
       await reloadAll();
       return true;
     } catch (err) {
       console.error('Fehler beim Anlegen der Buchung:', err);
-      const msg = err?.response?.data?.message || 'Buchung konnte nicht angelegt werden.';
-      toast.error(msg);
+      toast.error(err?.response?.data?.message || 'Buchung konnte nicht angelegt werden.');
       return false;
     } finally {
       setLoadingBookings(false);
@@ -308,25 +384,22 @@ export default function Budget() {
   };
 
   const updateBooking = async (id, bookingBody) => {
-    const auth = getAuth();
-    if (!auth) return false;
+    const token = getToken();
+    if (!token) return false;
 
-    const baseUrl = import.meta.env.VITE_API_URL;
-    const url = `${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`;
+    const payload = { ...bookingBody, jahr, kw, filiale: effectiveFiliale };
 
     try {
       setLoadingBookings(true);
-      await axios.put(url, bookingBody, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+      await axios.put(`${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       toast.success('Buchung gespeichert.');
       await reloadAll();
       return true;
     } catch (err) {
       console.error('Fehler beim Speichern der Buchung:', err);
-      const msg = err?.response?.data?.message || 'Buchung konnte nicht gespeichert werden.';
-      toast.error(msg);
+      toast.error(err?.response?.data?.message || 'Buchung konnte nicht gespeichert werden.');
       return false;
     } finally {
       setLoadingBookings(false);
@@ -334,25 +407,20 @@ export default function Budget() {
   };
 
   const deleteBooking = async (id) => {
-    const auth = getAuth();
-    if (!auth) return false;
-
-    const baseUrl = import.meta.env.VITE_API_URL;
-    const url = `${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`;
+    const token = getToken();
+    if (!token) return false;
 
     try {
       setLoadingBookings(true);
-      await axios.delete(url, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+      await axios.delete(`${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       toast.success('Buchung gelöscht.');
       await reloadAll();
       return true;
     } catch (err) {
       console.error('Fehler beim Löschen der Buchung:', err);
-      const msg = err?.response?.data?.message || 'Buchung konnte nicht gelöscht werden.';
-      toast.error(msg);
+      toast.error(err?.response?.data?.message || 'Buchung konnte nicht gelöscht werden.');
       return false;
     } finally {
       setLoadingBookings(false);
@@ -376,9 +444,9 @@ export default function Budget() {
   }, [mergedBudgetData, umsatzDirty]);
 
   const saveUmsatz = async () => {
-    const auth = getAuth();
-    if (!auth) return;
-    if (!requireFilialeIfNeeded()) return;
+    const token = getToken();
+    if (!token) return;
+    if (!requireBasics()) return;
 
     if (!canEditUmsatz) {
       toast.error('Keine Berechtigung: Umsatz darf nur Admin/Supervisor pflegen.');
@@ -395,13 +463,13 @@ export default function Budget() {
       return;
     }
 
-    const url = buildBudgetUrl(`/api/budget/${jahr}/${kw}/umsatz`);
-    const body = { umsatz_vorwoche_brutto: n };
+    const body = { jahr, kw, filiale: effectiveFiliale, umsatz_vorwoche_brutto: n };
 
     try {
       setSavingUmsatz(true);
-      const res = await axios.put(url, body, {
-        headers: { Authorization: `Bearer ${auth.token}` },
+
+      const res = await axios.put(`${baseUrl}/api/budget/umsatz-vorwoche`, body, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       toast.success('Umsatz gespeichert.');
@@ -409,17 +477,79 @@ export default function Budget() {
 
       setData(res.data);
       await fetchBookings();
-
-      // Modal nach Save schließen (falls offen)
-      setUmsatzModalOpen(false);
     } catch (err) {
       console.error('Fehler beim Speichern Umsatz Vorwoche:', err);
-      const msg = err?.response?.data?.message || 'Umsatz konnte nicht gespeichert werden.';
-      toast.error(msg);
+      toast.error(err?.response?.data?.message || 'Umsatz konnte nicht gespeichert werden.');
     } finally {
       setSavingUmsatz(false);
     }
   };
+
+  const loadRule = async () => {
+    if (!canEditRule) return;
+    const token = getToken();
+    if (!token) return;
+
+    try {
+      setRuleLoading(true);
+      const res = await axios.get(`${baseUrl}/api/budget/rules`, {
+        params: { jahr, kw },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const payload = res.data || {};
+      setPercentUi(formatPercentUiFromDecimal(payload.prozentsatz));
+      setMwstUi(payload.mwst_faktor !== undefined && payload.mwst_faktor !== null ? String(payload.mwst_faktor) : '');
+    } catch (err) {
+      console.error('Fehler beim Laden der Budget-Regel:', err);
+      toast.error(err?.response?.data?.message || 'Budget-Regel konnte nicht geladen werden.');
+      setPercentUi('');
+      setMwstUi('');
+    } finally {
+      setRuleLoading(false);
+    }
+  };
+
+  const saveRule = async () => {
+    if (!canEditRule) return;
+    const token = getToken();
+    if (!token) return;
+
+    const decimal01 = toDecimal01FromPercentUi(percentUi);
+    if (decimal01 === null) {
+      toast.error('Prozentsatz ist ungültig.');
+      return;
+    }
+    if (decimal01 < 0 || decimal01 > 1) {
+      toast.error('Prozentsatz muss zwischen 0 und 100 liegen.');
+      return;
+    }
+
+    try {
+      setRuleSaving(true);
+      await axios.put(
+        `${baseUrl}/api/budget/rules`,
+        { jahr, kw, prozentsatz: decimal01 },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success('Budget-Regel gespeichert.');
+      await loadRule();
+      await reloadAll();
+    } catch (err) {
+      console.error('Fehler beim Speichern der Budget-Regel:', err);
+      toast.error(err?.response?.data?.message || 'Budget-Regel konnte nicht gespeichert werden.');
+    } finally {
+      setRuleSaving(false);
+    }
+  };
+
+  // Wenn Jahr/KW wechselt: Rule neu ziehen (für Modal)
+  useEffect(() => {
+    if (!canEditRule) return;
+    loadRule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jahr, kw]);
 
   useEffect(() => {
     reloadAll();
@@ -427,6 +557,7 @@ export default function Budget() {
   }, [jahr, kw, effectiveFiliale]);
 
   const disabledByLoading = loadingBudget || loadingBookings;
+  const canOpenSettings = canEditUmsatz || canEditRule;
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
@@ -443,7 +574,7 @@ export default function Budget() {
         style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}
       ></div>
 
-      <BudgetHeader headlineText={headlineText} />
+      <BudgetHeader headlineText={headlineText} jahr={jahr} kw={kw} userRole={role} onRuleSaved={reloadAll} />
 
       {/* Controls-Leiste */}
       <div className="absolute top-[230px] left-[90px] right-[80px] flex flex-wrap items-center justify-between gap-6">
@@ -453,43 +584,17 @@ export default function Budget() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Umsatz-Vorwoche UI: nur Admin/Supervisor */}
-          {canEditUmsatz && (
-            <>
-              {/* >= sm: Inline wie bisher */}
-              <div className="hidden sm:flex items-center gap-3 bg-white/10 rounded-xl px-4 py-3">
-                <span className="text-lg font-semibold whitespace-nowrap">Umsatz Vorwoche</span>
-                <input
-                  value={umsatzInput}
-                  onChange={(e) => {
-                    setUmsatzInput(e.target.value);
-                    setUmsatzDirty(true);
-                  }}
-                  placeholder="z. B. 11900,00"
-                  className="w-[180px] px-3 py-2 rounded-lg bg-white/10 text-white outline-none"
-                />
-                <button
-                  onClick={saveUmsatz}
-                  disabled={savingUmsatz || disabledByLoading}
-                  className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
-                >
-                  {savingUmsatz ? 'Speichere…' : 'Speichern'}
-                </button>
-              </div>
-
-              {/* < sm: kompakter Button -> Modal */}
-              <div className="flex sm:hidden items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setUmsatzModalOpen(true)}
-                  disabled={disabledByLoading}
-                  className="px-4 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
-                  title="Umsatz Vorwoche bearbeiten"
-                >
-                  Umsatz Vorwoche
-                </button>
-              </div>
-            </>
+          {/* HIER: Statt Inline-Umsatz -> 1 Button -> gemeinsames Modal */}
+          {canOpenSettings && (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              disabled={disabledByLoading}
+              className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
+              title="Umsatz Vorwoche + Budget-Regel bearbeiten"
+            >
+              Budget-Einstellungen
+            </button>
           )}
 
           <button
@@ -524,18 +629,26 @@ export default function Budget() {
         </div>
       </div>
 
-      {/* Modal (nur für kleine Displays relevant, aber technisch überall nutzbar) */}
-      <UmsatzVorwocheModal
-        open={umsatzModalOpen}
-        onClose={() => setUmsatzModalOpen(false)}
+      <BudgetSettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        jahr={jahr}
+        kw={kw}
+        effectiveFiliale={effectiveFiliale}
+        canEditUmsatz={canEditUmsatz}
         umsatzInput={umsatzInput}
         setUmsatzInput={setUmsatzInput}
         setUmsatzDirty={setUmsatzDirty}
-        canEditUmsatz={canEditUmsatz}
         savingUmsatz={savingUmsatz}
-        disabledByLoading={disabledByLoading}
-        onSave={saveUmsatz}
-        currentValue={mergedBudgetData?.umsatz_vorwoche_brutto}
+        onSaveUmsatz={saveUmsatz}
+        currentUmsatzValue={mergedBudgetData?.umsatz_vorwoche_brutto}
+        canEditRule={canEditRule}
+        ruleLoading={ruleLoading}
+        ruleSaving={ruleSaving}
+        percentUi={percentUi}
+        setPercentUi={setPercentUi}
+        mwstUi={mwstUi}
+        onSaveRule={saveRule}
       />
     </div>
   );
