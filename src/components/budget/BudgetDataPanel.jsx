@@ -40,24 +40,6 @@ function formatEuroValue(value) {
   return { text, isNegative: n < 0 };
 }
 
-function formatNumber(value) {
-  const n = toNumber(value);
-  if (n === null) return '—';
-  return n.toLocaleString('de-DE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatBool(value) {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Ja' : 'Nein';
-  const s = String(value).trim().toLowerCase();
-  if (s === 'true' || s === '1' || s === 'ja') return 'Ja';
-  if (s === 'false' || s === '0' || s === 'nein') return 'Nein';
-  return String(value);
-}
-
 function formatPercent(value) {
   const n = toNumber(value);
   if (n === null) return '—';
@@ -69,12 +51,16 @@ function formatPercent(value) {
   );
 }
 
-export default function BudgetDataPanel({ data, loading }) {
+export default function BudgetDataPanel({ data, loading, role = '' }) {
   const rows = useMemo(() => normalizeToArray(data), [data]);
 
   // Per-Row UI-State (falls jemals mehr als 1 Row kommt)
   const [detailsOpenByIdx, setDetailsOpenByIdx] = useState({});
   const [showRawByIdx, setShowRawByIdx] = useState({});
+
+  const isAdmin = role === 'Admin';
+  const isSupervisor = role === 'Supervisor';
+  const isPrivileged = isAdmin || isSupervisor; // sieht "alles" (im Sinne der erweiterten YTD-Kacheln)
 
   const isNoDataMessage =
     data &&
@@ -82,10 +68,7 @@ export default function BudgetDataPanel({ data, loading }) {
     data.message &&
     String(data.message).includes('Keine Budgetdaten');
 
-  // Für die UI bleibt NUR das Wichtige:
-  // - Budget freigegeben (netto)
-  // - Verbraucht
-  // - Rest (netto)
+  // Zugeklappt: NUR diese 3
   const keyTiles = [
     {
       label: 'Budget freigegeben (netto)',
@@ -156,29 +139,41 @@ export default function BudgetDataPanel({ data, loading }) {
         const detailsOpen = Boolean(detailsOpenByIdx[idx]);
         const showRaw = Boolean(showRawByIdx[idx]);
 
-        // Wochenwerte
-        const umsatzBrutto = pickValue(row, ['umsatz_vorwoche_brutto']);
-        const umsatzNetto = pickValue(row, ['umsatz_vorwoche_netto']);
-        const offene = pickValue(row, ['offene_buchungen']);
-        const freigegeben = pickValue(row, ['freigegeben']);
+        const rowKw = pickValue(row, ['kw']);
+        const rowJahr = pickValue(row, ['jahr']);
 
-        // YTD / kumuliert (können bei Filiale fehlen oder bei alten Responses)
+        // Kumuliert (Jahr) / formerly YTD
         const umsatzYtdNetto = pickValue(row, ['umsatz_ytd_netto']);
         const budgetYtdNetto = pickValue(row, ['budget_ytd_netto']);
         const verbrauchtYtd = pickValue(row, ['verbraucht_ytd']);
         const restYtdNetto = pickValue(row, ['rest_ytd_netto']);
         const budgetSatzYtdProzent = pickValue(row, ['budget_satz_ytd_prozent']);
 
-        // Anzeige für Euro-Werte
-        const euroTilesYtd = [
-          { label: 'Umsatz YTD (netto)', value: umsatzYtdNetto },
-          { label: 'Budget YTD (netto)', value: budgetYtdNetto },
-          { label: 'Verbraucht YTD', value: verbrauchtYtd },
-          { label: 'Rest YTD (netto)', value: restYtdNetto },
+        // Für GF/Manager/Filialen: nur 3 Werte
+        // Für Admin/Supervisor: zusätzlich Rest + Budget-Satz
+        const euroTilesKumuliert = [
+          { label: 'Umsatz kumuliert (netto)', value: umsatzYtdNetto },
+          { label: 'Budget kumuliert (netto)', value: budgetYtdNetto },
+          { label: 'Verbraucht kumuliert', value: verbrauchtYtd },
+          ...(isPrivileged ? [{ label: 'Rest kumuliert (netto)', value: restYtdNetto }] : []),
         ];
 
+        const percentTileVisible = isPrivileged;
         const percentTileAvailable =
           budgetSatzYtdProzent !== undefined && budgetSatzYtdProzent !== null;
+
+        const detailsAvailable =
+          umsatzYtdNetto !== undefined ||
+          budgetYtdNetto !== undefined ||
+          verbrauchtYtd !== undefined ||
+          (isPrivileged && restYtdNetto !== undefined) ||
+          (percentTileVisible && budgetSatzYtdProzent !== undefined) ||
+          (isAdmin && showRaw);
+
+        const kumuliertTitle =
+          rowJahr && rowKw
+            ? `Kumuliert (Jahr ${rowJahr} bis KW ${rowKw})`
+            : 'Kumuliert (Jahr)';
 
         return (
           <div
@@ -190,7 +185,7 @@ export default function BudgetDataPanel({ data, loading }) {
               {loading && <div className="text-white/70">Aktualisiere…</div>}
             </div>
 
-            {/* Immer sichtbar: nur 3 relevante Kacheln */}
+            {/* Zugeklappt: nur 3 relevante Kacheln */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {keyTiles.map((t) => {
                 const raw = pickValue(row, t.keys);
@@ -212,7 +207,7 @@ export default function BudgetDataPanel({ data, loading }) {
               })}
             </div>
 
-            {/* Kompakt: Details einklappbar */}
+            {/* Accordion */}
             <div className="mt-5">
               <button
                 type="button"
@@ -220,17 +215,8 @@ export default function BudgetDataPanel({ data, loading }) {
                 className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-white/10 hover:bg-white/20 transition"
               >
                 <div className="flex items-center gap-3">
-                  <span className="font-semibold">Details</span>
-                  {(umsatzBrutto !== undefined ||
-                    umsatzNetto !== undefined ||
-                    offene !== undefined ||
-                    freigegeben !== undefined ||
-                    umsatzYtdNetto !== undefined ||
-                    budgetYtdNetto !== undefined ||
-                    verbrauchtYtd !== undefined ||
-                    restYtdNetto !== undefined ||
-                    budgetSatzYtdProzent !== undefined ||
-                    showRaw) && (
+                  <span className="font-semibold">Kumuliert</span>
+                  {detailsAvailable && (
                     <span className="text-xs px-2 py-1 rounded-full bg-white/10 text-white/80">
                       verfügbar
                     </span>
@@ -241,78 +227,53 @@ export default function BudgetDataPanel({ data, loading }) {
 
               {detailsOpen && (
                 <div className="mt-4 bg-black/20 rounded-xl p-4">
-                  {/* Wochen-Details */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div className="bg-white/10 rounded-lg p-3">
-                      <div className="text-white/70 text-xs">Umsatz Vorwoche (brutto)</div>
-                      <div className="text-white font-semibold">{formatNumber(umsatzBrutto)}</div>
-                    </div>
+                  <div className="text-white/80 font-semibold mb-2">{kumuliertTitle}</div>
 
-                    <div className="bg-white/10 rounded-lg p-3">
-                      <div className="text-white/70 text-xs">Umsatz Vorwoche (netto)</div>
-                      <div className="text-white font-semibold">{formatNumber(umsatzNetto)}</div>
-                    </div>
-
-                    <div className="bg-white/10 rounded-lg p-3">
-                      <div className="text-white/70 text-xs">Offene Buchungen</div>
-                      <div className="text-white font-semibold">
-                        {offene === undefined || offene === null ? '—' : String(offene)}
-                      </div>
-                    </div>
-
-                    <div className="bg-white/10 rounded-lg p-3">
-                      <div className="text-white/70 text-xs">Freigegeben</div>
-                      <div className="text-white font-semibold">{formatBool(freigegeben)}</div>
-                    </div>
-                  </div>
-
-                  {/* YTD / kumuliert */}
-                  <div className="mt-5">
-                    <div className="text-white/80 font-semibold mb-2">Kumuliert (YTD)</div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      {euroTilesYtd.map((t) => {
-                        const { text, isNegative } = formatEuroValue(t.value);
-                        return (
-                          <div key={t.label} className="bg-white/10 rounded-lg p-3">
-                            <div className="text-white/70 text-xs">{t.label}</div>
-                            <div
-                              className={[
-                                'text-white font-semibold break-words',
-                                isNegative ? 'text-red-400' : 'text-white',
-                              ].join(' ')}
-                            >
-                              {text}
-                            </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    {euroTilesKumuliert.map((t) => {
+                      const { text, isNegative } = formatEuroValue(t.value);
+                      return (
+                        <div key={t.label} className="bg-white/10 rounded-lg p-3">
+                          <div className="text-white/70 text-xs">{t.label}</div>
+                          <div
+                            className={[
+                              'font-semibold break-words',
+                              isNegative ? 'text-red-400' : 'text-white',
+                            ].join(' ')}
+                          >
+                            {text}
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
 
+                    {percentTileVisible && (
                       <div className="bg-white/10 rounded-lg p-3">
-                        <div className="text-white/70 text-xs">Budget-Satz YTD</div>
+                        <div className="text-white/70 text-xs">Budget-Satz kumuliert</div>
                         <div className="text-white font-semibold">
                           {percentTileAvailable ? formatPercent(budgetSatzYtdProzent) : '—'}
                         </div>
                         {!percentTileAvailable && (
-                          <div className="text-white/50 text-[11px] mt-1">
-                            (nicht verfügbar)
-                          </div>
+                          <div className="text-white/50 text-[11px] mt-1">(nicht verfügbar)</div>
                         )}
                       </div>
+                    )}
+                  </div>
+
+                  {/* Debug nur Admin */}
+                  {isAdmin && (
+                    <div className="mt-4 flex items-center gap-4">
+                      <button
+                        type="button"
+                        onClick={() => toggleRaw(idx)}
+                        className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                      >
+                        {showRaw ? 'JSON ausblenden' : 'JSON anzeigen'}
+                      </button>
                     </div>
-                  </div>
+                  )}
 
-                  <div className="mt-4 flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => toggleRaw(idx)}
-                      className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                    >
-                      {showRaw ? 'Raw JSON ausblenden' : 'Raw JSON anzeigen'}
-                    </button>
-                  </div>
-
-                  {showRaw && (
+                  {isAdmin && showRaw && (
                     <pre className="mt-4 bg-black/30 rounded-xl p-4 overflow-auto text-sm">
                       {JSON.stringify(row, null, 2)}
                     </pre>

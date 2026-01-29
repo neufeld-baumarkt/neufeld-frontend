@@ -608,7 +608,7 @@ export default function Budget() {
       </div>
 
       <div className="absolute top-[310px] left-[90px] right-[80px] bottom-[40px] overflow-auto pr-2">
-        <BudgetDataPanel data={mergedBudgetData} loading={loadingBudget} />
+        <BudgetDataPanel data={mergedBudgetData} loading={loadingBudget} role={role} />
 
         <div className="mt-8">
           <BudgetBookingsPanel
