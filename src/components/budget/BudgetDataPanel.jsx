@@ -60,6 +60,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
   const isAdmin = role === 'Admin';
   const isSupervisor = role === 'Supervisor';
+  const isGf = role === 'Geschäftsführer';
   const isPrivileged = isAdmin || isSupervisor; // sieht "alles" (im Sinne der erweiterten YTD-Kacheln)
 
   const isNoDataMessage =
@@ -147,7 +148,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
         const budgetYtdNetto = pickValue(row, ['budget_ytd_netto']);
         const verbrauchtYtd = pickValue(row, ['verbraucht_ytd']);
         const restYtdNetto = pickValue(row, ['rest_ytd_netto']);
-        const budgetSatzYtdProzent = pickValue(row, ['budget_satz_ytd_prozent']);
+        const istVerbrauchSatzYtdProzent = pickValue(row, ['ist_verbrauch_satz_ytd_prozent']);
 
         // Für GF/Manager/Filialen: nur 3 Werte
         // Für Admin/Supervisor: zusätzlich Rest + Budget-Satz
@@ -160,14 +161,14 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
         const percentTileVisible = isPrivileged;
         const percentTileAvailable =
-          budgetSatzYtdProzent !== undefined && budgetSatzYtdProzent !== null;
+          istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null;
 
         const detailsAvailable =
           umsatzYtdNetto !== undefined ||
           budgetYtdNetto !== undefined ||
           verbrauchtYtd !== undefined ||
           (isPrivileged && restYtdNetto !== undefined) ||
-          (percentTileVisible && budgetSatzYtdProzent !== undefined) ||
+          istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null;
           (isAdmin && showRaw);
 
         const kumuliertTitle =
@@ -251,7 +252,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
                       <div className="bg-white/10 rounded-lg p-3">
                         <div className="text-white/70 text-xs">Budget-Satz kumuliert</div>
                         <div className="text-white font-semibold">
-                          {percentTileAvailable ? formatPercent(budgetSatzYtdProzent) : '—'}
+                          {percentTileAvailable ? formatPercent(istVerbrauchSatzYtdProzent) : '—'}
                         </div>
                         {!percentTileAvailable && (
                           <div className="text-white/50 text-[11px] mt-1">(nicht verfügbar)</div>
