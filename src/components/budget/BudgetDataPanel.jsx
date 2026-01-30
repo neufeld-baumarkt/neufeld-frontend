@@ -61,7 +61,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
   const isAdmin = role === 'Admin';
   const isSupervisor = role === 'Supervisor';
   const isGf = role === 'Geschäftsführer';
-  const isPrivileged = isAdmin || isSupervisor; // sieht "alles" (im Sinne der erweiterten YTD-Kacheln)
+  const isPrivileged = true; // aktuell: alle Rollen sehen alle Budget-Kennzahlen (später wieder einschränken)
 
   const isNoDataMessage =
     data &&
@@ -76,7 +76,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
       keys: ['budget_freigegeben_netto', 'budget_freigegeben', 'budget'],
     },
     {
-      label: 'Verbraucht',
+      label: 'Verbraucht (Bestellungen)',
       keys: ['verbraucht'],
     },
     {
@@ -150,13 +150,21 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
         const restYtdNetto = pickValue(row, ['rest_ytd_netto']);
         const istVerbrauchSatzYtdProzent = pickValue(row, ['ist_verbrauch_satz_ytd_prozent']);
 
+        // Neu: Trennung Aktionen / Gesamt (KW + YTD)
+        const verbrauchtAktionKw = pickValue(row, ['verbraucht_aktion']);
+        const verbrauchtGesamtKw = pickValue(row, ['verbraucht_gesamt']);
+        const verbrauchtAktionYtd = pickValue(row, ['verbraucht_aktion_ytd']);
+        const verbrauchtGesamtYtd = pickValue(row, ['verbraucht_gesamt_ytd']);
+
         // Für GF/Manager/Filialen: nur 3 Werte
         // Für Admin/Supervisor: zusätzlich Rest + Budget-Satz
         const euroTilesKumuliert = [
           { label: 'Umsatz kumuliert (netto)', value: umsatzYtdNetto },
           { label: 'Budget kumuliert (netto)', value: budgetYtdNetto },
-          { label: 'Verbraucht kumuliert', value: verbrauchtYtd },
-          ...(isPrivileged ? [{ label: 'Rest kumuliert (netto)', value: restYtdNetto }] : []),
+          { label: 'Verbraucht kumuliert (Bestellungen)', value: verbrauchtYtd },
+          { label: 'Aktionen kumuliert', value: verbrauchtAktionYtd },
+          { label: 'Gesamt kumuliert (Bestellungen + Aktionen)', value: verbrauchtGesamtYtd },
+          { label: 'Rest kumuliert (netto)', value: restYtdNetto },
         ];
 
         const percentTileVisible = isPrivileged;
@@ -164,14 +172,18 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
           istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null;
 
         const detailsAvailable =
+          // Woche (KW)
+          verbrauchtAktionKw !== undefined ||
+          verbrauchtGesamtKw !== undefined ||
+          // Kumuliert (YTD)
           umsatzYtdNetto !== undefined ||
           budgetYtdNetto !== undefined ||
           verbrauchtYtd !== undefined ||
-          (isPrivileged && restYtdNetto !== undefined) ||
-          istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null;
-          (isAdmin && showRaw);
-
-        const kumuliertTitle =
+          restYtdNetto !== undefined ||
+          verbrauchtAktionYtd !== undefined ||
+          verbrauchtGesamtYtd !== undefined ||
+          // Prozent
+          (istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null);const kumuliertTitle =
           rowJahr && rowKw
             ? `Kumuliert (Jahr ${rowJahr} bis KW ${rowKw})`
             : 'Kumuliert (Jahr)';
@@ -228,9 +240,34 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
               {detailsOpen && (
                 <div className="mt-4 bg-black/20 rounded-xl p-4">
+                  <div className="text-white/80 font-semibold mb-2">Woche (KW)</div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                    {[
+                      { label: 'Aktionen (KW)', value: verbrauchtAktionKw },
+                      { label: 'Gesamt (Bestellungen + Aktionen)', value: verbrauchtGesamtKw },
+                    ].map((t) => {
+                      const { text, isNegative } = formatEuroValue(t.value);
+                      return (
+                        <div key={t.label} className="bg-white/10 rounded-lg p-3">
+                          <div className="text-white/70 text-xs">{t.label}</div>
+                          <div
+                            className={[
+                              'font-semibold break-words',
+                              isNegative ? 'text-red-400' : 'text-white',
+                            ].join(' ')}
+                          >
+                            {text}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+
                   <div className="text-white/80 font-semibold mb-2">{kumuliertTitle}</div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                     {euroTilesKumuliert.map((t) => {
                       const { text, isNegative } = formatEuroValue(t.value);
                       return (
