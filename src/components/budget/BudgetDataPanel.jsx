@@ -61,7 +61,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
   const isAdmin = role === 'Admin';
   const isSupervisor = role === 'Supervisor';
   const isGf = role === 'Geschäftsführer';
-  const isPrivileged = true; // aktuell: alle Rollen sehen alle Budget-Kennzahlen (später wieder einschränken)
+  const isPrivileged = isAdmin || isSupervisor; // sieht "alles" (im Sinne der erweiterten YTD-Kacheln)
 
   const isNoDataMessage =
     data &&
@@ -144,13 +144,14 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
         const rowJahr = pickValue(row, ['jahr']);
 
         // Kumuliert (Jahr) / formerly YTD
-        const umsatzYtdNetto = pickValue(row, ['umsatz_ytd_netto']);
+                const umsatzYtdBrutto = pickValue(row, ['umsatz_ytd_brutto']);
         const budgetYtdNetto = pickValue(row, ['budget_ytd_netto']);
         const verbrauchtYtd = pickValue(row, ['verbraucht_ytd']);
         const restYtdNetto = pickValue(row, ['rest_ytd_netto']);
-        const istVerbrauchSatzYtdProzent = pickValue(row, ['ist_verbrauch_satz_ytd_prozent']);
+                const istVerbrauchSatzYtdProzent = pickValue(row, ['ist_verbrauch_satz_ytd_prozent']);
+        const istVerbrauchSatzYtdExklAktionenBrutto = pickValue(row, ['ist_verbrauch_satz_ytd_prozent_exkl_aktionen_brutto']);
+        const istVerbrauchSatzYtdInklAktionenBrutto = pickValue(row, ['ist_verbrauch_satz_ytd_prozent_inkl_aktionen_brutto']);
 
-        // Neu: Trennung Aktionen / Gesamt (KW + YTD)
         const verbrauchtAktionKw = pickValue(row, ['verbraucht_aktion']);
         const verbrauchtGesamtKw = pickValue(row, ['verbraucht_gesamt']);
         const verbrauchtAktionYtd = pickValue(row, ['verbraucht_aktion_ytd']);
@@ -158,8 +159,8 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
         // Für GF/Manager/Filialen: nur 3 Werte
         // Für Admin/Supervisor: zusätzlich Rest + Budget-Satz
-        const euroTilesKumuliert = [
-          { label: 'Umsatz kumuliert (netto)', value: umsatzYtdNetto },
+                const euroTilesKumuliert = [
+          { label: 'Umsatz kumuliert (brutto)', value: umsatzYtdBrutto },
           { label: 'Budget kumuliert (netto)', value: budgetYtdNetto },
           { label: 'Verbraucht kumuliert (Bestellungen)', value: verbrauchtYtd },
           { label: 'Aktionen kumuliert', value: verbrauchtAktionYtd },
@@ -167,23 +168,29 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
           { label: 'Rest kumuliert (netto)', value: restYtdNetto },
         ];
 
-        const percentTileVisible = isPrivileged;
+                const percentTileVisible = true;
         const percentTileAvailable =
-          istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null;
+          (istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null) ||
+          (istVerbrauchSatzYtdExklAktionenBrutto !== undefined && istVerbrauchSatzYtdExklAktionenBrutto !== null) ||
+          (istVerbrauchSatzYtdInklAktionenBrutto !== undefined && istVerbrauchSatzYtdInklAktionenBrutto !== null);
 
-        const detailsAvailable =
+                const detailsAvailable =
           // Woche (KW)
           verbrauchtAktionKw !== undefined ||
           verbrauchtGesamtKw !== undefined ||
           // Kumuliert (YTD)
-          umsatzYtdNetto !== undefined ||
+          umsatzYtdBrutto !== undefined ||
           budgetYtdNetto !== undefined ||
           verbrauchtYtd !== undefined ||
           restYtdNetto !== undefined ||
           verbrauchtAktionYtd !== undefined ||
           verbrauchtGesamtYtd !== undefined ||
-          // Prozent
-          (istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null);const kumuliertTitle =
+          istVerbrauchSatzYtdProzent !== undefined ||
+          istVerbrauchSatzYtdExklAktionenBrutto !== undefined ||
+          istVerbrauchSatzYtdInklAktionenBrutto !== undefined ||
+          (isAdmin && showRaw);
+
+        const kumuliertTitle =
           rowJahr && rowKw
             ? `Kumuliert (Jahr ${rowJahr} bis KW ${rowKw})`
             : 'Kumuliert (Jahr)';
@@ -240,34 +247,9 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
               {detailsOpen && (
                 <div className="mt-4 bg-black/20 rounded-xl p-4">
-                  <div className="text-white/80 font-semibold mb-2">Woche (KW)</div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                    {[
-                      { label: 'Aktionen (KW)', value: verbrauchtAktionKw },
-                      { label: 'Gesamt (Bestellungen + Aktionen)', value: verbrauchtGesamtKw },
-                    ].map((t) => {
-                      const { text, isNegative } = formatEuroValue(t.value);
-                      return (
-                        <div key={t.label} className="bg-white/10 rounded-lg p-3">
-                          <div className="text-white/70 text-xs">{t.label}</div>
-                          <div
-                            className={[
-                              'font-semibold break-words',
-                              isNegative ? 'text-red-400' : 'text-white',
-                            ].join(' ')}
-                          >
-                            {text}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-
                   <div className="text-white/80 font-semibold mb-2">{kumuliertTitle}</div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                     {euroTilesKumuliert.map((t) => {
                       const { text, isNegative } = formatEuroValue(t.value);
                       return (
@@ -287,18 +269,25 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
 
                     {percentTileVisible && (
                       <div className="bg-white/10 rounded-lg p-3">
-                        <div className="text-white/70 text-xs">Budget-Satz kumuliert</div>
-                        <div className="text-white font-semibold">
-                          {percentTileAvailable ? formatPercent(istVerbrauchSatzYtdProzent) : '—'}
+                        <div className="text-white/70 text-xs">Verbrauchs-Satz kumuliert</div>
+                        <div className="mt-1 space-y-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/70 text-[11px]">Bestellungen (netto)</span>
+                            <span className="text-white font-semibold">{(istVerbrauchSatzYtdProzent !== undefined && istVerbrauchSatzYtdProzent !== null) ? formatPercent(istVerbrauchSatzYtdProzent) : '—'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/70 text-[11px]">exkl. Aktionen (brutto)</span>
+                            <span className="text-white font-semibold">{(istVerbrauchSatzYtdExklAktionenBrutto !== undefined && istVerbrauchSatzYtdExklAktionenBrutto !== null) ? formatPercent(istVerbrauchSatzYtdExklAktionenBrutto) : '—'}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-white/70 text-[11px]">inkl. Aktionen (brutto)</span>
+                            <span className="text-white font-semibold">{(istVerbrauchSatzYtdInklAktionenBrutto !== undefined && istVerbrauchSatzYtdInklAktionenBrutto !== null) ? formatPercent(istVerbrauchSatzYtdInklAktionenBrutto) : '—'}</span>
+                          </div>
                         </div>
-                        {!percentTileAvailable && (
-                          <div className="text-white/50 text-[11px] mt-1">(nicht verfügbar)</div>
-                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Debug nur Admin */}
                   {isAdmin && (
                     <div className="mt-4 flex items-center gap-4">
                       <button
