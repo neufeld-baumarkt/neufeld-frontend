@@ -88,8 +88,9 @@ export default function BookingModal({
   sourceFiliale, // aktuelle Filiale (z. B. Münster)
   onSubmit,
 
-  // optional: wenn du später Split wirklich senden willst
-  enableSplitSubmit = false,
+  // ✅ Schritt C: Kontext reinreichen (Transport, keine Logik)
+  jahr,
+  kw,
 
   // optional: wenn du Filialen dynamisch liefern willst
   filialen = DEFAULT_FILIALEN,
@@ -141,7 +142,7 @@ export default function BookingModal({
     const baseUrl = import.meta.env.VITE_API_URL;
     if (!baseUrl) return;
 
-    // VERIFIZIERT aus deiner bisherigen produktiven Datei: /api/lieferanten
+    // VERIFIZIERT: /api/lieferanten
     const url = `${baseUrl}/api/lieferanten`;
 
     try {
@@ -192,7 +193,7 @@ export default function BookingModal({
     // Lieferant: Pflicht
     setLieferant(isEdit ? (initialBooking?.lieferant ?? '') : '');
 
-    // Split: Cut => immer AUS beim Öffnen
+    // Split: immer AUS beim Öffnen
     setSplitOn(false);
 
     // Split Targets zurücksetzen
@@ -215,7 +216,7 @@ export default function BookingModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
-  // Split Summen live
+  // Split Summen live (nur Anzeige/Blocker, NICHT Wahrheit)
   const splitCalc = useMemo(() => {
     const total = parseAmount(betrag);
     let sum = 0;
@@ -235,7 +236,6 @@ export default function BookingModal({
   }, [betrag, splitTargets, selectableFilialen]);
 
   function validateSimple() {
-    // Typ nur Bestellung/Aktion
     if (typ !== 'bestellung' && typ !== 'aktionsvorab') return 'Typ ist ungültig.';
 
     const b = parseAmount(betrag);
@@ -247,7 +247,6 @@ export default function BookingModal({
     const l = String(lieferant || '').trim();
     if (!l) return 'Lieferant ist Pflicht.';
 
-    // Beschreibung optional => ok
     return null;
   }
 
@@ -255,15 +254,12 @@ export default function BookingModal({
     const baseError = validateSimple();
     if (baseError) return baseError;
 
-    // mindestens 1 Ziel aktiv
     if (splitCalc.enabled.length === 0) return 'Für Split musst du mindestens eine Filiale aktivieren.';
 
-    // alle aktivierten brauchen Betrag > 0
     for (const x of splitCalc.enabled) {
       if (x.amount === null || x.amount <= 0) return `Betrag für ${x.filiale} ist Pflicht und muss > 0 sein.`;
     }
 
-    // Summe darf Gesamtbetrag nicht überschreiten
     if (splitCalc.total !== null && splitCalc.rest !== null && splitCalc.rest < 0) {
       return 'Summe der Split-Beträge darf den Gesamtbetrag nicht überschreiten.';
     }
@@ -296,19 +292,28 @@ export default function BookingModal({
     const err = validateSplit();
     if (err) return toast.error(err);
 
-    if (!enableSplitSubmit) {
-      // Cut: UI fertig, Backend-Wiring später
-      toast.error('Split/Mitbestellung ist im Backend noch nicht angebunden (Cut).');
-      return;
-    }
+    // ✅ Schritt C: Kontext muss da sein (Transport)
+    const j = Number(jahr);
+    const k = Number(kw);
+    const f = String(sourceFiliale || '').trim();
 
-    // Falls später aktiviert:
+    if (!Number.isFinite(j) || j <= 0) return toast.error('Interner Fehler: Jahr fehlt für Split-POST.');
+    if (!Number.isFinite(k) || k <= 0) return toast.error('Interner Fehler: KW fehlt für Split-POST.');
+    if (!f) return toast.error('Interner Fehler: Filiale fehlt für Split-POST.');
+
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+    if (!token || !baseUrl) return toast.error('Nicht authentifiziert.');
+
     const splits = splitCalc.enabled.map((x) => ({
       target_filiale: x.filiale,
       betrag: x.amount,
     }));
 
     const payload = {
+      jahr: j,
+      kw: k,
+      filiale: f, // Quelle (Backend/DB ist Wahrheit)
       typ,
       gesamtbetrag: splitCalc.total,
       datum,
@@ -319,7 +324,20 @@ export default function BookingModal({
     const desc = String(beschreibung || '').trim();
     if (desc) payload.beschreibung = desc;
 
-    await onSubmit(payload);
+    try {
+      await axios.post(`${baseUrl}/api/budget/bookings/split`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      toast.success('Gesplittete Bestellung angelegt.');
+      onClose?.();
+      // Reload über Parent (DB-Wahrheit)
+      await onSubmit?.();
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Split-Buchung fehlgeschlagen.';
+      toast.error(msg);
+      console.error('Split-POST fehlgeschlagen:', e);
+    }
   }
 
   if (!open) return null;
