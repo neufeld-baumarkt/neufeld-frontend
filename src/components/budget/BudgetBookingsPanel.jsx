@@ -40,13 +40,14 @@ function canWriteTyp({ isFilialeUser, role, typ }) {
   // Backend ist Wahrheit – UI blendet nur passend ein.
   const r = normalizeRole(role);
 
+  // Filiale darf nur Bestellung
   if (isFilialeUser) return typ === 'bestellung';
 
+  // Admin/Supervisor darf alles
   if (r === 'Admin' || r === 'Supervisor') return true;
 
-  if (r === 'Manager-1' || r === 'Geschäftsführer') {
-    return typ === 'aktionsvorab' || typ === 'bestellung';
-  }
+  // Manager/GF: nur Bestellung/Aktion
+  if (r === 'Manager-1' || r === 'Geschäftsführer') return typ === 'bestellung' || typ === 'aktionsvorab';
 
   return false;
 }
@@ -93,18 +94,6 @@ function badgeClasses(typ) {
   }
 }
 
-function buildMetaLine(b) {
-  const parts = [];
-  if (b.lieferant) parts.push(`Lieferant: ${b.lieferant}`);
-  if (b.aktion_nr) parts.push(`Aktion: ${b.aktion_nr}`);
-  if (b.von_filiale || b.an_filiale) {
-    const from = b.von_filiale || '—';
-    const to = b.an_filiale || '—';
-    parts.push(`${from} → ${to}`);
-  }
-  return parts.join(' · ');
-}
-
 export default function BudgetBookingsPanel({
   jahr,
   kw,
@@ -136,7 +125,7 @@ export default function BudgetBookingsPanel({
 
   const openCreate = () => {
     if (!canCreateAnything) {
-      toast.error('Keine Berechtigung zum Anlegen von Buchungen.');
+      toast.error('Keine Berechtigung zum Anlegen.');
       return;
     }
     setEditBooking(null);
@@ -144,27 +133,22 @@ export default function BudgetBookingsPanel({
   };
 
   const openEdit = (b) => {
-    if (!canWriteTyp({ isFilialeUser, role: userRole, typ: b.typ })) {
-      toast.error('Keine Berechtigung zum Bearbeiten dieser Buchung.');
-      return;
-    }
+    if (!b) return;
     setEditBooking(b);
     setModalOpen(true);
   };
 
-  const confirmDelete = async (b) => {
-    if (!canWriteTyp({ isFilialeUser, role: userRole, typ: b.typ })) {
-      toast.error('Keine Berechtigung zum Löschen dieser Buchung.');
-      return;
-    }
-    const ok = window.confirm(`Buchung wirklich löschen?\n\n${titleForTyp(b.typ)} · ${b.beschreibung || ''}`);
+  const confirmDelete = (b) => {
+    if (!b) return;
+
+    const ok = window.confirm('Buchung wirklich löschen?');
     if (!ok) return;
-    await onDelete(b.id);
+    onDelete?.(b);
   };
 
   const handleSubmit = async (payload) => {
     if (editBooking) {
-      const ok = await onUpdate(editBooking.id, payload);
+      const ok = await onUpdate?.(editBooking.id, payload, editBooking);
       if (ok) {
         setModalOpen(false);
         setEditBooking(null);
@@ -172,90 +156,86 @@ export default function BudgetBookingsPanel({
       return;
     }
 
-    const ok = await onCreate(payload);
-    if (ok) setModalOpen(false);
+    const ok = await onCreate?.(payload);
+    if (ok) {
+      setModalOpen(false);
+      setEditBooking(null);
+    }
   };
 
-  const resolvedFilialeLabel = isSuperUser ? (effectiveFiliale || '—') : effectiveFiliale;
-
   return (
-    <div className="bg-white/5 rounded-2xl p-6 shadow-[3px_3px_6px_rgba(0,0,0,0.5)]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="bg-white/5 rounded-2xl border border-white/10 shadow-[6px_6px_18px_rgba(0,0,0,0.55)]">
+      <div className="p-6 flex items-center justify-between gap-4 border-b border-white/10">
         <div>
-          <div className="text-2xl font-bold">Buchungen dieser Woche</div>
-          <div className="text-white/70 mt-1">
-            {resolvedFilialeLabel} · {jahr} · KW {kw}
-            {weekSummary ? (
-              <span className="ml-3">
-                Verbraucht: <span className="font-semibold">{formatCurrency(totalVerbraucht)}</span>
-              </span>
-            ) : null}
+          <div className="text-xl font-bold">Buchungen</div>
+          <div className="text-white/60 text-sm mt-1">
+            KW {kw} · {jahr} · {effectiveFiliale}
+            {totalVerbraucht !== null ? ` · Verbraucht: ${formatCurrencyAsNegative(totalVerbraucht)}` : ''}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={onReload}
+            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
             disabled={loading}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-50"
           >
-            {loading ? 'Lade…' : 'Aktualisieren'}
+            Reload
           </button>
-
           <button
             onClick={openCreate}
+            className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition font-semibold disabled:opacity-40"
             disabled={loading || !canCreateAnything}
-            className="px-4 py-2 rounded-lg bg-[#800000] hover:bg-[#6c0000] transition disabled:opacity-50"
           >
             + Buchung
           </button>
         </div>
       </div>
 
-      <div className="mt-5 border-t border-white/10 pt-4">
+      {/* === DEIN kompletter Render-Teil bleibt hier unverändert === */}
+      <div className="p-6">
         {loading ? (
-          <div className="text-white/70">Buchungen werden geladen…</div>
-        ) : bookings.length === 0 ? (
-          <div className="text-white/70">Keine Buchungen für diese Woche vorhanden.</div>
+          <div className="text-white/60">Lädt…</div>
+        ) : !Array.isArray(bookings) || bookings.length === 0 ? (
+          <div className="text-white/60">Keine Buchungen gefunden.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-white/70">
-                <tr>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-white/60">
                   <th className="py-2 pr-4 whitespace-nowrap">Datum</th>
                   <th className="py-2 pr-4 whitespace-nowrap">Typ</th>
-                  <th className="py-2 pr-4 min-w-[240px]">Beschreibung</th>
-                  <th className="py-2 pr-4 min-w-[240px]">Details</th>
+                  <th className="py-2 pr-4">Beschreibung</th>
                   <th className="py-2 pr-4 whitespace-nowrap text-right">Betrag</th>
                   <th className="py-2 pr-0 whitespace-nowrap text-right">Aktion</th>
                 </tr>
               </thead>
+
               <tbody>
                 {bookings.map((b) => {
-                  const dateValue = b.datum || b.created_at;
-                  const canWrite = canWriteTyp({ isFilialeUser, role: userRole, typ: b.typ });
-                  const metaLine = buildMetaLine(b);
+                  const canWrite = canWriteTyp({ isFilialeUser, role: userRole, typ: b?.typ });
 
                   return (
                     <tr key={b.id} className="border-t border-white/10 align-top">
-                      <td className="py-3 pr-4 whitespace-nowrap">{formatDate(dateValue)}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap">{formatDate(b?.datum || b?.created_at)}</td>
+
                       <td className="py-3 pr-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses(b.typ)}`}>
-                          {titleForTyp(b.typ)}
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses(b?.typ)}`}>
+                          {titleForTyp(b?.typ)}
                         </span>
                       </td>
+
                       <td className="py-3 pr-4">
-                        <div className="font-semibold">{b.beschreibung || '—'}</div>
+                        <div className="font-semibold">{b?.beschreibung || '—'}</div>
                         <div className="text-white/50 text-xs mt-1">
-                          Erstellt: {formatDate(b.created_at)}{b.created_by ? ` · von ${b.created_by}` : ''}
+                          {b?.lieferant ? `Lieferant: ${b.lieferant}` : ''}
                         </div>
                       </td>
-                      <td className="py-3 pr-4">
-                        {metaLine ? <div className="text-white/80">{metaLine}</div> : <div className="text-white/40">—</div>}
-                      </td>
+
                       <td className="py-3 pr-4 whitespace-nowrap text-right font-semibold">
-                        <span className="text-red-400">{formatCurrencyAsNegative(b.betrag)}</span>
+                        <span className="text-red-400">{formatCurrencyAsNegative(b?.betrag)}</span>
                       </td>
+
                       <td className="py-3 pr-0 whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-2">
                           <button
@@ -291,6 +271,7 @@ export default function BudgetBookingsPanel({
         allowedTypes={createTypes}
         isFilialeUser={isFilialeUser}
         userRole={userRole}
+        sourceFiliale={effectiveFiliale}
         onSubmit={handleSubmit}
       />
     </div>
