@@ -22,6 +22,270 @@ import {
 
 const PAGE_SIZE = 10;
 
+/** Inline-Modal: Lieferanten verwalten (nur Admin/Supervisor) */
+function LieferantenManagerModal({ open, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState([]); // [{id, bezeichnung, aktiv}]
+  const [query, setQuery] = useState('');
+  const [newValue, setNewValue] = useState('');
+  const [savingNew, setSavingNew] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+
+  const [editId, setEditId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const token = sessionStorage.getItem('token');
+  const baseUrl = import.meta.env.VITE_API_URL;
+
+  const authHeaders = token ? { headers: { Authorization: `Bearer ${token}` } } : null;
+
+  const load = async () => {
+    if (!open) return;
+    if (!token) {
+      toast.error('Kein Token gefunden. Bitte neu einloggen.');
+      return;
+    }
+    if (!baseUrl) {
+      toast.error('VITE_API_URL fehlt.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.get(`${baseUrl}/api/lieferanten/manage`, authHeaders);
+      setItems(Array.isArray(res.data) ? res.data : []);
+    } catch (e) {
+      const msg = e?.response?.data?.error || 'Lieferanten konnten nicht geladen werden.';
+      toast.error(msg);
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      setQuery('');
+      setNewValue('');
+      setEditId(null);
+      setEditValue('');
+      load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const filtered = (() => {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((x) => String(x?.bezeichnung || '').toLowerCase().includes(q));
+  })();
+
+  const create = async () => {
+    const val = String(newValue || '').trim();
+    if (!val) return toast.error('Bitte Bezeichnung eingeben.');
+    setSavingNew(true);
+    try {
+      await axios.post(`${baseUrl}/api/lieferanten`, { bezeichnung: val }, authHeaders);
+      toast.success('Lieferant angelegt.');
+      setNewValue('');
+      await load();
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg =
+        e?.response?.data?.error ||
+        (status === 409 ? 'Lieferant existiert bereits.' : 'Anlegen fehlgeschlagen.');
+      toast.error(msg);
+    } finally {
+      setSavingNew(false);
+    }
+  };
+
+  const startEdit = (it) => {
+    setEditId(it.id);
+    setEditValue(String(it.bezeichnung || ''));
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setEditValue('');
+  };
+
+  const saveEditRow = async (id) => {
+    const val = String(editValue || '').trim();
+    if (!val) return toast.error('Bezeichnung darf nicht leer sein.');
+    setSavingEdit(true);
+    try {
+      await axios.patch(`${baseUrl}/api/lieferanten/${id}`, { bezeichnung: val }, authHeaders);
+      toast.success('Bezeichnung gespeichert.');
+      cancelEdit();
+      await load();
+    } catch (e) {
+      const status = e?.response?.status;
+      const msg =
+        e?.response?.data?.error ||
+        (status === 409 ? 'Bezeichnung existiert bereits.' : 'Speichern fehlgeschlagen.');
+      toast.error(msg);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const toggleAktiv = async (it) => {
+    if (busyId) return;
+    setBusyId(it.id);
+    try {
+      await axios.patch(`${baseUrl}/api/lieferanten/${it.id}`, { aktiv: !it.aktiv }, authHeaders);
+      toast.success(it.aktiv ? 'Deaktiviert.' : 'Aktiviert.');
+      await load();
+    } catch (e) {
+      const msg = e?.response?.data?.error || 'Status konnte nicht geändert werden.';
+      toast.error(msg);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white text-black rounded-xl shadow-2xl w-[calc(100%-80px)] max-w-5xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="p-6 md:p-8">
+          <div className="flex justify-between items-start mb-6 border-b pb-4">
+            <div>
+              <h2 className="text-2xl md:text-3xl font-bold">Lieferanten verwalten</h2>
+              <div className="text-sm text-black/60 mt-1">Admin &amp; Supervisor</div>
+            </div>
+            <button onClick={onClose} className="text-3xl leading-none hover:text-red-600">×</button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="md:col-span-2">
+              <label className="block font-semibold mb-1">Suche</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Lieferant suchen…"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1">Neu anlegen</label>
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 border rounded-lg px-3 py-2"
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  placeholder="Bezeichnung"
+                />
+                <button
+                  onClick={create}
+                  disabled={savingNew}
+                  className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                  title="Anlegen"
+                >
+                  {savingNew ? '…' : '+'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-6 text-center text-lg">Lade Lieferanten…</div>
+          ) : (
+            <div className="border rounded-xl overflow-hidden">
+              <div className="grid grid-cols-12 gap-2 bg-black text-white px-4 py-3 text-sm font-semibold">
+                <div className="col-span-1">ID</div>
+                <div className="col-span-7">Bezeichnung</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-2 text-right">Aktion</div>
+              </div>
+
+              {filtered.length === 0 ? (
+                <div className="p-6 text-center text-black/60">Keine Treffer.</div>
+              ) : (
+                filtered.map((it) => {
+                  const editing = editId === it.id;
+                  const toggling = busyId === it.id;
+
+                  return (
+                    <div key={it.id} className="grid grid-cols-12 gap-2 px-4 py-3 border-t items-center">
+                      <div className="col-span-1 text-black/70">{it.id}</div>
+
+                      <div className="col-span-7">
+                        {!editing ? (
+                          <div className="flex items-center gap-3">
+                            <div className="font-semibold">{it.bezeichnung}</div>
+                            <button
+                              className="text-sm px-2 py-1 border rounded-md hover:bg-black hover:text-white"
+                              onClick={() => startEdit(it)}
+                            >
+                              Umbenennen
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="flex-1 border rounded-lg px-3 py-2"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                            />
+                            <button
+                              onClick={() => saveEditRow(it.id)}
+                              disabled={savingEdit}
+                              className="px-3 py-2 rounded-lg bg-black text-white disabled:opacity-50"
+                            >
+                              {savingEdit ? '…' : 'OK'}
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              disabled={savingEdit}
+                              className="px-3 py-2 rounded-lg border"
+                            >
+                              Abbrechen
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="col-span-2">
+                        <span
+                          className={
+                            it.aktiv
+                              ? 'inline-block px-2 py-1 rounded-md bg-green-100 text-green-800 text-sm'
+                              : 'inline-block px-2 py-1 rounded-md bg-gray-200 text-gray-700 text-sm'
+                          }
+                        >
+                          {it.aktiv ? 'aktiv' : 'inaktiv'}
+                        </span>
+                      </div>
+
+                      <div className="col-span-2 text-right">
+                        <button
+                          onClick={() => toggleAktiv(it)}
+                          disabled={toggling}
+                          className="px-3 py-2 rounded-lg border hover:bg-black hover:text-white disabled:opacity-50"
+                        >
+                          {toggling ? '…' : it.aktiv ? 'Deaktivieren' : 'Aktivieren'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Reklamationen() {
   const [reklas, setReklas] = useState([]);
   const [filteredReklas, setFilteredReklas] = useState([]);
@@ -32,6 +296,9 @@ export default function Reklamationen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // ✅ NEU: Lieferanten-Verwaltung
+  const [showLieferantenModal, setShowLieferantenModal] = useState(false);
 
   // ✅ Notiz-State
   const [showNotiz, setShowNotiz] = useState(false);
@@ -64,6 +331,7 @@ export default function Reklamationen() {
 
   const canEdit = userRole.toLowerCase() !== 'filiale';
   const canWriteNotiz = ['admin', 'supervisor'].includes(userRole.toLowerCase());
+  const canManageLieferanten = ['admin', 'supervisor'].includes(userRole.toLowerCase());
 
   const headlineText = isSuperUser
     ? "Reklamationsliste"
@@ -280,6 +548,19 @@ export default function Reklamationen() {
           </div>
         )}
 
+        {/* ✅ NEU: Button nur Admin/Supervisor (Layout nicht angefasst, nur ein zusätzlicher Button-Block) */}
+        {canManageLieferanten && (
+          <div
+            className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+            onClick={() => setShowLieferantenModal(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="white">
+              <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.51.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58zM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5z"/>
+            </svg>
+            <span className="text-2xl font-medium">Lieferanten verwalten</span>
+          </div>
+        )}
+
         <div
           className="cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
           onClick={() => setShowFilterModal(true)}
@@ -310,6 +591,14 @@ export default function Reklamationen() {
         visiblePages={visiblePages}
         setCurrentPage={setCurrentPage}
       />
+
+      {/* ✅ NEU: Lieferanten-Manager Modal */}
+      {showLieferantenModal && (
+        <LieferantenManagerModal
+          open={showLieferantenModal}
+          onClose={() => setShowLieferantenModal(false)}
+        />
+      )}
 
       {/* Detail-Modal (ausgelagert) */}
       {activeReklaId && (

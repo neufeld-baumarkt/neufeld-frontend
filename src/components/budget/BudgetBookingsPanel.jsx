@@ -82,9 +82,9 @@ function titleForTyp(typ) {
 function badgeClasses(typ) {
   switch (typ) {
     case 'bestellung':
-      return 'bg-white/15';
+      return 'bg-white/10';
     case 'aktionsvorab':
-      return 'bg-[#800000]/60';
+      return 'bg-white/10';
     case 'abgabe':
       return 'bg-white/10';
     case 'korrektur':
@@ -143,8 +143,9 @@ export default function BudgetBookingsPanel({
 
     const ok = window.confirm('Buchung wirklich löschen?');
     if (!ok) return;
-    // FIX: nur die UUID übergeben, nicht das Objekt
-    onDelete?.(b.id);
+
+    // Wichtig: komplettes Booking-Objekt übergeben (Split-Entscheidung im Parent)
+    onDelete?.(b);
   };
 
   const handleSubmit = async (payload) => {
@@ -204,62 +205,55 @@ export default function BudgetBookingsPanel({
         {loading ? (
           <div className="text-white/60">Lädt…</div>
         ) : !Array.isArray(bookings) || bookings.length === 0 ? (
-          <div className="text-white/60">Keine Buchungen gefunden.</div>
+          <div className="text-white/60">Keine Buchungen.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-white/60">
-                  <th className="py-2 pr-4 whitespace-nowrap">Datum</th>
-                  <th className="py-2 pr-4 whitespace-nowrap">Typ</th>
-                  <th className="py-2 pr-4">Beschreibung</th>
-                  <th className="py-2 pr-4 whitespace-nowrap text-right">Betrag</th>
-                  <th className="py-2 pr-0 whitespace-nowrap text-right">Aktion</th>
+                <tr className="text-white/60 border-b border-white/10">
+                  <th className="text-left py-2 pr-3 font-medium">Datum</th>
+                  <th className="text-left py-2 pr-3 font-medium">Typ</th>
+                  <th className="text-left py-2 pr-3 font-medium">Lieferant</th>
+                  <th className="text-left py-2 pr-3 font-medium">Beschreibung</th>
+                  <th className="text-right py-2 pl-3 font-medium">Betrag</th>
+                  <th className="text-right py-2 pl-3 font-medium">Aktionen</th>
                 </tr>
               </thead>
-
               <tbody>
                 {bookings.map((b) => {
-                  const canWrite = canWriteTyp({ isFilialeUser, role: userRole, typ: b?.typ });
+                  const typ = b?.typ || '';
+                  const editable = canWriteTyp({ isFilialeUser, role: userRole, typ });
 
                   return (
-                    <tr key={b.id} className="border-t border-white/10 align-top">
-                      <td className="py-3 pr-4 whitespace-nowrap">
-                        {formatDate(b?.datum || b?.created_at)}
-                      </td>
-
-                      <td className="py-3 pr-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses(b?.typ)}`}>
-                          {titleForTyp(b?.typ)}
+                    <tr key={b.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                      <td className="py-2 pr-3 whitespace-nowrap">{formatDate(b?.datum)}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-md ${badgeClasses(typ)}`}>
+                          {titleForTyp(typ)}
                         </span>
                       </td>
-
-                      <td className="py-3 pr-4">
-                        <div className="font-semibold">{b?.beschreibung || '—'}</div>
-                        <div className="text-white/50 text-xs mt-1">
-                          {b?.lieferant ? `Lieferant: ${b.lieferant}` : ''}
-                        </div>
+                      <td className="py-2 pr-3">{b?.lieferant || '—'}</td>
+                      <td className="py-2 pr-3">{b?.beschreibung || '—'}</td>
+                      <td className="py-2 pl-3 text-right whitespace-nowrap">
+                        {formatCurrencyAsNegative(b?.betrag)}
                       </td>
-
-                      <td className="py-3 pr-4 whitespace-nowrap text-right font-semibold">
-                        <span className="text-red-400">{formatCurrencyAsNegative(b?.betrag)}</span>
-                      </td>
-
-                      <td className="py-3 pr-0 whitespace-nowrap text-right">
+                      <td className="py-2 pl-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-2">
                           <button
+                            className="px-3 py-1 rounded-md bg-white/10 hover:bg-white/20 transition"
                             onClick={() => openEdit(b)}
-                            disabled={!canWrite}
-                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-40"
+                            disabled={!editable}
+                            title={!editable ? 'Keine Berechtigung' : 'Bearbeiten'}
                           >
-                            Bearbeiten
+                            Edit
                           </button>
                           <button
+                            className="px-3 py-1 rounded-md bg-[#800000]/40 hover:bg-[#800000]/55 border border-[#800000]/40 transition"
                             onClick={() => confirmDelete(b)}
-                            disabled={!canWrite}
-                            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-40"
+                            disabled={!editable}
+                            title={!editable ? 'Keine Berechtigung' : 'Löschen'}
                           >
-                            Löschen
+                            Delete
                           </button>
                         </div>
                       </td>
@@ -274,16 +268,18 @@ export default function BudgetBookingsPanel({
 
       <BookingModal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setEditBooking(null); }}
-        mode={editBooking ? 'edit' : 'create'}
-        initialBooking={editBooking}
-        allowedTypes={createTypes}
-        isFilialeUser={isFilialeUser}
-        userRole={userRole}
-        sourceFiliale={effectiveFiliale}
-        // ✅ Schritt C: Kontext ins Modal (Transport, keine Logik)
+        onClose={() => {
+          setModalOpen(false);
+          setEditBooking(null);
+        }}
+        editBooking={editBooking}
         jahr={jahr}
         kw={kw}
+        effectiveFiliale={effectiveFiliale}
+        isSuperUser={isSuperUser}
+        isFilialeUser={isFilialeUser}
+        userRole={userRole}
+        allowedTypes={createTypes}
         onSubmit={handleSubmit}
       />
     </div>

@@ -22,10 +22,7 @@ function parseAmount(value) {
   if (!raw) return null;
 
   // "600,00" / "600.00" / "600" / "1.234,56"
-  const cleaned = raw
-    .replace(/\s/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
+  const cleaned = raw.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
 
   const n = Number(cleaned);
   if (!Number.isFinite(n)) return null;
@@ -37,7 +34,7 @@ function normalizeLieferantenResponse(payload) {
   if (!payload) return [];
   const arr = Array.isArray(payload)
     ? payload
-    : (payload.rows || payload.lieferanten || payload.items || payload.data || []);
+    : payload.rows || payload.lieferanten || payload.items || payload.data || [];
 
   if (!Array.isArray(arr)) return [];
 
@@ -84,11 +81,14 @@ export default function BookingModal({
   onClose,
   mode, // 'create' | 'edit'
   initialBooking,
-  allowedTypes, // kommt vom Panel, kann später Aktion je nach Rolle rausfiltern
-  sourceFiliale, // aktuelle Filiale (z. B. Münster)
+  allowedTypes,
+  sourceFiliale,
   onSubmit,
 
-  // ✅ Schritt C: Kontext reinreichen (Transport, keine Logik)
+  // optional: Hook nach erfolgreichem Delete (z. B. Reload in Parent)
+  onDeleted,
+
+  // ✅ Kontext reinreichen (Transport, keine Logik)
   jahr,
   kw,
 
@@ -97,11 +97,11 @@ export default function BookingModal({
 }) {
   const isEdit = mode === 'edit';
 
-  // Typ: im Cut nur Bestellung/Aktion
   const typeOptions = useMemo(() => {
-    const base = Array.isArray(allowedTypes) && allowedTypes.length > 0
-      ? allowedTypes
-      : ['bestellung', 'aktionsvorab'];
+    const base =
+      Array.isArray(allowedTypes) && allowedTypes.length > 0
+        ? allowedTypes
+        : ['bestellung', 'aktionsvorab'];
 
     // Cut: nur diese beiden
     return base.filter((t) => t === 'bestellung' || t === 'aktionsvorab');
@@ -127,7 +127,6 @@ export default function BookingModal({
     return obj;
   });
 
-  // Filialen, ohne Quelle
   const selectableFilialen = useMemo(() => {
     const src = String(sourceFiliale || '').trim();
     return (Array.isArray(filialen) ? filialen : DEFAULT_FILIALEN)
@@ -142,7 +141,6 @@ export default function BookingModal({
     const baseUrl = import.meta.env.VITE_API_URL;
     if (!baseUrl) return;
 
-    // VERIFIZIERT: /api/lieferanten
     const url = `${baseUrl}/api/lieferanten`;
 
     try {
@@ -160,53 +158,50 @@ export default function BookingModal({
     }
   };
 
-  // Reset / Prefill beim Öffnen
   useEffect(() => {
     if (!open) return;
 
     loadLieferanten();
 
-    // Typ
     if (isEdit && initialBooking?.typ) {
       setTyp(initialBooking.typ);
     } else {
       setTyp(typeOptions[0] || 'bestellung');
     }
 
-    // Betrag
     if (isEdit) {
       setBetrag(initialBooking?.betrag ?? '');
     } else {
       setBetrag('');
     }
 
-    // Beschreibung
-    setBeschreibung(isEdit ? (initialBooking?.beschreibung ?? '') : '');
+    setBeschreibung(isEdit ? initialBooking?.beschreibung ?? '' : '');
 
-    // Datum: Pflicht, Default = heute
     if (isEdit) {
-      setDatum(toInputDate(initialBooking?.datum || initialBooking?.created_at) || todayInputDate());
+      setDatum(
+        toInputDate(initialBooking?.datum || initialBooking?.created_at) ||
+          todayInputDate()
+      );
     } else {
       setDatum(todayInputDate());
     }
 
-    // Lieferant: Pflicht
-    setLieferant(isEdit ? (initialBooking?.lieferant ?? '') : '');
+    setLieferant(isEdit ? initialBooking?.lieferant ?? '' : '');
 
-    // Split: immer AUS beim Öffnen
     setSplitOn(false);
 
-    // Split Targets zurücksetzen
     setSplitTargets(() => {
       const obj = {};
-      const all = Array.isArray(filialen) && filialen.length > 0 ? filialen : DEFAULT_FILIALEN;
+      const all =
+        Array.isArray(filialen) && filialen.length > 0
+          ? filialen
+          : DEFAULT_FILIALEN;
       for (const f of all) obj[f] = { enabled: false, amount: '' };
       return obj;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // ESC schließt
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e) => {
@@ -216,7 +211,6 @@ export default function BookingModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
-  // Split Summen live (nur Anzeige/Blocker, NICHT Wahrheit)
   const splitCalc = useMemo(() => {
     const total = parseAmount(betrag);
     let sum = 0;
@@ -231,9 +225,111 @@ export default function BookingModal({
       if (n !== null && n > 0) sum += n;
     }
 
-    const rest = total === null ? null : (total - sum);
+    const rest = total === null ? null : total - sum;
     return { total, sum, rest, enabled };
   }, [betrag, splitTargets, selectableFilialen]);
+
+  // -----------------
+  // DELETE (Modal ist die einzige Stelle mit vollständigem Kontext)
+  // -----------------
+  const [deleting, setDeleting] = useState(false);
+
+  const deleteInfo = useMemo(() => {
+    const b = initialBooking || null;
+    if (!b) return { canDelete: false, reason: 'Keine Buchung geladen.' };
+
+    const j = Number(jahr ?? b.jahr);
+    const k = Number(kw ?? b.kw);
+    const fil = String(sourceFiliale || b.filiale || '').trim();
+
+    const splitParentId = String(
+      b.split_parent_id ?? b.split_parent ?? b.parent_id ?? b.parentId ?? ''
+    ).trim();
+
+    const id = String(b.id || '').trim();
+    const isSplitChild = !!splitParentId && splitParentId !== id;
+
+    if (!id) return { canDelete: false, reason: 'Interner Fehler: ID fehlt.' };
+    if (!Number.isFinite(j) || j <= 0)
+      return { canDelete: false, reason: 'Interner Fehler: Jahr fehlt.' };
+    if (!Number.isFinite(k) || k <= 0)
+      return { canDelete: false, reason: 'Interner Fehler: KW fehlt.' };
+    if (!fil) {
+      return {
+        canDelete: false,
+        reason:
+          'Interner Fehler: Filiale fehlt. Für zentrale Rollen muss filiale im DELETE-Request gesetzt sein.',
+      };
+    }
+
+    if (isSplitChild) {
+      return {
+        canDelete: false,
+        reason:
+          'Split-Child kann nicht einzeln gelöscht werden. Nur der Split-Parent ist löschbar.',
+        isSplitChild: true,
+        id,
+        splitParentId,
+        jahr: j,
+        kw: k,
+        filiale: fil,
+      };
+    }
+
+    // Wenn splitParentId leer ODER splitParentId === id, behandeln wir als Split-Parent.
+    const isSplitParent = !!splitParentId && splitParentId === id;
+
+    return {
+      canDelete: true,
+      id,
+      jahr: j,
+      kw: k,
+      filiale: fil,
+      isSplitParent,
+    };
+  }, [initialBooking, jahr, kw, sourceFiliale]);
+
+  async function handleDelete() {
+    if (!isEdit) return;
+    if (!deleteInfo?.canDelete)
+      return toast.error(deleteInfo?.reason || 'Löschen nicht möglich.');
+
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+    if (!token || !baseUrl) return toast.error('Nicht authentifiziert.');
+
+    const ok = window.confirm('Buchung wirklich löschen?');
+    if (!ok) return;
+
+    const { id, jahr: j, kw: k, filiale: fil, isSplitParent } = deleteInfo;
+
+    try {
+      setDeleting(true);
+      const url = isSplitParent
+        ? `${baseUrl}/api/budget/bookings/split/${id}`
+        : `${baseUrl}/api/budget/bookings/${id}`;
+
+      await axios.delete(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { jahr: j, kw: k, filiale: fil },
+      });
+
+      toast.success('Buchung gelöscht.');
+      onClose?.();
+
+      if (typeof onDeleted === 'function') {
+        await onDeleted();
+      } else {
+        await onSubmit?.();
+      }
+    } catch (e) {
+      const msg = e?.response?.data?.message || 'Löschen fehlgeschlagen.';
+      toast.error(msg);
+      console.error('DELETE fehlgeschlagen:', e);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function validateSimple() {
     if (typ !== 'bestellung' && typ !== 'aktionsvorab') return 'Typ ist ungültig.';
@@ -254,10 +350,12 @@ export default function BookingModal({
     const baseError = validateSimple();
     if (baseError) return baseError;
 
-    if (splitCalc.enabled.length === 0) return 'Für Split musst du mindestens eine Filiale aktivieren.';
+    if (splitCalc.enabled.length === 0)
+      return 'Für Split musst du mindestens eine Filiale aktivieren.';
 
     for (const x of splitCalc.enabled) {
-      if (x.amount === null || x.amount <= 0) return `Betrag für ${x.filiale} ist Pflicht und muss > 0 sein.`;
+      if (x.amount === null || x.amount <= 0)
+        return `Betrag für ${x.filiale} ist Pflicht und muss > 0 sein.`;
     }
 
     if (splitCalc.total !== null && splitCalc.rest !== null && splitCalc.rest < 0) {
@@ -288,17 +386,17 @@ export default function BookingModal({
       return;
     }
 
-    // Split ON
     const err = validateSplit();
     if (err) return toast.error(err);
 
-    // ✅ Schritt C: Kontext muss da sein (Transport)
     const j = Number(jahr);
     const k = Number(kw);
     const f = String(sourceFiliale || '').trim();
 
-    if (!Number.isFinite(j) || j <= 0) return toast.error('Interner Fehler: Jahr fehlt für Split-POST.');
-    if (!Number.isFinite(k) || k <= 0) return toast.error('Interner Fehler: KW fehlt für Split-POST.');
+    if (!Number.isFinite(j) || j <= 0)
+      return toast.error('Interner Fehler: Jahr fehlt für Split-POST.');
+    if (!Number.isFinite(k) || k <= 0)
+      return toast.error('Interner Fehler: KW fehlt für Split-POST.');
     if (!f) return toast.error('Interner Fehler: Filiale fehlt für Split-POST.');
 
     const token = sessionStorage.getItem('token');
@@ -313,7 +411,7 @@ export default function BookingModal({
     const payload = {
       jahr: j,
       kw: k,
-      filiale: f, // Quelle (Backend/DB ist Wahrheit)
+      filiale: f,
       typ,
       gesamtbetrag: splitCalc.total,
       datum,
@@ -331,7 +429,6 @@ export default function BookingModal({
 
       toast.success('Gesplittete Bestellung angelegt.');
       onClose?.();
-      // Reload über Parent (DB-Wahrheit)
       await onSubmit?.();
     } catch (e) {
       const msg = e?.response?.data?.message || 'Split-Buchung fehlgeschlagen.';
@@ -358,10 +455,7 @@ export default function BookingModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-          >
+          <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
             Schließen
           </button>
         </div>
@@ -483,7 +577,7 @@ export default function BookingModal({
                                 const enabled = e.target.checked;
                                 setSplitTargets((prev) => ({
                                   ...prev,
-                                  [f]: { enabled, amount: enabled ? (prev?.[f]?.amount ?? '') : '' },
+                                  [f]: { enabled, amount: enabled ? prev?.[f]?.amount ?? '' : '' },
                                 }));
                               }}
                             />
@@ -492,7 +586,8 @@ export default function BookingModal({
 
                           <label className="md:col-span-8 flex flex-col gap-1">
                             <span className="text-white/60 text-xs">
-                              Betrag {f}{entry.enabled ? ' (Pflicht)' : ''}
+                              Betrag {f}
+                              {entry.enabled ? ' (Pflicht)' : ''}
                             </span>
                             <input
                               value={entry.amount}
@@ -524,14 +619,18 @@ export default function BookingModal({
                     <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                       <div className="text-white/60">Eigenanteil ({sourceFiliale || 'Quelle'})</div>
                       <div className="font-semibold">
-                        {splitCalc.rest === null || !Number.isFinite(splitCalc.rest) ? '—' : splitCalc.rest.toFixed(2)}
+                        {splitCalc.rest === null || !Number.isFinite(splitCalc.rest)
+                          ? '—'
+                          : splitCalc.rest.toFixed(2)}
                       </div>
                     </div>
 
                     <div className="bg-white/5 rounded-lg p-3 border border-white/10">
                       <div className="text-white/60">Gesamtbetrag</div>
                       <div className="font-semibold">
-                        {splitCalc.total === null || !Number.isFinite(splitCalc.total) ? '—' : splitCalc.total.toFixed(2)}
+                        {splitCalc.total === null || !Number.isFinite(splitCalc.total)
+                          ? '—'
+                          : splitCalc.total.toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -546,19 +645,36 @@ export default function BookingModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/10 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-          >
-            Abbrechen
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-5 py-2 rounded-lg bg-[#800000] hover:bg-[#6d0000] transition font-semibold"
-          >
-            {isEdit ? 'Speichern' : 'Anlegen'}
-          </button>
+        <div className="p-6 border-t border-white/10 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {isEdit && (
+              <button
+                onClick={handleDelete}
+                disabled={!deleteInfo?.canDelete || deleting}
+                title={!deleteInfo?.canDelete ? deleteInfo?.reason || 'Löschen nicht möglich' : ''}
+                className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition disabled:opacity-40 disabled:hover:bg-white/10"
+              >
+                {deleting ? 'Lösche…' : 'Löschen'}
+              </button>
+            )}
+
+            {isEdit && !deleteInfo?.canDelete && deleteInfo?.reason && (
+              <div className="text-white/50 text-xs max-w-md">{deleteInfo.reason}</div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-3">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition">
+              Abbrechen
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={deleting}
+              className="px-5 py-2 rounded-lg bg-[#800000] hover:bg-[#6d0000] transition font-semibold disabled:opacity-40 disabled:hover:bg-[#800000]"
+            >
+              {isEdit ? 'Speichern' : 'Anlegen'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -143,17 +143,24 @@ export default function BudgetBookingsPanel({
 
     const ok = window.confirm('Buchung wirklich löschen?');
     if (!ok) return;
-    onDelete?.(b);
+    // FIX: nur die UUID übergeben, nicht das Objekt
+    onDelete?.(b.id);
   };
 
   const handleSubmit = async (payload) => {
+    // ✅ Für Split-POST: Modal kann nach Erfolg "nur reload" triggern (payload undefined)
+    if (payload === undefined) {
+      await onReload?.();
+      return true;
+    }
+
     if (editBooking) {
       const ok = await onUpdate?.(editBooking.id, payload, editBooking);
       if (ok) {
         setModalOpen(false);
         setEditBooking(null);
       }
-      return;
+      return ok;
     }
 
     const ok = await onCreate?.(payload);
@@ -161,6 +168,7 @@ export default function BudgetBookingsPanel({
       setModalOpen(false);
       setEditBooking(null);
     }
+    return ok;
   };
 
   return (
@@ -192,7 +200,6 @@ export default function BudgetBookingsPanel({
         </div>
       </div>
 
-      {/* === DEIN kompletter Render-Teil bleibt hier unverändert === */}
       <div className="p-6">
         {loading ? (
           <div className="text-white/60">Lädt…</div>
@@ -217,7 +224,9 @@ export default function BudgetBookingsPanel({
 
                   return (
                     <tr key={b.id} className="border-t border-white/10 align-top">
-                      <td className="py-3 pr-4 whitespace-nowrap">{formatDate(b?.datum || b?.created_at)}</td>
+                      <td className="py-3 pr-4 whitespace-nowrap">
+                        {formatDate(b?.datum || b?.created_at)}
+                      </td>
 
                       <td className="py-3 pr-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClasses(b?.typ)}`}>
@@ -272,6 +281,9 @@ export default function BudgetBookingsPanel({
         isFilialeUser={isFilialeUser}
         userRole={userRole}
         sourceFiliale={effectiveFiliale}
+        // ✅ Schritt C: Kontext ins Modal (Transport, keine Logik)
+        jahr={jahr}
+        kw={kw}
         onSubmit={handleSubmit}
       />
     </div>

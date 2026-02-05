@@ -406,16 +406,39 @@ export default function Budget() {
     }
   };
 
-  const deleteBooking = async (id) => {
+  // ✅ FIX: deterministisches Delete (kein Errortext-Parsen / kein Fallback-Raten)
+  // Erwartet jetzt das ganze Booking-Objekt (kommt aus BudgetBookingsPanel)
+  const deleteBooking = async (booking) => {
     const token = getToken();
     if (!token) return false;
+    if (!requireBasics()) return false;
+
+    if (!booking || !booking.id) {
+      toast.error('Ungültige Buchung.');
+      return false;
+    }
+
+    const params = { jahr, kw, filiale: effectiveFiliale };
+
+    const headers = isSuperUser
+      ? { Authorization: `Bearer ${token}`, 'x-filiale': effectiveFiliale }
+      : { Authorization: `Bearer ${token}` };
+
+    const isSplitRoot =
+      booking.split_group_id !== null &&
+      booking.parent_booking_id === null;
+
+    const url = isSplitRoot
+      ? `${baseUrl}/api/budget/bookings/split/${encodeURIComponent(booking.id)}`
+      : `${baseUrl}/api/budget/bookings/${encodeURIComponent(booking.id)}`;
 
     try {
       setLoadingBookings(true);
-      await axios.delete(`${baseUrl}/api/budget/bookings/${encodeURIComponent(id)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      await axios.delete(url, {
+        headers,
+        params,
       });
-      toast.success('Buchung gelöscht.');
+      toast.success(isSplitRoot ? 'Split-Buchung gelöscht.' : 'Buchung gelöscht.');
       await reloadAll();
       return true;
     } catch (err) {
