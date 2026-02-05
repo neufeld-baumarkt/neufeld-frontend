@@ -7,7 +7,6 @@ import SupervisorPanel from './pages/SupervisorPanel';
 import AdminPanel from './pages/AdminPanel';
 import Reklamationen from './pages/Reklamationen';
 import Budget from './pages/Budget';
-import Tasks from './pages/Tasks';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
 
@@ -23,16 +22,6 @@ function App() {
         element={
           <ProtectedRoute>
             <Startseite />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Tasks (Detailseite) */}
-      <Route
-        path="/tasks"
-        element={
-          <ProtectedRoute>
-            <Tasks />
           </ProtectedRoute>
         }
       />
