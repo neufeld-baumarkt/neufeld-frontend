@@ -94,6 +94,17 @@ function badgeClasses(typ) {
   }
 }
 
+// ✅ FIX: Anzeige-Logik für Beschreibung bei Aktionen
+function displayBeschreibungOrAktionNr(b) {
+  const typ = String(b?.typ || '').trim();
+  const desc = String(b?.beschreibung ?? '').trim();
+  if (typ === 'aktionsvorab' && desc.length === 0) {
+    const aktionNr = String(b?.aktion_nr ?? '').trim();
+    if (aktionNr.length > 0) return aktionNr;
+  }
+  return desc.length > 0 ? desc : '—';
+}
+
 export default function BudgetBookingsPanel({
   jahr,
   kw,
@@ -233,7 +244,10 @@ export default function BudgetBookingsPanel({
                         </span>
                       </td>
                       <td className="py-2 pr-3">{b?.lieferant || '—'}</td>
-                      <td className="py-2 pr-3">{b?.beschreibung || '—'}</td>
+
+                      {/* ✅ FIX: wenn Aktion und Beschreibung leer -> Aktionsnummer anzeigen */}
+                      <td className="py-2 pr-3">{displayBeschreibungOrAktionNr(b)}</td>
+
                       <td className="py-2 pl-3 text-right whitespace-nowrap">
                         {formatCurrencyAsNegative(b?.betrag)}
                       </td>
