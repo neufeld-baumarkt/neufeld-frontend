@@ -64,7 +64,18 @@ function titleForTyp(typ) {
 }
 
 function badgeClasses(typ) {
-  return 'bg-white/10';
+  switch (typ) {
+    case 'bestellung':
+      return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30';
+    case 'aktionsvorab':
+      return 'bg-sky-500/20 text-sky-200 border border-sky-500/30';
+    case 'abgabe':
+      return 'bg-amber-500/20 text-amber-200 border border-amber-500/30';
+    case 'korrektur':
+      return 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/30';
+    default:
+      return 'bg-white/10 text-white/80 border border-white/10';
+  }
 }
 
 function displayText(v) {
