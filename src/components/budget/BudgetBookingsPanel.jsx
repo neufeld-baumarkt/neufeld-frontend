@@ -9,14 +9,6 @@ function toNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function formatCurrency(value) {
-  const n = toNumber(value);
-  if (n === null) return '—';
-  return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-}
-
-// Anzeige immer als NEGATIV – egal wie gespeichert/angelegt.
-// Backend bleibt Wahrheit (Summen/Views etc. nicht anfassen).
 function formatCurrencyAsNegative(value) {
   const n = toNumber(value);
   if (n === null) return '—';
@@ -37,16 +29,10 @@ function normalizeRole(role) {
 }
 
 function canWriteTyp({ isFilialeUser, role, typ }) {
-  // Backend ist Wahrheit – UI blendet nur passend ein.
   const r = normalizeRole(role);
 
-  // Filiale darf nur Bestellung
   if (isFilialeUser) return typ === 'bestellung';
-
-  // Admin/Supervisor darf alles
   if (r === 'Admin' || r === 'Supervisor') return true;
-
-  // Manager/GF: nur Bestellung/Aktion
   if (r === 'Manager-1' || r === 'Geschäftsführer') return typ === 'bestellung' || typ === 'aktionsvorab';
 
   return false;
@@ -56,9 +42,7 @@ function allowedCreateTypes({ isFilialeUser, role }) {
   const r = normalizeRole(role);
 
   if (isFilialeUser) return ['bestellung'];
-
   if (r === 'Admin' || r === 'Supervisor') return ['bestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
-
   if (r === 'Manager-1' || r === 'Geschäftsführer') return ['bestellung', 'aktionsvorab'];
 
   return [];
@@ -80,29 +64,18 @@ function titleForTyp(typ) {
 }
 
 function badgeClasses(typ) {
-  switch (typ) {
-    case 'bestellung':
-      return 'bg-white/10';
-    case 'aktionsvorab':
-      return 'bg-white/10';
-    case 'abgabe':
-      return 'bg-white/10';
-    case 'korrektur':
-      return 'bg-white/10';
-    default:
-      return 'bg-white/10';
-  }
+  return 'bg-white/10';
 }
 
-// ✅ FIX: Anzeige-Logik für Beschreibung bei Aktionen
-function displayBeschreibungOrAktionNr(b) {
-  const typ = String(b?.typ || '').trim();
-  const desc = String(b?.beschreibung ?? '').trim();
-  if (typ === 'aktionsvorab' && desc.length === 0) {
-    const aktionNr = String(b?.aktion_nr ?? '').trim();
-    if (aktionNr.length > 0) return aktionNr;
-  }
-  return desc.length > 0 ? desc : '—';
+function displayText(v) {
+  const t = String(v ?? '').trim();
+  return t.length > 0 ? t : '—';
+}
+
+function displayAktionNr(b) {
+  if (String(b?.typ || '').trim() !== 'aktionsvorab') return '—';
+  const a = String(b?.aktion_nr ?? '').trim();
+  return a.length > 0 ? a : '—';
 }
 
 export default function BudgetBookingsPanel({
@@ -151,16 +124,12 @@ export default function BudgetBookingsPanel({
 
   const confirmDelete = (b) => {
     if (!b) return;
-
     const ok = window.confirm('Buchung wirklich löschen?');
     if (!ok) return;
-
-    // Wichtig: komplettes Booking-Objekt übergeben (Split-Entscheidung im Parent)
     onDelete?.(b);
   };
 
   const handleSubmit = async (payload) => {
-    // ✅ Für Split-POST: Modal kann nach Erfolg "nur reload" triggern (payload undefined)
     if (payload === undefined) {
       await onReload?.();
       return true;
@@ -225,6 +194,7 @@ export default function BudgetBookingsPanel({
                   <th className="text-left py-2 pr-3 font-medium">Datum</th>
                   <th className="text-left py-2 pr-3 font-medium">Typ</th>
                   <th className="text-left py-2 pr-3 font-medium">Lieferant</th>
+                  <th className="text-left py-2 pr-3 font-medium">Aktionsnummer</th>
                   <th className="text-left py-2 pr-3 font-medium">Beschreibung</th>
                   <th className="text-right py-2 pl-3 font-medium">Betrag</th>
                   <th className="text-right py-2 pl-3 font-medium">Aktionen</th>
@@ -243,11 +213,9 @@ export default function BudgetBookingsPanel({
                           {titleForTyp(typ)}
                         </span>
                       </td>
-                      <td className="py-2 pr-3">{b?.lieferant || '—'}</td>
-
-                      {/* ✅ FIX: wenn Aktion und Beschreibung leer -> Aktionsnummer anzeigen */}
-                      <td className="py-2 pr-3">{displayBeschreibungOrAktionNr(b)}</td>
-
+                      <td className="py-2 pr-3">{displayText(b?.lieferant)}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{displayAktionNr(b)}</td>
+                      <td className="py-2 pr-3">{displayText(b?.beschreibung)}</td>
                       <td className="py-2 pl-3 text-right whitespace-nowrap">
                         {formatCurrencyAsNegative(b?.betrag)}
                       </td>
