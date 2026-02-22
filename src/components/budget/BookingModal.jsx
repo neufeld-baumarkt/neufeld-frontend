@@ -83,6 +83,8 @@ export default function BookingModal({
   initialBooking,
   allowedTypes,
   sourceFiliale,
+  // Alias: Budget-Parent nutzt oft effectiveFiliale (SuperUser-Picker)
+  effectiveFiliale,
   onSubmit,
 
   // optional: Hook nach erfolgreichem Delete (z. B. Reload in Parent)
@@ -96,6 +98,27 @@ export default function BookingModal({
   filialen = DEFAULT_FILIALEN,
 }) {
   const isEdit = mode === 'edit';
+
+  // -----------------
+  // Filiale-Kontext (kritisch):
+  // - SuperUser haben im Token oft filiale="Alle" (Flag, keine echte Filiale)
+  // - Für Split-POST und DELETE muss eine echte Filiale im Request stehen
+  // - sourceFiliale hat Vorrang, effectiveFiliale ist kompatibler Alias
+  // - Fallback im Edit: initialBooking.filiale
+  // -----------------
+  const resolvedSourceFiliale = useMemo(() => {
+    const normalize = (v) => String(v || '').trim();
+    const a = normalize(sourceFiliale);
+    if (a && a !== 'Alle') return a;
+
+    const b = normalize(effectiveFiliale);
+    if (b && b !== 'Alle') return b;
+
+    const c = normalize(initialBooking?.filiale);
+    if (c && c !== 'Alle') return c;
+
+    return '';
+  }, [sourceFiliale, effectiveFiliale, initialBooking]);
 
   const typeOptions = useMemo(() => {
     const base =
@@ -128,11 +151,11 @@ export default function BookingModal({
   });
 
   const selectableFilialen = useMemo(() => {
-    const src = String(sourceFiliale || '').trim();
+    const src = String(resolvedSourceFiliale || '').trim();
     return (Array.isArray(filialen) ? filialen : DEFAULT_FILIALEN)
       .filter((f) => f && String(f).trim().length > 0)
       .filter((f) => !src || f !== src);
-  }, [filialen, sourceFiliale]);
+  }, [filialen, resolvedSourceFiliale]);
 
   const loadLieferanten = async () => {
     const token = sessionStorage.getItem('token');
@@ -240,14 +263,20 @@ export default function BookingModal({
 
     const j = Number(jahr ?? b.jahr);
     const k = Number(kw ?? b.kw);
-    const fil = String(sourceFiliale || b.filiale || '').trim();
+    const fil = String(resolvedSourceFiliale || '').trim();
 
     const splitParentId = String(
       b.split_parent_id ?? b.split_parent ?? b.parent_id ?? b.parentId ?? ''
     ).trim();
 
+    // Backend-/Frontend-Mismatch abfangen (Budget.jsx nutzt parent_booking_id/split_group_id)
+    const parentBookingId = String(b.parent_booking_id ?? '').trim();
+    const splitGroupId = b.split_group_id ?? null;
+
     const id = String(b.id || '').trim();
-    const isSplitChild = !!splitParentId && splitParentId !== id;
+    const isSplitChild =
+      (!!splitParentId && splitParentId !== id) ||
+      (!!parentBookingId && parentBookingId !== id);
 
     if (!id) return { canDelete: false, reason: 'Interner Fehler: ID fehlt.' };
     if (!Number.isFinite(j) || j <= 0)
@@ -258,7 +287,7 @@ export default function BookingModal({
       return {
         canDelete: false,
         reason:
-          'Interner Fehler: Filiale fehlt. Für zentrale Rollen muss filiale im DELETE-Request gesetzt sein.',
+          'Interner Fehler: Filiale fehlt oder ist "Alle". Für zentrale Rollen muss eine konkrete Filiale im DELETE-Request gesetzt sein.',
       };
     }
 
@@ -276,8 +305,12 @@ export default function BookingModal({
       };
     }
 
-    // Wenn splitParentId leer ODER splitParentId === id, behandeln wir als Split-Parent.
-    const isSplitParent = !!splitParentId && splitParentId === id;
+    // Split-Parent:
+    // - altes Modell: split_parent_id === id
+    // - neues Modell (Budget): split_group_id != null UND parent_booking_id == null
+    const isSplitParent =
+      (!!splitParentId && splitParentId === id) ||
+      (splitGroupId !== null && !parentBookingId);
 
     return {
       canDelete: true,
@@ -287,7 +320,7 @@ export default function BookingModal({
       filiale: fil,
       isSplitParent,
     };
-  }, [initialBooking, jahr, kw, sourceFiliale]);
+  }, [initialBooking, jahr, kw, resolvedSourceFiliale]);
 
   async function handleDelete() {
     if (!isEdit) return;
@@ -391,13 +424,13 @@ export default function BookingModal({
 
     const j = Number(jahr);
     const k = Number(kw);
-    const f = String(sourceFiliale || '').trim();
+    const f = String(resolvedSourceFiliale || '').trim();
 
     if (!Number.isFinite(j) || j <= 0)
       return toast.error('Interner Fehler: Jahr fehlt für Split-POST.');
     if (!Number.isFinite(k) || k <= 0)
       return toast.error('Interner Fehler: KW fehlt für Split-POST.');
-    if (!f) return toast.error('Interner Fehler: Filiale fehlt für Split-POST.');
+    if (!f) return toast.error('Interner Fehler: Filiale fehlt oder ist "Alle" für Split-POST.');
 
     const token = sessionStorage.getItem('token');
     const baseUrl = import.meta.env.VITE_API_URL;
@@ -451,7 +484,7 @@ export default function BookingModal({
             <div className="text-2xl font-bold">{isEdit ? 'Buchung bearbeiten' : 'Neue Buchung'}</div>
             <div className="text-white/60 mt-1 text-sm">
               Typ: {typeLabel(typ)}
-              {sourceFiliale ? ` · Quelle: ${sourceFiliale}` : ''}
+              {resolvedSourceFiliale ? ` · Quelle: ${resolvedSourceFiliale}` : ''}
             </div>
           </div>
 
@@ -561,7 +594,7 @@ export default function BookingModal({
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4">
                   <div className="font-semibold mb-2">Filialen auswählen</div>
                   <div className="text-white/60 text-sm mb-4">
-                    Aktivierte Filialen bekommen Pflicht-Felder. Restbetrag bleibt bei {sourceFiliale || 'Quelle'}.
+                    Aktivierte Filialen bekommen Pflicht-Felder. Restbetrag bleibt bei {resolvedSourceFiliale || 'Quelle'}.
                   </div>
 
                   <div className="space-y-3">
@@ -617,7 +650,7 @@ export default function BookingModal({
                     </div>
 
                     <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-white/60">Eigenanteil ({sourceFiliale || 'Quelle'})</div>
+                      <div className="text-white/60">Eigenanteil ({resolvedSourceFiliale || 'Quelle'})</div>
                       <div className="font-semibold">
                         {splitCalc.rest === null || !Number.isFinite(splitCalc.rest)
                           ? '—'
