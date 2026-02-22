@@ -132,11 +132,14 @@ export default function BookingModal({
 
   const [typ, setTyp] = useState('bestellung');
 
-  // Bestellung Basisfelder
+  // Basisfelder
   const [betrag, setBetrag] = useState('');
   const [beschreibung, setBeschreibung] = useState('');
   const [datum, setDatum] = useState('');
   const [lieferant, setLieferant] = useState('');
+
+  // ✅ Aktion: Aktionsnummer (UI-Label "Aktionsnummer", Backend-Key: aktion_nr)
+  const [aktionsnummer, setAktionsnummer] = useState('');
 
   // Lieferanten
   const [lieferantenOptions, setLieferantenOptions] = useState([]);
@@ -210,6 +213,14 @@ export default function BookingModal({
     }
 
     setLieferant(isEdit ? initialBooking?.lieferant ?? '' : '');
+
+    // ✅ Backend-konform: aktion_nr
+    if (isEdit) {
+      const an = String(initialBooking?.aktion_nr ?? '').trim();
+      setAktionsnummer(an);
+    } else {
+      setAktionsnummer('');
+    }
 
     setSplitOn(false);
 
@@ -365,7 +376,8 @@ export default function BookingModal({
   }
 
   function validateSimple() {
-    if (typ !== 'bestellung' && typ !== 'aktionsvorab') return 'Typ ist ungültig.';
+    if (typ !== 'bestellung' && typ !== 'aktionsvorab')
+      return 'Typ ist ungültig.';
 
     const b = parseAmount(betrag);
     if (b === null || b <= 0) return 'Betrag ist Pflicht und muss > 0 sein.';
@@ -375,6 +387,12 @@ export default function BookingModal({
 
     const l = String(lieferant || '').trim();
     if (!l) return 'Lieferant ist Pflicht.';
+
+    // ✅ Pflichtfeld: aktion_nr bei Aktion
+    if (typ === 'aktionsvorab') {
+      const a = String(aktionsnummer || '').trim();
+      if (!a) return 'Aktionsnummer ist Pflicht.';
+    }
 
     return null;
   }
@@ -412,6 +430,11 @@ export default function BookingModal({
         lieferant: String(lieferant).trim(),
       };
 
+      // ✅ Backend-Key: aktion_nr
+      if (typ === 'aktionsvorab') {
+        payload.aktion_nr = String(aktionsnummer || '').trim();
+      }
+
       const desc = String(beschreibung || '').trim();
       if (desc) payload.beschreibung = desc;
 
@@ -430,7 +453,8 @@ export default function BookingModal({
       return toast.error('Interner Fehler: Jahr fehlt für Split-POST.');
     if (!Number.isFinite(k) || k <= 0)
       return toast.error('Interner Fehler: KW fehlt für Split-POST.');
-    if (!f) return toast.error('Interner Fehler: Filiale fehlt oder ist "Alle" für Split-POST.');
+    if (!f)
+      return toast.error('Interner Fehler: Filiale fehlt oder ist "Alle" für Split-POST.');
 
     const token = sessionStorage.getItem('token');
     const baseUrl = import.meta.env.VITE_API_URL;
@@ -452,6 +476,11 @@ export default function BookingModal({
       splits,
     };
 
+    // ✅ Backend-Key: aktion_nr
+    if (typ === 'aktionsvorab') {
+      payload.aktion_nr = String(aktionsnummer || '').trim();
+    }
+
     const desc = String(beschreibung || '').trim();
     if (desc) payload.beschreibung = desc;
 
@@ -460,7 +489,11 @@ export default function BookingModal({
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      toast.success('Gesplittete Bestellung angelegt.');
+      toast.success(
+        typ === 'aktionsvorab'
+          ? 'Gesplittete Aktion angelegt.'
+          : 'Gesplittete Bestellung angelegt.'
+      );
       onClose?.();
       await onSubmit?.();
     } catch (e) {
@@ -474,6 +507,8 @@ export default function BookingModal({
 
   const splitOffStyle = splitOn ? 'bg-white/10' : 'bg-[#800000]/40 border-[#800000]/40';
   const splitOnStyle = splitOn ? 'bg-[#2a5a2a]/40 border-[#2a5a2a]/40' : 'bg-white/10';
+
+  const splitTitle = typ === 'aktionsvorab' ? 'Gesplittete Aktion' : 'Gesplittete Bestellung';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
@@ -524,6 +559,19 @@ export default function BookingModal({
             </label>
           </div>
 
+          {/* ✅ Aktionsnummer (nur bei Aktion) */}
+          {typ === 'aktionsvorab' && (
+            <label className="flex flex-col gap-2">
+              <span className="text-white/80 font-semibold">Aktionsnummer (Pflicht)</span>
+              <input
+                value={aktionsnummer}
+                onChange={(e) => setAktionsnummer(e.target.value)}
+                placeholder="z. B. 2026-01 / 4711 / ..."
+                className="bg-white/10 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/30"
+              />
+            </label>
+          )}
+
           {/* Beschreibung */}
           <label className="flex flex-col gap-2">
             <span className="text-white/80 font-semibold">Beschreibung</span>
@@ -566,13 +614,13 @@ export default function BookingModal({
             </label>
           </div>
 
-          {/* Split Switch + Accordion */}
-          {!isEdit && typ === 'bestellung' && (
+          {/* ✅ Split Switch + Accordion (jetzt auch für Aktion) */}
+          {!isEdit && (typ === 'bestellung' || typ === 'aktionsvorab') && (
             <div className="space-y-3">
               <div className={`border rounded-xl p-4 ${splitOn ? splitOnStyle : splitOffStyle}`}>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="font-bold">Gesplittete Bestellung</div>
+                    <div className="font-bold">{splitTitle}</div>
                     <div className="text-white/70 text-sm">
                       Standard: AUS. Wenn AN, verteilst du Teilbeträge auf andere Filialen.
                     </div>
