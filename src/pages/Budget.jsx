@@ -424,9 +424,7 @@ export default function Budget() {
       ? { Authorization: `Bearer ${token}`, 'x-filiale': effectiveFiliale }
       : { Authorization: `Bearer ${token}` };
 
-    const isSplitRoot =
-      booking.split_group_id != null &&
-      (booking.parent_booking_id == null || booking.parent_booking_id === '');
+    const isSplitRoot = booking.has_splits === true;
 
     const url = isSplitRoot
       ? `${baseUrl}/api/budget/bookings/split/${encodeURIComponent(booking.id)}`
