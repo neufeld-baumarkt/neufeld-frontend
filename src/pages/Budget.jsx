@@ -358,7 +358,7 @@ export default function Budget() {
     await fetchBookings();
   };
 
-  // Booking CRUD (unverändert vorhanden)
+  // Booking CRUD
   const createBooking = async (bookingBody) => {
     const token = getToken();
     if (!token) return false;
@@ -400,48 +400,6 @@ export default function Budget() {
     } catch (err) {
       console.error('Fehler beim Speichern der Buchung:', err);
       toast.error(err?.response?.data?.message || 'Buchung konnte nicht gespeichert werden.');
-      return false;
-    } finally {
-      setLoadingBookings(false);
-    }
-  };
-
-  // ✅ FIX: deterministisches Delete (kein Errortext-Parsen / kein Fallback-Raten)
-  // Erwartet jetzt das ganze Booking-Objekt (kommt aus BudgetBookingsPanel)
-  const deleteBooking = async (booking) => {
-    const token = getToken();
-    if (!token) return false;
-    if (!requireBasics()) return false;
-
-    if (!booking || !booking.id) {
-      toast.error('Ungültige Buchung.');
-      return false;
-    }
-
-    const params = { jahr, kw, filiale: effectiveFiliale };
-
-    const headers = isSuperUser
-      ? { Authorization: `Bearer ${token}`, 'x-filiale': effectiveFiliale }
-      : { Authorization: `Bearer ${token}` };
-
-    const isSplitRoot = booking.has_splits === true;
-
-    const url = isSplitRoot
-      ? `${baseUrl}/api/budget/bookings/split/${encodeURIComponent(booking.id)}`
-      : `${baseUrl}/api/budget/bookings/${encodeURIComponent(booking.id)}`;
-
-    try {
-      setLoadingBookings(true);
-      await axios.delete(url, {
-        headers,
-        params,
-      });
-      toast.success(isSplitRoot ? 'Split-Buchung gelöscht.' : 'Buchung gelöscht.');
-      await reloadAll();
-      return true;
-    } catch (err) {
-      console.error('Fehler beim Löschen der Buchung:', err);
-      toast.error(err?.response?.data?.message || 'Buchung konnte nicht gelöscht werden.');
       return false;
     } finally {
       setLoadingBookings(false);
@@ -645,7 +603,6 @@ export default function Budget() {
             onReload={fetchBookings}
             onCreate={createBooking}
             onUpdate={updateBooking}
-            onDelete={deleteBooking}
           />
         </div>
       </div>
