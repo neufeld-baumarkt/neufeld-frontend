@@ -133,13 +133,6 @@ export default function BudgetBookingsPanel({
     setModalOpen(true);
   };
 
-  const confirmDelete = (b) => {
-    if (!b) return;
-    const ok = window.confirm('Buchung wirklich löschen?');
-    if (!ok) return;
-    onDelete?.(b);
-  };
-
   const handleSubmit = async (payload) => {
     if (payload === undefined) {
       await onReload?.();
@@ -236,17 +229,9 @@ export default function BudgetBookingsPanel({
                             className="px-3 py-1 rounded-md bg-white/10 hover:bg-white/20 transition"
                             onClick={() => openEdit(b)}
                             disabled={!editable}
-                            title={!editable ? 'Keine Berechtigung' : 'Bearbeiten'}
+                            title={!editable ? 'Keine Berechtigung' : 'Bearbeiten / Löschen'}
                           >
                             Edit
-                          </button>
-                          <button
-                            className="px-3 py-1 rounded-md bg-[#800000]/40 hover:bg-[#800000]/55 border border-[#800000]/40 transition"
-                            onClick={() => confirmDelete(b)}
-                            disabled={!editable}
-                            title={!editable ? 'Keine Berechtigung' : 'Löschen'}
-                          >
-                            Delete
                           </button>
                         </div>
                       </td>
@@ -265,15 +250,15 @@ export default function BudgetBookingsPanel({
           setModalOpen(false);
           setEditBooking(null);
         }}
-        editBooking={editBooking}
+        mode={editBooking ? 'edit' : 'create'}
+        initialBooking={editBooking}
         jahr={jahr}
         kw={kw}
+        sourceFiliale={effectiveFiliale}
         effectiveFiliale={effectiveFiliale}
-        isSuperUser={isSuperUser}
-        isFilialeUser={isFilialeUser}
-        userRole={userRole}
         allowedTypes={createTypes}
         onSubmit={handleSubmit}
+        onDeleted={onReload}
       />
     </div>
   );
