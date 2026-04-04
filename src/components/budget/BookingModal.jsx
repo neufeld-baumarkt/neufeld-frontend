@@ -265,6 +265,10 @@ export default function BookingModal({
 
   // -----------------
   // DELETE (Modal ist die einzige Stelle mit vollständigem Kontext)
+  // Backend-Wahrheit:
+  // - Split-Child  => parent_booking_id != null
+  // - Split-Parent => has_splits === true
+  // - normal       => !parent_booking_id && !has_splits
   // -----------------
   const [deleting, setDeleting] = useState(false);
 
@@ -275,25 +279,24 @@ export default function BookingModal({
     const j = Number(jahr ?? b.jahr);
     const k = Number(kw ?? b.kw);
     const fil = String(resolvedSourceFiliale || '').trim();
-
-    const splitParentId = String(
-      b.split_parent_id ?? b.split_parent ?? b.parent_id ?? b.parentId ?? ''
-    ).trim();
-
-    // Backend-/Frontend-Mismatch abfangen (Budget.jsx nutzt parent_booking_id/split_group_id)
-    const parentBookingId = String(b.parent_booking_id ?? '').trim();
-    const splitGroupId = b.split_group_id ?? null;
-
     const id = String(b.id || '').trim();
-    const isSplitChild =
-      (!!splitParentId && splitParentId !== id) ||
-      (!!parentBookingId && parentBookingId !== id);
 
-    if (!id) return { canDelete: false, reason: 'Interner Fehler: ID fehlt.' };
-    if (!Number.isFinite(j) || j <= 0)
+    const parentBookingIdRaw = b.parent_booking_id;
+    const parentBookingId = String(parentBookingIdRaw ?? '').trim();
+    const hasSplits = b.has_splits === true;
+
+    if (!id) {
+      return { canDelete: false, reason: 'Interner Fehler: ID fehlt.' };
+    }
+
+    if (!Number.isFinite(j) || j <= 0) {
       return { canDelete: false, reason: 'Interner Fehler: Jahr fehlt.' };
-    if (!Number.isFinite(k) || k <= 0)
+    }
+
+    if (!Number.isFinite(k) || k <= 0) {
       return { canDelete: false, reason: 'Interner Fehler: KW fehlt.' };
+    }
+
     if (!fil) {
       return {
         canDelete: false,
@@ -302,6 +305,7 @@ export default function BookingModal({
       };
     }
 
+    const isSplitChild = parentBookingId.length > 0;
     if (isSplitChild) {
       return {
         canDelete: false,
@@ -309,19 +313,14 @@ export default function BookingModal({
           'Split-Child kann nicht einzeln gelöscht werden. Nur der Split-Parent ist löschbar.',
         isSplitChild: true,
         id,
-        splitParentId,
+        parent_booking_id: parentBookingId,
         jahr: j,
         kw: k,
         filiale: fil,
       };
     }
 
-    // Split-Parent:
-    // - altes Modell: split_parent_id === id
-    // - neues Modell (Budget): split_group_id != null UND parent_booking_id == null
-    const isSplitParent =
-      (!!splitParentId && splitParentId === id) ||
-      (splitGroupId !== null && !parentBookingId);
+    const isSplitParent = hasSplits;
 
     return {
       canDelete: true,
@@ -349,6 +348,7 @@ export default function BookingModal({
 
     try {
       setDeleting(true);
+
       const url = isSplitParent
         ? `${baseUrl}/api/budget/bookings/split/${id}`
         : `${baseUrl}/api/budget/bookings/${id}`;
@@ -358,7 +358,7 @@ export default function BookingModal({
         params: { jahr: j, kw: k, filiale: fil },
       });
 
-      toast.success('Buchung gelöscht.');
+      toast.success(isSplitParent ? 'Split-Buchung gelöscht.' : 'Buchung gelöscht.');
       onClose?.();
 
       if (typeof onDeleted === 'function') {
