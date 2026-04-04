@@ -164,7 +164,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
           { label: 'Budget kumuliert (netto)', value: budgetYtdNetto },
           { label: 'Verbraucht kumuliert (Bestellungen)', value: verbrauchtYtd },
           { label: 'Aktionen kumuliert', value: verbrauchtAktionYtd },
-          { label: 'Gesamt kumuliert (Bestellungen + Aktionen)', value: verbrauchtGesamtYtd },
+          { label: 'Gesamt kumuliert (Bestellungen + Aktionen + Sonderbestellung)', value: verbrauchtGesamtYtd },
           { label: 'Rest kumuliert (netto)', value: restYtdNetto },
         ];
 
@@ -280,7 +280,7 @@ export default function BudgetDataPanel({ data, loading, role = '' }) {
                             <span className="text-white font-semibold">{(istVerbrauchSatzYtdExklAktionenBrutto !== undefined && istVerbrauchSatzYtdExklAktionenBrutto !== null) ? formatPercent(istVerbrauchSatzYtdExklAktionenBrutto) : '—'}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span className="text-white/70 text-[11px]">inkl. Aktionen (brutto)</span>
+                            <span className="text-white/70 text-[11px]">inkl. Aktionen & Sonderbestellungen (brutto)</span>
                             <span className="text-white font-semibold">{(istVerbrauchSatzYtdInklAktionenBrutto !== undefined && istVerbrauchSatzYtdInklAktionenBrutto !== null) ? formatPercent(istVerbrauchSatzYtdInklAktionenBrutto) : '—'}</span>
                           </div>
                         </div>

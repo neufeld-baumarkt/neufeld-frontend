@@ -31,6 +31,8 @@ function normalizeRole(role) {
 function canWriteTyp({ isFilialeUser, role, typ }) {
   const r = normalizeRole(role);
 
+  if (typ === 'sonderbestellung') return true;
+
   if (isFilialeUser) return typ === 'bestellung';
   if (r === 'Admin' || r === 'Supervisor') return true;
   if (r === 'Manager-1' || r === 'Geschäftsführer') return typ === 'bestellung' || typ === 'aktionsvorab';
@@ -41,17 +43,23 @@ function canWriteTyp({ isFilialeUser, role, typ }) {
 function allowedCreateTypes({ isFilialeUser, role }) {
   const r = normalizeRole(role);
 
-  if (isFilialeUser) return ['bestellung'];
-  if (r === 'Admin' || r === 'Supervisor') return ['bestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
-  if (r === 'Manager-1' || r === 'Geschäftsführer') return ['bestellung', 'aktionsvorab'];
+  if (isFilialeUser) return ['bestellung', 'sonderbestellung'];
+  if (r === 'Admin' || r === 'Supervisor') {
+    return ['bestellung', 'sonderbestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
+  }
+  if (r === 'Manager-1' || r === 'Geschäftsführer') {
+    return ['bestellung', 'sonderbestellung', 'aktionsvorab'];
+  }
 
-  return [];
+  return ['sonderbestellung'];
 }
 
 function titleForTyp(typ) {
   switch (typ) {
     case 'bestellung':
       return 'Bestellung';
+    case 'sonderbestellung':
+      return 'Sonderbestellung';
     case 'aktionsvorab':
       return 'Aktion';
     case 'abgabe':
@@ -67,10 +75,12 @@ function badgeClasses(typ) {
   switch (typ) {
     case 'bestellung':
       return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30';
+    case 'sonderbestellung':
+      return 'bg-amber-500/20 text-amber-200 border border-amber-500/30';
     case 'aktionsvorab':
       return 'bg-sky-500/20 text-sky-200 border border-sky-500/30';
     case 'abgabe':
-      return 'bg-amber-500/20 text-amber-200 border border-amber-500/30';
+      return 'bg-orange-500/20 text-orange-200 border border-orange-500/30';
     case 'korrektur':
       return 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/30';
     default:
@@ -102,7 +112,6 @@ export default function BudgetBookingsPanel({
   onReload,
   onCreate,
   onUpdate,
-  onDelete,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editBooking, setEditBooking] = useState(null);

@@ -70,6 +70,7 @@ function normalizeLieferantenResponse(payload) {
 
 function typeLabel(typ) {
   if (typ === 'bestellung') return 'Bestellung';
+  if (typ === 'sonderbestellung') return 'Sonderbestellung';
   if (typ === 'aktionsvorab') return 'Aktion';
   return typ || '—';
 }
@@ -124,10 +125,12 @@ export default function BookingModal({
     const base =
       Array.isArray(allowedTypes) && allowedTypes.length > 0
         ? allowedTypes
-        : ['bestellung', 'aktionsvorab'];
+        : ['bestellung', 'sonderbestellung', 'aktionsvorab'];
 
-    // Cut: nur diese beiden
-    return base.filter((t) => t === 'bestellung' || t === 'aktionsvorab');
+    // nur fachlich erlaubte Typen für dieses Modal
+    return base.filter(
+      (t) => t === 'bestellung' || t === 'sonderbestellung' || t === 'aktionsvorab'
+    );
   }, [allowedTypes]);
 
   const [typ, setTyp] = useState('bestellung');
@@ -376,7 +379,7 @@ export default function BookingModal({
   }
 
   function validateSimple() {
-    if (typ !== 'bestellung' && typ !== 'aktionsvorab')
+    if (typ !== 'bestellung' && typ !== 'sonderbestellung' && typ !== 'aktionsvorab')
       return 'Typ ist ungültig.';
 
     const b = parseAmount(betrag);
@@ -388,10 +391,15 @@ export default function BookingModal({
     const l = String(lieferant || '').trim();
     if (!l) return 'Lieferant ist Pflicht.';
 
-    // ✅ Pflichtfeld: aktion_nr bei Aktion
+    // ✅ Pflichtfeld: aktion_nr nur bei Aktion
     if (typ === 'aktionsvorab') {
       const a = String(aktionsnummer || '').trim();
       if (!a) return 'Aktionsnummer ist Pflicht.';
+    }
+
+    if (typ === 'bestellung' || typ === 'sonderbestellung') {
+      const a = String(aktionsnummer || '').trim();
+      if (a) return 'Aktionsnummer ist für diesen Typ unzulässig.';
     }
 
     return null;
@@ -430,7 +438,7 @@ export default function BookingModal({
         lieferant: String(lieferant).trim(),
       };
 
-      // ✅ Backend-Key: aktion_nr
+      // ✅ Backend-Key: aktion_nr nur für Aktion
       if (typ === 'aktionsvorab') {
         payload.aktion_nr = String(aktionsnummer || '').trim();
       }
@@ -476,7 +484,7 @@ export default function BookingModal({
       splits,
     };
 
-    // ✅ Backend-Key: aktion_nr
+    // ✅ Backend-Key: aktion_nr nur für Aktion
     if (typ === 'aktionsvorab') {
       payload.aktion_nr = String(aktionsnummer || '').trim();
     }
@@ -492,6 +500,8 @@ export default function BookingModal({
       toast.success(
         typ === 'aktionsvorab'
           ? 'Gesplittete Aktion angelegt.'
+          : typ === 'sonderbestellung'
+          ? 'Gesplittete Sonderbestellung angelegt.'
           : 'Gesplittete Bestellung angelegt.'
       );
       onClose?.();
@@ -508,7 +518,12 @@ export default function BookingModal({
   const splitOffStyle = splitOn ? 'bg-white/10' : 'bg-[#800000]/40 border-[#800000]/40';
   const splitOnStyle = splitOn ? 'bg-[#2a5a2a]/40 border-[#2a5a2a]/40' : 'bg-white/10';
 
-  const splitTitle = typ === 'aktionsvorab' ? 'Gesplittete Aktion' : 'Gesplittete Bestellung';
+  const splitTitle =
+    typ === 'aktionsvorab'
+      ? 'Gesplittete Aktion'
+      : typ === 'sonderbestellung'
+      ? 'Gesplittete Sonderbestellung'
+      : 'Gesplittete Bestellung';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6">
@@ -559,7 +574,7 @@ export default function BookingModal({
             </label>
           </div>
 
-          {/* ✅ Aktionsnummer (nur bei Aktion) */}
+          {/* ✅ Aktionsnummer nur bei Aktion */}
           {typ === 'aktionsvorab' && (
             <label className="flex flex-col gap-2">
               <span className="text-white/80 font-semibold">Aktionsnummer (Pflicht)</span>
@@ -614,115 +629,116 @@ export default function BookingModal({
             </label>
           </div>
 
-          {/* ✅ Split Switch + Accordion (jetzt auch für Aktion) */}
-          {!isEdit && (typ === 'bestellung' || typ === 'aktionsvorab') && (
-            <div className="space-y-3">
-              <div className={`border rounded-xl p-4 ${splitOn ? splitOnStyle : splitOffStyle}`}>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="font-bold">{splitTitle}</div>
-                    <div className="text-white/70 text-sm">
-                      Standard: AUS. Wenn AN, verteilst du Teilbeträge auf andere Filialen.
+          {/* ✅ Split Switch + Accordion */}
+          {!isEdit &&
+            (typ === 'bestellung' || typ === 'sonderbestellung' || typ === 'aktionsvorab') && (
+              <div className="space-y-3">
+                <div className={`border rounded-xl p-4 ${splitOn ? splitOnStyle : splitOffStyle}`}>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="font-bold">{splitTitle}</div>
+                      <div className="text-white/70 text-sm">
+                        Standard: AUS. Wenn AN, verteilst du Teilbeträge auf andere Filialen.
+                      </div>
                     </div>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSplitOn((v) => !v)}
-                    className={`px-4 py-2 rounded-lg font-semibold transition ${
-                      splitOn ? 'bg-white/20 hover:bg-white/30' : 'bg-white/10 hover:bg-white/20'
-                    }`}
-                  >
-                    {splitOn ? 'AN' : 'AUS'}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setSplitOn((v) => !v)}
+                      className={`px-4 py-2 rounded-lg font-semibold transition ${
+                        splitOn ? 'bg-white/20 hover:bg-white/30' : 'bg-white/10 hover:bg-white/20'
+                      }`}
+                    >
+                      {splitOn ? 'AN' : 'AUS'}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {splitOn && (
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                  <div className="font-semibold mb-2">Filialen auswählen</div>
-                  <div className="text-white/60 text-sm mb-4">
-                    Aktivierte Filialen bekommen Pflicht-Felder. Restbetrag bleibt bei {resolvedSourceFiliale || 'Quelle'}.
-                  </div>
+                {splitOn && (
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div className="font-semibold mb-2">Filialen auswählen</div>
+                    <div className="text-white/60 text-sm mb-4">
+                      Aktivierte Filialen bekommen Pflicht-Felder. Restbetrag bleibt bei {resolvedSourceFiliale || 'Quelle'}.
+                    </div>
 
-                  <div className="space-y-3">
-                    {selectableFilialen.map((f) => {
-                      const entry = splitTargets?.[f] || { enabled: false, amount: '' };
-                      return (
-                        <div key={f} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
-                          <div className="md:col-span-4 flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={!!entry.enabled}
-                              onChange={(e) => {
-                                const enabled = e.target.checked;
-                                setSplitTargets((prev) => ({
-                                  ...prev,
-                                  [f]: { enabled, amount: enabled ? prev?.[f]?.amount ?? '' : '' },
-                                }));
-                              }}
-                            />
-                            <div className="font-semibold">{f}</div>
+                    <div className="space-y-3">
+                      {selectableFilialen.map((f) => {
+                        const entry = splitTargets?.[f] || { enabled: false, amount: '' };
+                        return (
+                          <div key={f} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                            <div className="md:col-span-4 flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={!!entry.enabled}
+                                onChange={(e) => {
+                                  const enabled = e.target.checked;
+                                  setSplitTargets((prev) => ({
+                                    ...prev,
+                                    [f]: { enabled, amount: enabled ? prev?.[f]?.amount ?? '' : '' },
+                                  }));
+                                }}
+                              />
+                              <div className="font-semibold">{f}</div>
+                            </div>
+
+                            <label className="md:col-span-8 flex flex-col gap-1">
+                              <span className="text-white/60 text-xs">
+                                Betrag {f}
+                                {entry.enabled ? ' (Pflicht)' : ''}
+                              </span>
+                              <input
+                                value={entry.amount}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setSplitTargets((prev) => ({
+                                    ...prev,
+                                    [f]: { enabled: true, amount: v },
+                                  }));
+                                }}
+                                disabled={!entry.enabled}
+                                placeholder="z. B. 150,00"
+                                className="bg-white/10 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-40"
+                              />
+                            </label>
                           </div>
+                        );
+                      })}
+                    </div>
 
-                          <label className="md:col-span-8 flex flex-col gap-1">
-                            <span className="text-white/60 text-xs">
-                              Betrag {f}
-                              {entry.enabled ? ' (Pflicht)' : ''}
-                            </span>
-                            <input
-                              value={entry.amount}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setSplitTargets((prev) => ({
-                                  ...prev,
-                                  [f]: { enabled: true, amount: v },
-                                }));
-                              }}
-                              disabled={!entry.enabled}
-                              placeholder="z. B. 150,00"
-                              className="bg-white/10 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/30 disabled:opacity-40"
-                            />
-                          </label>
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                      <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="text-white/60">Summe Splits</div>
+                        <div className="font-semibold">
+                          {Number.isFinite(splitCalc.sum) ? splitCalc.sum.toFixed(2) : '—'}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
 
-                  <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-white/60">Summe Splits</div>
-                      <div className="font-semibold">
-                        {Number.isFinite(splitCalc.sum) ? splitCalc.sum.toFixed(2) : '—'}
+                      <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="text-white/60">Eigenanteil ({resolvedSourceFiliale || 'Quelle'})</div>
+                        <div className="font-semibold">
+                          {splitCalc.rest === null || !Number.isFinite(splitCalc.rest)
+                            ? '—'
+                            : splitCalc.rest.toFixed(2)}
+                        </div>
+                      </div>
+
+                      <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div className="text-white/60">Gesamtbetrag</div>
+                        <div className="font-semibold">
+                          {splitCalc.total === null || !Number.isFinite(splitCalc.total)
+                            ? '—'
+                            : splitCalc.total.toFixed(2)}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-white/60">Eigenanteil ({resolvedSourceFiliale || 'Quelle'})</div>
-                      <div className="font-semibold">
-                        {splitCalc.rest === null || !Number.isFinite(splitCalc.rest)
-                          ? '—'
-                          : splitCalc.rest.toFixed(2)}
-                      </div>
-                    </div>
-
-                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-                      <div className="text-white/60">Gesamtbetrag</div>
-                      <div className="font-semibold">
-                        {splitCalc.total === null || !Number.isFinite(splitCalc.total)
-                          ? '—'
-                          : splitCalc.total.toFixed(2)}
-                      </div>
+                    <div className="text-white/50 text-xs mt-3">
+                      Regel: Summe Split-Beträge darf den Gesamtbetrag nicht überschreiten.
                     </div>
                   </div>
-
-                  <div className="text-white/50 text-xs mt-3">
-                    Regel: Summe Split-Beträge darf den Gesamtbetrag nicht überschreiten.
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
         </div>
 
         {/* Footer */}
