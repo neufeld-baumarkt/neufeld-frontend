@@ -7,6 +7,7 @@ import SupervisorPanel from './pages/SupervisorPanel';
 import AdminPanel from './pages/AdminPanel';
 import Reklamationen from './pages/Reklamationen';
 import Budget from './pages/Budget';
+import Bestellungen from './pages/Bestellungen';
 import Tasks from './pages/Tasks';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
@@ -53,6 +54,16 @@ function App() {
         element={
           <ProtectedRoute>
             <Budget />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Bestellungen */}
+      <Route
+        path="/bestellungen"
+        element={
+          <ProtectedRoute>
+            <Bestellungen />
           </ProtectedRoute>
         }
       />

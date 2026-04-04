@@ -25,6 +25,7 @@ function Startseite() {
   const implementedRoutes = new Set([
     '/reklamationen',
     '/budgetliste',
+    '/bestellungen',
   ]);
 
   const handleNavigate = (path) => {
@@ -104,6 +105,11 @@ function Startseite() {
           <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
             <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
             <span className="text-base font-semibold group-hover:text-[#800000] transition">Budgetliste</span>
+          </div>
+
+          <div className="group cursor-pointer" onClick={() => handleNavigate('/bestellungen')}>
+            <img src="/icons/Bestellungen_gruen_rund.png" alt="Bestellungen" className="w-8 h-8 inline-block mr-2" />
+            <span className="text-base font-semibold group-hover:text-[#800000] transition">Bestellungen</span>
           </div>
 
           <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
