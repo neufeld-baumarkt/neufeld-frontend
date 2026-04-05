@@ -16,7 +16,27 @@ export default function Bestellungen() {
   const [bestellungen, setBestellungen] = useState([]);
   const [loadingBestellungen, setLoadingBestellungen] = useState(false);
 
+  // 🔥 NEU (1:1 aus Reklamationen)
+  const [menuOpen, setMenuOpen] = useState(false);
+
   const baseUrl = import.meta.env.VITE_API_URL;
+
+  let user = null;
+  try {
+    user = JSON.parse(sessionStorage.getItem("user"));
+  } catch {}
+
+  const displayName = user?.name || "Unbekannt";
+
+  const handleZurueck = () => {
+    window.location.href = "/start";
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("token");
+    window.location.href = "/";
+  };
 
   const getToken = () => {
     const token = sessionStorage.getItem('token');
@@ -41,7 +61,6 @@ export default function Bestellungen() {
       const items = Array.isArray(res?.data?.items) ? res.data.items : [];
       setLieferanten(items);
     } catch (err) {
-      console.error('Fehler beim Laden der Lieferanten:', err);
       toast.error('Lieferanten konnten nicht geladen werden.');
       setLieferanten([]);
     } finally {
@@ -63,7 +82,6 @@ export default function Bestellungen() {
       const items = Array.isArray(res?.data?.items) ? res.data.items : [];
       setBestellungen(items);
     } catch (err) {
-      console.error('Fehler beim Laden der Bestellungen:', err);
       toast.error('Bestellungen konnten nicht geladen werden.');
       setBestellungen([]);
     } finally {
@@ -77,8 +95,6 @@ export default function Bestellungen() {
   }, []);
 
   const handleLieferantClick = (lieferant) => {
-    if (!lieferant) return;
-
     setSelectedLieferant(lieferant);
     setIsModalOpen(true);
   };
@@ -89,11 +105,7 @@ export default function Bestellungen() {
 
   const formatDate = (value) => {
     if (!value) return '-';
-    try {
-      return new Date(value).toLocaleDateString('de-DE');
-    } catch {
-      return '-';
-    }
+    return new Date(value).toLocaleDateString('de-DE');
   };
 
   const formatMoney = (value) => {
@@ -105,6 +117,30 @@ export default function Bestellungen() {
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
 
+      {/* 🔥 Animationen (1:1 übernommen) */}
+      <style jsx>{`
+        @keyframes arrowWiggle {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-10px); }
+        }
+      `}</style>
+
+      {/* 🔥 LOGIN INFO + LOGOUT */}
+      <div
+        className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
+        style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
+        onClick={() => setMenuOpen(!menuOpen)}
+      >
+        Angemeldet als: {displayName}
+        {menuOpen && (
+          <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm">
+            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
+              <span>Abmelden</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Layout */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
@@ -112,12 +148,26 @@ export default function Bestellungen() {
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
-      <h1
-        className="absolute text-6xl font-bold text-white z-10"
-        style={{ top: '100px', left: '92px' }}
-      >
+      <h1 className="absolute text-6xl font-bold text-white z-10" style={{ top: '100px', left: '92px' }}>
         Bestellungen (Eigeneinkauf)
       </h1>
+
+      {/* 🔥 ZURÜCK BUTTON (1:1 mit Animation) */}
+      <div
+        className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
+        onClick={handleZurueck}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="36" height="36"
+          fill="white"
+          viewBox="0 0 24 24"
+          className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
+        >
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
+        </svg>
+        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
+      </div>
 
       <div className="absolute top-[260px] left-[90px] right-[80px] bottom-[40px] flex gap-6">
 
@@ -126,57 +176,42 @@ export default function Bestellungen() {
           <div className="text-lg font-semibold mb-4">Lieferanten</div>
 
           {loadingLieferanten ? (
-            <div className="text-white/60">Lade...</div>
+            <div>Lade...</div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {lieferanten.map((l) => (
-                <div
-                  key={l.id}
-                  onClick={() => handleLieferantClick(l)}
-                  className={`px-3 py-2 rounded-lg cursor-pointer transition ${
-                    selectedLieferant?.code === l.code
-                      ? 'bg-[#800000]'
-                      : 'bg-white/10 hover:bg-white/20'
-                  }`}
-                >
-                  {l.name}
-                </div>
-              ))}
-            </div>
+            lieferanten.map((l) => (
+              <div
+                key={l.id}
+                onClick={() => handleLieferantClick(l)}
+                className={`px-3 py-2 rounded-lg cursor-pointer ${
+                  selectedLieferant?.code === l.code ? 'bg-[#800000]' : ''
+                }`}
+              >
+                {l.name}
+              </div>
+            ))
           )}
         </div>
 
         {/* RIGHT */}
-        <div className="flex-1 bg-white/10 rounded-xl border border-white/10 p-6 overflow-auto">
-          <div className="text-xl font-semibold mb-4">Bisherige Bestellungen</div>
-
-          {loadingBestellungen ? (
-            <div className="text-white/60">Lade Bestellungen...</div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {bestellungen.map((b) => (
-                <div key={b.id} className="bg-white/10 p-3 rounded">
-                  {b?.supplier?.name} – {formatMoney(b.gesamtsumme_netto)}
-                </div>
-              ))}
+        <div className="flex-1 bg-white/10 rounded-xl p-6 overflow-auto">
+          {bestellungen.map((b) => (
+            <div key={b.id}>
+              {b?.supplier?.name} – {formatMoney(b.gesamtsumme_netto)}
             </div>
-          )}
+          ))}
         </div>
       </div>
 
-      {/* MODALS */}
       <BestellModalMellerud
         isOpen={isModalOpen && selectedLieferant?.code === 'mellerud'}
         lieferant={selectedLieferant}
         onClose={closeModal}
       />
-
       <BestellModalChamberlain
         isOpen={isModalOpen && selectedLieferant?.code === 'chamberlain'}
         lieferant={selectedLieferant}
         onClose={closeModal}
       />
-
       <BestellModalBevermann
         isOpen={isModalOpen && selectedLieferant?.code === 'bevermann'}
         lieferant={selectedLieferant}
