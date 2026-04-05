@@ -7,6 +7,9 @@ export default function Bestellungen() {
   const [loadingLieferanten, setLoadingLieferanten] = useState(false);
   const [selectedLieferant, setSelectedLieferant] = useState('');
 
+  const [bestellungen, setBestellungen] = useState([]);
+  const [loadingBestellungen, setLoadingBestellungen] = useState(false);
+
   const baseUrl = import.meta.env.VITE_API_URL;
 
   const getToken = () => {
@@ -40,9 +43,47 @@ export default function Bestellungen() {
     }
   };
 
+  const fetchBestellungen = async () => {
+    const token = getToken();
+    if (!token) return;
+
+    try {
+      setLoadingBestellungen(true);
+
+      const res = await axios.get(`${baseUrl}/api/bestellungen`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const items = Array.isArray(res?.data?.items) ? res.data.items : [];
+      setBestellungen(items);
+    } catch (err) {
+      console.error('Fehler beim Laden der Bestellungen:', err);
+      toast.error('Bestellungen konnten nicht geladen werden.');
+      setBestellungen([]);
+    } finally {
+      setLoadingBestellungen(false);
+    }
+  };
+
   useEffect(() => {
     fetchLieferanten();
+    fetchBestellungen();
   }, []);
+
+  const formatDate = (value) => {
+    if (!value) return '-';
+    try {
+      return new Date(value).toLocaleDateString('de-DE');
+    } catch {
+      return '-';
+    }
+  };
+
+  const formatMoney = (value) => {
+    const numberValue = Number(value);
+    if (!Number.isFinite(numberValue)) return '-';
+    return `${numberValue.toFixed(2)} €`;
+  };
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
@@ -101,28 +142,66 @@ export default function Bestellungen() {
           )}
         </div>
 
-        {/* RIGHT: Hauptbereich */}
+        {/* RIGHT: Bestellhistorie */}
         <div className="flex-1 bg-white/10 rounded-xl border border-white/10 p-6 overflow-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xl font-semibold">Bisherige Bestellungen</div>
 
-          {!selectedLieferant ? (
-            <div className="text-white/60">
-              Bitte wähle einen Lieferanten aus.
-            </div>
+            {selectedLieferant ? (
+              <div className="text-sm text-white/60">
+                Ausgewählter Lieferant: {selectedLieferant.toUpperCase()}
+              </div>
+            ) : (
+              <div className="text-sm text-white/40">
+                Lieferant links auswählen, um danach das Bestellmodal zu öffnen
+              </div>
+            )}
+          </div>
+
+          {loadingBestellungen ? (
+            <div className="text-white/60">Lade Bestellungen...</div>
+          ) : bestellungen.length === 0 ? (
+            <div className="text-white/60">Keine Bestellungen vorhanden.</div>
           ) : (
-            <>
-              <div className="text-xl font-semibold mb-4">
-                {selectedLieferant.toUpperCase()}
-              </div>
+            <div className="flex flex-col gap-3">
+              {bestellungen.map((b) => (
+                <div
+                  key={b.id}
+                  className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 hover:bg-white/15 transition"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-lg font-semibold truncate">
+                        {b?.supplier?.name || 'Unbekannter Lieferant'}
+                      </div>
 
-              <div className="text-white/60">
-                [Hier kommt später:]
-                <br />- Bestellhistorie
-                <br />- Artikel
-                <br />- Bestellmodal
-              </div>
-            </>
+                      <div className="text-sm text-white/70 mt-1">
+                        {formatDate(b.bestelldatum)} | KW {b.kw} / {b.jahr}
+                      </div>
+
+                      <div className="text-sm text-white/70 mt-1">
+                        Filiale: {b.filiale || '-'} | Positionen: {b.position_count ?? 0}
+                      </div>
+
+                      <div className="text-sm text-white/70 mt-1">
+                        Bestellt von: {b.ordered_by_name || '-'}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-semibold">
+                        {formatMoney(b.gesamtsumme_netto)}
+                      </div>
+
+                      <div className="text-sm text-white/70 mt-1">
+                        Status: {b.status || '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-
         </div>
 
       </div>
