@@ -2,10 +2,16 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
+import BestellModalMellerud from '../components/bestellungen/BestellModalMellerud';
+import BestellModalChamberlain from '../components/bestellungen/BestellModalChamberlain';
+import BestellModalBevermann from '../components/bestellungen/BestellModalBevermann';
+
 export default function Bestellungen() {
   const [lieferanten, setLieferanten] = useState([]);
   const [loadingLieferanten, setLoadingLieferanten] = useState(false);
-  const [selectedLieferant, setSelectedLieferant] = useState('');
+
+  const [selectedLieferant, setSelectedLieferant] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [bestellungen, setBestellungen] = useState([]);
   const [loadingBestellungen, setLoadingBestellungen] = useState(false);
@@ -70,6 +76,17 @@ export default function Bestellungen() {
     fetchBestellungen();
   }, []);
 
+  const handleLieferantClick = (lieferant) => {
+    if (!lieferant) return;
+
+    setSelectedLieferant(lieferant);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
   const formatDate = (value) => {
     if (!value) return '-';
     try {
@@ -95,29 +112,16 @@ export default function Bestellungen() {
       <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: '7px' }}></div>
       <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
 
-      {/* Titel */}
       <h1
-        className="absolute text-6xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
+        className="absolute text-6xl font-bold text-white z-10"
         style={{ top: '100px', left: '92px' }}
       >
         Bestellungen (Eigeneinkauf)
       </h1>
 
-      {/* Zurück */}
-      <div
-        className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
-        onClick={() => (window.location.href = '/start')}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="white" viewBox="0 0 24 24">
-          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-        </svg>
-        <span className="text-2xl font-medium">Zurück zum Hauptmenü</span>
-      </div>
-
-      {/* Hauptbereich */}
       <div className="absolute top-[260px] left-[90px] right-[80px] bottom-[40px] flex gap-6">
 
-        {/* LEFT: Lieferanten */}
+        {/* LEFT */}
         <div className="w-[260px] bg-white/10 rounded-xl border border-white/10 p-4 overflow-auto">
           <div className="text-lg font-semibold mb-4">Lieferanten</div>
 
@@ -128,9 +132,9 @@ export default function Bestellungen() {
               {lieferanten.map((l) => (
                 <div
                   key={l.id}
-                  onClick={() => setSelectedLieferant(l.code)}
+                  onClick={() => handleLieferantClick(l)}
                   className={`px-3 py-2 rounded-lg cursor-pointer transition ${
-                    selectedLieferant === l.code
+                    selectedLieferant?.code === l.code
                       ? 'bg-[#800000]'
                       : 'bg-white/10 hover:bg-white/20'
                   }`}
@@ -142,69 +146,42 @@ export default function Bestellungen() {
           )}
         </div>
 
-        {/* RIGHT: Bestellhistorie */}
+        {/* RIGHT */}
         <div className="flex-1 bg-white/10 rounded-xl border border-white/10 p-6 overflow-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-xl font-semibold">Bisherige Bestellungen</div>
-
-            {selectedLieferant ? (
-              <div className="text-sm text-white/60">
-                Ausgewählter Lieferant: {selectedLieferant.toUpperCase()}
-              </div>
-            ) : (
-              <div className="text-sm text-white/40">
-                Lieferant links auswählen, um danach das Bestellmodal zu öffnen
-              </div>
-            )}
-          </div>
+          <div className="text-xl font-semibold mb-4">Bisherige Bestellungen</div>
 
           {loadingBestellungen ? (
             <div className="text-white/60">Lade Bestellungen...</div>
-          ) : bestellungen.length === 0 ? (
-            <div className="text-white/60">Keine Bestellungen vorhanden.</div>
           ) : (
             <div className="flex flex-col gap-3">
               {bestellungen.map((b) => (
-                <div
-                  key={b.id}
-                  className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 hover:bg-white/15 transition"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-lg font-semibold truncate">
-                        {b?.supplier?.name || 'Unbekannter Lieferant'}
-                      </div>
-
-                      <div className="text-sm text-white/70 mt-1">
-                        {formatDate(b.bestelldatum)} | KW {b.kw} / {b.jahr}
-                      </div>
-
-                      <div className="text-sm text-white/70 mt-1">
-                        Filiale: {b.filiale || '-'} | Positionen: {b.position_count ?? 0}
-                      </div>
-
-                      <div className="text-sm text-white/70 mt-1">
-                        Bestellt von: {b.ordered_by_name || '-'}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="text-lg font-semibold">
-                        {formatMoney(b.gesamtsumme_netto)}
-                      </div>
-
-                      <div className="text-sm text-white/70 mt-1">
-                        Status: {b.status || '-'}
-                      </div>
-                    </div>
-                  </div>
+                <div key={b.id} className="bg-white/10 p-3 rounded">
+                  {b?.supplier?.name} – {formatMoney(b.gesamtsumme_netto)}
                 </div>
               ))}
             </div>
           )}
         </div>
-
       </div>
+
+      {/* MODALS */}
+      <BestellModalMellerud
+        isOpen={isModalOpen && selectedLieferant?.code === 'mellerud'}
+        lieferant={selectedLieferant}
+        onClose={closeModal}
+      />
+
+      <BestellModalChamberlain
+        isOpen={isModalOpen && selectedLieferant?.code === 'chamberlain'}
+        lieferant={selectedLieferant}
+        onClose={closeModal}
+      />
+
+      <BestellModalBevermann
+        isOpen={isModalOpen && selectedLieferant?.code === 'bevermann'}
+        lieferant={selectedLieferant}
+        onClose={closeModal}
+      />
     </div>
   );
 }
