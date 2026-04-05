@@ -16,26 +16,25 @@ export default function Bestellungen() {
   const [bestellungen, setBestellungen] = useState([]);
   const [loadingBestellungen, setLoadingBestellungen] = useState(false);
 
-  // 🔥 NEU (1:1 aus Reklamationen)
   const [menuOpen, setMenuOpen] = useState(false);
 
   const baseUrl = import.meta.env.VITE_API_URL;
 
   let user = null;
   try {
-    user = JSON.parse(sessionStorage.getItem("user"));
+    user = JSON.parse(sessionStorage.getItem('user'));
   } catch {}
 
-  const displayName = user?.name || "Unbekannt";
+  const displayName = user?.name || 'Unbekannt';
 
   const handleZurueck = () => {
-    window.location.href = "/start";
+    window.location.href = '/start';
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("token");
-    window.location.href = "/";
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    window.location.href = '/';
   };
 
   const getToken = () => {
@@ -103,11 +102,6 @@ export default function Bestellungen() {
     setIsModalOpen(false);
   };
 
-  const formatDate = (value) => {
-    if (!value) return '-';
-    return new Date(value).toLocaleDateString('de-DE');
-  };
-
   const formatMoney = (value) => {
     const numberValue = Number(value);
     if (!Number.isFinite(numberValue)) return '-';
@@ -116,8 +110,6 @@ export default function Bestellungen() {
 
   return (
     <div className="relative w-screen min-h-screen bg-[#3A3838] text-white overflow-hidden">
-
-      {/* 🔥 Animationen (1:1 übernommen) */}
       <style jsx>{`
         @keyframes arrowWiggle {
           0%, 100% { transform: translateX(0); }
@@ -125,23 +117,24 @@ export default function Bestellungen() {
         }
       `}</style>
 
-      {/* 🔥 LOGIN INFO + LOGOUT */}
       <div
-        className="absolute top-[20px] text-xl font-semibold text-white cursor-pointer select-none"
+        className="absolute top-[20px] z-20 text-xl font-semibold text-white cursor-pointer select-none"
         style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
         onClick={() => setMenuOpen(!menuOpen)}
       >
         Angemeldet als: {displayName}
         {menuOpen && (
           <div className="absolute right-0 mt-2 bg-white/90 text-black rounded shadow-lg z-50 px-5 py-4 backdrop-blur-sm">
-            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition">
+            <div
+              onClick={handleLogout}
+              className="hover:bg-gray-100 cursor-pointer flex items-center gap-3 py-2 px-2 rounded transition"
+            >
               <span>Abmelden</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Layout */}
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: '57px' }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: '57px' }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '7px' }}></div>
@@ -152,14 +145,14 @@ export default function Bestellungen() {
         Bestellungen (Eigeneinkauf)
       </h1>
 
-      {/* 🔥 ZURÜCK BUTTON (1:1 mit Animation) */}
       <div
         className="absolute top-[180px] left-[90px] cursor-pointer flex items-center gap-4 text-white hover:text-gray-300 transition-all group"
         onClick={handleZurueck}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          width="36" height="36"
+          width="36"
+          height="36"
           fill="white"
           viewBox="0 0 24 24"
           className="transition-all duration-200 group-hover:animate-[arrowWiggle_1s_ease-in-out_infinite]"
@@ -170,8 +163,6 @@ export default function Bestellungen() {
       </div>
 
       <div className="absolute top-[260px] left-[90px] right-[80px] bottom-[40px] flex gap-6">
-
-        {/* LEFT */}
         <div className="w-[260px] bg-white/10 rounded-xl border border-white/10 p-4 overflow-auto">
           <div className="text-lg font-semibold mb-4">Lieferanten</div>
 
@@ -192,7 +183,6 @@ export default function Bestellungen() {
           )}
         </div>
 
-        {/* RIGHT */}
         <div className="flex-1 bg-white/10 rounded-xl p-6 overflow-auto">
           {bestellungen.map((b) => (
             <div key={b.id}>
