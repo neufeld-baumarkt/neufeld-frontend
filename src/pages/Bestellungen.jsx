@@ -102,6 +102,10 @@ export default function Bestellungen() {
     setIsModalOpen(false);
   };
 
+  const handleBestellungSaved = async () => {
+    await fetchBestellungen();
+  };
+
   const formatMoney = (value) => {
     const numberValue = Number(value);
     if (!Number.isFinite(numberValue)) return '-';
@@ -196,6 +200,7 @@ export default function Bestellungen() {
         isOpen={isModalOpen && selectedLieferant?.code === 'mellerud'}
         lieferant={selectedLieferant}
         onClose={closeModal}
+        onSaved={handleBestellungSaved}
       />
       <BestellModalChamberlain
         isOpen={isModalOpen && selectedLieferant?.code === 'chamberlain'}
