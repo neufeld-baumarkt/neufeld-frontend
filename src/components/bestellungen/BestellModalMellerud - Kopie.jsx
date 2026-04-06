@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSaved }) {
+export default function BestellModalMellerud({ isOpen, lieferant, onClose }) {
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [loadingArticles, setLoadingArticles] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const [profiles, setProfiles] = useState([]);
   const [articles, setArticles] = useState([]);
@@ -41,7 +40,6 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   };
 
   const closeAndReset = () => {
-    if (saving) return;
     setMengen({});
     setProfiles([]);
     setArticles([]);
@@ -168,81 +166,6 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     return rows.reduce((sum, row) => sum + row.mengeKartons, 0);
   }, [rows]);
 
-  const aktivePositionen = useMemo(() => {
-    return rows
-      .filter((row) => Number.isInteger(row.mengeKartons) && row.mengeKartons > 0)
-      .map((row) => ({
-        articleId: row.id,
-        menge_kartons: row.mengeKartons,
-      }));
-  }, [rows]);
-
-  const requiresFilialeSelection = isSuperUser;
-  const isFilialeLocked = requiresFilialeSelection && !selectedFiliale;
-  const isFormLocked = loadingProfiles || loadingArticles || saving || isFilialeLocked;
-  const canSave = !isFormLocked && aktivePositionen.length > 0;
-
-  const handleSave = async () => {
-    if (saving) return;
-
-    const token = getToken();
-    if (!token) return;
-
-    if (requiresFilialeSelection && !selectedFiliale) {
-      toast.error('Bitte zuerst eine Filiale auswählen.');
-      return;
-    }
-
-    if (aktivePositionen.length === 0) {
-      toast.error('Bitte mindestens einen Artikel mit Kartonmenge > 0 erfassen.');
-      return;
-    }
-
-    const payload = {
-      order: {
-        supplier: lieferant?.code,
-        filiale: selectedFiliale,
-        bestelldatum: todayIso,
-        status: 'saved',
-        positionen: aktivePositionen,
-      },
-      budget: {
-        typ: 'bestellung',
-        splits: [],
-      },
-    };
-
-    try {
-      setSaving(true);
-
-      await axios.post(
-        `${baseUrl}/api/bestellungen`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      toast.success('Bestellung erfolgreich gespeichert.');
-
-      if (typeof onSaved === 'function') {
-        onSaved();
-      }
-
-      closeAndReset();
-    } catch (err) {
-      console.error('Fehler beim Speichern der Bestellung:', err);
-      const message =
-        err?.response?.data?.message ||
-        'Bestellung konnte nicht gespeichert werden.';
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -283,8 +206,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                 <button
                   type="button"
                   onClick={closeAndReset}
-                  disabled={saving}
-                  className="shrink-0 px-4 py-2 rounded-lg border border-black/15 hover:bg-black/5 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="shrink-0 px-4 py-2 rounded-lg border border-black/15 hover:bg-black/5 transition"
                 >
                   Schließen
                 </button>
@@ -303,7 +225,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                       <select
                         value={selectedFiliale}
                         onChange={(e) => setSelectedFiliale(e.target.value)}
-                        disabled={!isSuperUser || saving}
+                        disabled={!isSuperUser}
                         className="w-full h-[42px] rounded-lg border border-black/20 px-3 bg-white disabled:bg-black/5"
                       >
                         {isSuperUser && <option value="">Bitte Filiale auswählen</option>}
@@ -331,7 +253,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                   </div>
                 </div>
 
-                <div className={`mt-5 grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-3 text-[15px] ${isFilialeLocked ? 'opacity-50' : ''}`}>
+                <div className="mt-5 grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-3 text-[15px]">
                   <div className="flex items-center gap-3">
                     <div className="w-[130px] font-semibold">Firma:</div>
                     <div className="flex-1 min-h-[34px] border-b border-black/40 flex items-end pb-1">
@@ -379,7 +301,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
           </div>
 
           {/* Tabelle */}
-          <div className={`flex-1 overflow-auto bg-white ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+          <div className="flex-1 overflow-auto bg-white">
             <table className="w-full border-collapse text-[14px]">
               <thead className="sticky top-0 z-10 bg-[#f4f4f4]">
                 <tr className="border-b border-black">
@@ -430,8 +352,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                           step="1"
                           value={mengen[row.id] ?? ''}
                           onChange={(e) => handleMengeChange(row.id, e.target.value)}
-                          disabled={isFormLocked}
-                          className="w-[92px] h-[36px] rounded-md border border-black/20 px-2 text-right bg-white disabled:bg-black/5 disabled:text-black/50"
+                          className="w-[92px] h-[36px] rounded-md border border-black/20 px-2 text-right bg-white"
                         />
                       </td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap font-semibold">
@@ -452,7 +373,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                   Die Ware bleibt bis zur vollständigen Bezahlung unser Eigentum.
                 </div>
 
-                <div className="flex items-center gap-4 xl:gap-8">
+                <div className="flex items-center gap-8">
                   <div className="text-right">
                     <div className="text-sm text-black/60">Gesamt Kartons</div>
                     <div className="text-2xl font-bold">{totalKartons}</div>
@@ -462,27 +383,12 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                     <div className="text-sm text-black/60">Gesamtsumme netto</div>
                     <div className="text-3xl font-extrabold">{formatMoney(gesamtsumme)}</div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={!canSave}
-                    className="h-[44px] px-5 rounded-lg bg-black text-white font-semibold hover:bg-black/90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? 'Speichert...' : 'Bestellung speichern'}
-                  </button>
                 </div>
               </div>
 
               {isSuperUser && !selectedFiliale && (
                 <div className="mt-3 text-sm font-semibold text-red-700">
-                  Bitte zuerst eine Filiale auswählen. Bis dahin bleibt die Bestellung gesperrt.
-                </div>
-              )}
-
-              {!isFilialeLocked && !saving && aktivePositionen.length === 0 && (
-                <div className="mt-3 text-sm font-semibold text-red-700">
-                  Bitte mindestens einen Artikel mit Kartonmenge &gt; 0 erfassen.
+                  Bitte zuerst eine Filiale auswählen.
                 </div>
               )}
             </div>
