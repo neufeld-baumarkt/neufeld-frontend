@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import SplitModal_Mellerud from './SplitModal_Mellerud';
 
 export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSaved }) {
   const [loadingProfiles, setLoadingProfiles] = useState(false);
@@ -10,6 +11,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const [profiles, setProfiles] = useState([]);
   const [articles, setArticles] = useState([]);
   const [mengen, setMengen] = useState({});
+  const [splitDataByArticle, setSplitDataByArticle] = useState({});
+  const [splitModalArticle, setSplitModalArticle] = useState(null);
 
   const [selectedFiliale, setSelectedFiliale] = useState('');
   const baseUrl = import.meta.env.VITE_API_URL;
@@ -43,6 +46,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const closeAndReset = () => {
     if (saving) return;
     setMengen({});
+    setSplitDataByArticle({});
+    setSplitModalArticle(null);
     setProfiles([]);
     setArticles([]);
     setSelectedFiliale('');
@@ -108,6 +113,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     loadProfiles();
     loadArticles();
     setMengen({});
+    setSplitDataByArticle({});
+    setSplitModalArticle(null);
   }, [isOpen, lieferant?.code]);
 
   const selectedProfile = useMemo(() => {
@@ -127,6 +134,33 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     }
 
     setMengen((prev) => ({ ...prev, [articleId]: parsed }));
+  };
+
+  const handleOpenSplitModal = (row) => {
+    if (isFormLocked) return;
+    if (!Number.isInteger(row.mengeKartons) || row.mengeKartons <= 0) {
+      toast.error('Bitte zuerst eine Kartonmenge > 0 erfassen.');
+      return;
+    }
+    setSplitModalArticle(row);
+  };
+
+  const handleSaveSplitForArticle = (articleId, splitBlock) => {
+    if (!articleId) return;
+
+    if (!splitBlock || !Array.isArray(splitBlock.zeilen) || splitBlock.zeilen.length === 0) {
+      setSplitDataByArticle((prev) => {
+        const next = { ...prev };
+        delete next[articleId];
+        return next;
+      });
+      return;
+    }
+
+    setSplitDataByArticle((prev) => ({
+      ...prev,
+      [articleId]: splitBlock,
+    }));
   };
 
   const formatMoney = (value) => {
@@ -150,15 +184,24 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
           ? ekProKarton * mengeKartons
           : 0;
 
+      const splitBlock = splitDataByArticle[article.id] || null;
+      const hasActiveSplit =
+        !!splitBlock &&
+        splitBlock.active === true &&
+        Array.isArray(splitBlock.zeilen) &&
+        splitBlock.zeilen.length > 0;
+
       return {
         ...article,
         mengeKartons,
         ekEinzel,
         ekProKarton,
         zeilensumme,
+        splitBlock,
+        hasActiveSplit,
       };
     });
-  }, [articles, mengen]);
+  }, [articles, mengen, splitDataByArticle]);
 
   const gesamtsumme = useMemo(() => {
     return rows.reduce((sum, row) => sum + row.zeilensumme, 0);
@@ -391,19 +434,20 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">VE-EK</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">Kartons</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">Zeilensumme</th>
+                  <th className="text-center px-3 py-3 font-bold whitespace-nowrap">Split</th>
                 </tr>
               </thead>
 
               <tbody>
                 {loadingArticles ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
                       Lade Mellerud-Artikel...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
                       Keine Artikel vorhanden.
                     </td>
                   </tr>
@@ -436,6 +480,32 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                       </td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap font-semibold">
                         {formatMoney(row.zeilensumme)}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenSplitModal(row)}
+                          disabled={isFormLocked || row.mengeKartons <= 0}
+                          className={[
+                            'relative inline-flex h-[28px] w-[54px] items-center rounded-full transition-colors',
+                            row.hasActiveSplit ? 'bg-green-500' : 'bg-black/15',
+                            (isFormLocked || row.mengeKartons <= 0) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                          ].join(' ')}
+                          title={
+                            row.mengeKartons <= 0
+                              ? 'Bitte zuerst Kartonmenge > 0 erfassen'
+                              : row.hasActiveSplit
+                              ? 'Split bearbeiten'
+                              : 'Split anlegen'
+                          }
+                        >
+                          <span
+                            className={[
+                              'inline-block h-[22px] w-[22px] transform rounded-full bg-white shadow transition-transform',
+                              row.hasActiveSplit ? 'translate-x-[28px]' : 'translate-x-[4px]'
+                            ].join(' ')}
+                          />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -489,6 +559,21 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
           </div>
         </div>
       </div>
+
+      <SplitModal_Mellerud
+        isOpen={!!splitModalArticle}
+        onClose={() => setSplitModalArticle(null)}
+        onSave={(splitBlock) => {
+          if (!splitModalArticle?.id) return;
+          handleSaveSplitForArticle(splitModalArticle.id, splitBlock);
+          setSplitModalArticle(null);
+        }}
+        article={splitModalArticle}
+        sourceFiliale={selectedFiliale}
+        bestellteKartons={splitModalArticle?.mengeKartons || 0}
+        existingSplitData={splitModalArticle ? splitDataByArticle[splitModalArticle.id] || null : null}
+        filialen={profiles.map((profile) => profile.filiale)}
+      />
     </div>
   );
 }
