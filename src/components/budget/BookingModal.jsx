@@ -29,6 +29,51 @@ function parseAmount(value) {
   return n;
 }
 
+function parseAktionsnummerTarget(value) {
+  const raw = String(value ?? '').trim();
+
+  if (!raw) {
+    return {
+      ok: false,
+      message: 'Aktionsnummer ist Pflicht.',
+    };
+  }
+
+  if (raw.length !== 6) {
+    return {
+      ok: false,
+      message: 'Aktionsnummer ist ungültig. Erwartet werden exakt 6 Zeichen, z. B. A02645 oder S02645.',
+    };
+  }
+
+  const yearPart = raw.slice(2, 4);
+  const kwPart = raw.slice(4, 6);
+
+  if (!/^\d{2}$/.test(yearPart) || !/^\d{2}$/.test(kwPart)) {
+    return {
+      ok: false,
+      message: 'Aktionsnummer ist ungültig. Stellen 3-4 müssen das Jahr und Stellen 5-6 die KW enthalten.',
+    };
+  }
+
+  const jahr = 2000 + Number(yearPart);
+  const kw = Number(kwPart);
+
+  if (!Number.isInteger(kw) || kw < 1 || kw > 53) {
+    return {
+      ok: false,
+      message: 'Aktionsnummer ist ungültig. Die KW muss zwischen 01 und 53 liegen.',
+    };
+  }
+
+  return {
+    ok: true,
+    jahr,
+    kw,
+    raw,
+  };
+}
+
 // Robust gegen payload.rows + verschiedene Feldnamen
 function normalizeLieferantenResponse(payload) {
   if (!payload) return [];
@@ -162,6 +207,24 @@ export default function BookingModal({
       .filter((f) => f && String(f).trim().length > 0)
       .filter((f) => !src || f !== src);
   }, [filialen, resolvedSourceFiliale]);
+
+  const aktionsnummerPreview = useMemo(() => {
+    if (typ !== 'aktionsvorab') return null;
+    const parsed = parseAktionsnummerTarget(aktionsnummer);
+    return parsed.ok ? parsed : null;
+  }, [typ, aktionsnummer]);
+
+  const uiWeekMismatch = useMemo(() => {
+    if (typ !== 'aktionsvorab') return false;
+    if (!aktionsnummerPreview) return false;
+
+    const uiJahr = Number(jahr);
+    const uiKw = Number(kw);
+
+    if (!Number.isFinite(uiJahr) || !Number.isFinite(uiKw)) return false;
+
+    return aktionsnummerPreview.jahr !== uiJahr || aktionsnummerPreview.kw !== uiKw;
+  }, [typ, aktionsnummerPreview, jahr, kw]);
 
   const loadLieferanten = async () => {
     const token = sessionStorage.getItem('token');
@@ -393,8 +456,8 @@ export default function BookingModal({
 
     // ✅ Pflichtfeld: aktion_nr nur bei Aktion
     if (typ === 'aktionsvorab') {
-      const a = String(aktionsnummer || '').trim();
-      if (!a) return 'Aktionsnummer ist Pflicht.';
+      const parsed = parseAktionsnummerTarget(aktionsnummer);
+      if (!parsed.ok) return parsed.message;
     }
 
     if (typ === 'bestellung' || typ === 'sonderbestellung') {
@@ -424,12 +487,45 @@ export default function BookingModal({
     return null;
   }
 
+  function confirmAktionsnummerTargetIfNeeded() {
+    if (typ !== 'aktionsvorab') return true;
+
+    const parsed = parseAktionsnummerTarget(aktionsnummer);
+    if (!parsed.ok) {
+      toast.error(parsed.message);
+      return false;
+    }
+
+    const uiJahr = Number(jahr);
+    const uiKw = Number(kw);
+
+    if (!Number.isFinite(uiJahr) || !Number.isFinite(uiKw)) {
+      return true;
+    }
+
+    if (parsed.jahr === uiJahr && parsed.kw === uiKw) {
+      return true;
+    }
+
+    const confirmed = window.confirm(
+      `Achtung:\n\n` +
+        `Du befindest dich aktuell in Jahr ${uiJahr} / KW ${uiKw}.\n` +
+        `Die Aktionsnummer ${parsed.raw} gehört jedoch zu Jahr ${parsed.jahr} / KW ${parsed.kw}.\n\n` +
+        `Diese Buchung wird fachlich in Jahr ${parsed.jahr} / KW ${parsed.kw} gespeichert.\n\n` +
+        `Trotzdem fortfahren?`
+    );
+
+    return confirmed;
+  }
+
   async function handleSubmit() {
     if (!onSubmit) return;
 
     if (!splitOn) {
       const err = validateSimple();
       if (err) return toast.error(err);
+
+      if (!confirmAktionsnummerTargetIfNeeded()) return;
 
       const payload = {
         typ,
@@ -452,6 +548,8 @@ export default function BookingModal({
 
     const err = validateSplit();
     if (err) return toast.error(err);
+
+    if (!confirmAktionsnummerTargetIfNeeded()) return;
 
     const j = Number(jahr);
     const k = Number(kw);
@@ -576,15 +674,37 @@ export default function BookingModal({
 
           {/* ✅ Aktionsnummer nur bei Aktion */}
           {typ === 'aktionsvorab' && (
-            <label className="flex flex-col gap-2">
-              <span className="text-white/80 font-semibold">Aktionsnummer (Pflicht)</span>
-              <input
-                value={aktionsnummer}
-                onChange={(e) => setAktionsnummer(e.target.value)}
-                placeholder="z. B. 2026-01 / 4711 / ..."
-                className="bg-white/10 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/30"
-              />
-            </label>
+            <div className="space-y-2">
+              <label className="flex flex-col gap-2">
+                <span className="text-white/80 font-semibold">Aktionsnummer (Pflicht)</span>
+                <input
+                  value={aktionsnummer}
+                  onChange={(e) => setAktionsnummer(e.target.value)}
+                  placeholder="z. B. A02645"
+                  className="bg-white/10 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/30"
+                />
+              </label>
+
+              <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                {aktionsnummerPreview ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <span className="text-white/70">Aktionsnummer-Ziel:</span>
+                    <span className="font-semibold text-white">
+                      Jahr {aktionsnummerPreview.jahr} / KW {aktionsnummerPreview.kw}
+                    </span>
+                    {uiWeekMismatch && (
+                      <span className="text-amber-300">
+                        Achtung: entspricht nicht der aktuell geöffneten UI-Woche.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-white/50">
+                    Maßgeblich sind Stellen 3-4 = Jahr und 5-6 = KW, z. B. A02645 → 2026 / KW 45.
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Beschreibung */}
