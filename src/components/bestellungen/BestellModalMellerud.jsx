@@ -3,6 +3,47 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import SplitModal_Mellerud from './SplitModal_Mellerud';
 
+function normalizeFiliale(value) {
+  const t = String(value || '').trim();
+  return t ? t : '';
+}
+
+function toMoneyNumber(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+function buildBudgetSplitsFromArticles(splitDataByArticle, rows, sourceFiliale) {
+  const source = normalizeFiliale(sourceFiliale);
+  const sumByFiliale = new Map();
+
+  for (const row of rows) {
+    if (!Number.isInteger(row.mengeKartons) || row.mengeKartons <= 0) continue;
+
+    const splitBlock = splitDataByArticle?.[row.id];
+    if (!splitBlock || splitBlock.active !== true) continue;
+
+    const zeilen = Array.isArray(splitBlock.zeilen) ? splitBlock.zeilen : [];
+    for (const zeile of zeilen) {
+      const targetFiliale = normalizeFiliale(zeile?.target_filiale);
+      const betrag = toMoneyNumber(zeile?.betrag_netto_berechnet);
+
+      if (!targetFiliale) continue;
+      if (targetFiliale === source) continue;
+      if (betrag <= 0) continue;
+
+      const current = sumByFiliale.get(targetFiliale) || 0;
+      sumByFiliale.set(targetFiliale, Math.round((current + betrag) * 100) / 100);
+    }
+  }
+
+  return Array.from(sumByFiliale.entries()).map(([filiale, betrag]) => ({
+    filiale,
+    betrag,
+  }));
+}
+
 export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSaved }) {
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [loadingArticles, setLoadingArticles] = useState(false);
@@ -124,6 +165,12 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const handleMengeChange = (articleId, value) => {
     if (value === '') {
       setMengen((prev) => ({ ...prev, [articleId]: '' }));
+      setSplitDataByArticle((prev) => {
+        if (!prev[articleId]) return prev;
+        const next = { ...prev };
+        delete next[articleId];
+        return next;
+      });
       return;
     }
 
@@ -134,6 +181,12 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     }
 
     setMengen((prev) => ({ ...prev, [articleId]: parsed }));
+    setSplitDataByArticle((prev) => {
+      if (!prev[articleId]) return prev;
+      const next = { ...prev };
+      delete next[articleId];
+      return next;
+    });
   };
 
   const handleOpenSplitModal = (row) => {
@@ -220,6 +273,10 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
       }));
   }, [rows]);
 
+  const budgetSplits = useMemo(() => {
+    return buildBudgetSplitsFromArticles(splitDataByArticle, rows, selectedFiliale);
+  }, [splitDataByArticle, rows, selectedFiliale]);
+
   const requiresFilialeSelection = isSuperUser;
   const isFilialeLocked = requiresFilialeSelection && !selectedFiliale;
   const isFormLocked = loadingProfiles || loadingArticles || saving || isFilialeLocked;
@@ -248,10 +305,11 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
         bestelldatum: todayIso,
         status: 'saved',
         positionen: aktivePositionen,
+        split_details: splitDataByArticle,
       },
       budget: {
         typ: 'bestellung',
-        splits: [],
+        splits: budgetSplits,
       },
     };
 
