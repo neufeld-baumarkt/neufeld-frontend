@@ -241,8 +241,15 @@ export default function Budget() {
   const isFilialeUser = role === 'Filiale';
   const isSuperUser = !isFilialeUser;
 
-  const canEditUmsatz = role === 'Admin' || role === 'Supervisor';
-  const canEditRule = role === 'Admin' || role === 'Supervisor';
+  const canEditUmsatz =
+  role === 'Admin' ||
+  role === 'Supervisor' ||
+  role === 'Geschäftsführer';
+  
+  const canEditRule =
+  role === 'Admin' ||
+  role === 'Supervisor' ||
+  role === 'Geschäftsführer';
 
   const { year: defaultYear, week: defaultWeek } = useMemo(() => getIsoWeekYear(new Date()), []);
   const [jahr, setJahr] = useState(defaultYear);
