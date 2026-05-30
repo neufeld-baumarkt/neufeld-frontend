@@ -8,6 +8,7 @@ import BudgetWeekNavigator from '../components/budget/BudgetWeekNavigator';
 import FilialePicker from '../components/budget/FilialePicker';
 import BudgetDataPanel from '../components/budget/BudgetDataPanel';
 import BudgetBookingsPanel from '../components/budget/BudgetBookingsPanel';
+import BudgetAnalyseModal from '../components/budget/BudgetAnalyseModal';
 
 function getIsoWeekYear(date = new Date()) {
   // ISO week calculation (no libs)
@@ -272,7 +273,7 @@ export default function Budget() {
 
   // Settings Modal
   const [settingsOpen, setSettingsOpen] = useState(false);
-
+  const [analyseOpen, setAnalyseOpen] = useState(false);
   // Rule State (für Modal)
   const [ruleLoading, setRuleLoading] = useState(false);
   const [ruleSaving, setRuleSaving] = useState(false);
@@ -569,7 +570,7 @@ export default function Budget() {
           <FilialePicker isSuperUser={isSuperUser} filiale={filiale} setFiliale={setFiliale} />
         </div>
 
-        <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4">
           {/* HIER: Statt Inline-Umsatz -> 1 Button -> gemeinsames Modal */}
           {canOpenSettings && (
             <button
@@ -584,6 +585,15 @@ export default function Budget() {
           )}
 
           <button
+            type="button"
+            onClick={() => setAnalyseOpen(true)}
+            className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition"
+          >
+            📊 Budgetanalyse
+          </button>
+
+          <button
+            type="button"
             onClick={reloadAll}
             disabled={disabledByLoading}
             className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
@@ -594,7 +604,7 @@ export default function Budget() {
       </div>
 
       <div className="absolute top-[310px] left-[90px] right-[80px] bottom-[40px] overflow-auto pr-2">
-        <BudgetDataPanel data={mergedBudgetData} loading={loadingBudget} role={role} />
+  <BudgetDataPanel data={mergedBudgetData} loading={loadingBudget} role={role} />
 
         <div className="mt-8">
           <BudgetBookingsPanel
@@ -613,8 +623,7 @@ export default function Budget() {
           />
         </div>
       </div>
-
-      <BudgetSettingsModal
+            <BudgetSettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         jahr={jahr}
@@ -634,6 +643,11 @@ export default function Budget() {
         setPercentUi={setPercentUi}
         mwstUi={mwstUi}
         onSaveRule={saveRule}
+      />
+
+      <BudgetAnalyseModal
+        isOpen={analyseOpen}
+        onClose={() => setAnalyseOpen(false)}
       />
     </div>
   );
