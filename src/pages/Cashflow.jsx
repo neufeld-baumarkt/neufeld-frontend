@@ -1,6 +1,7 @@
 // src/pages/Cashflow.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CashflowWeekGrid from '../components/cashflow/CashflowWeekGrid';
 
 function getIsoWeekYear(date = new Date()) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -40,9 +41,15 @@ export default function Cashflow() {
   const [bisKw, setBisKw] = useState(defaultWeek);
   const [analyseOpen, setAnalyseOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
   const [kpis, setKpis] = useState(null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [kpisError, setKpisError] = useState('');
+
+  const [weeksData, setWeeksData] = useState([]);
+  const [buchungen, setBuchungen] = useState([]);
+  const [cashflowLoading, setCashflowLoading] = useState(false);
+  const [cashflowError, setCashflowError] = useState('');
 
   const canUseCashflow =
     role === 'Admin' ||
@@ -52,26 +59,30 @@ export default function Cashflow() {
   const years = [2024, 2025, 2026];
   const weeks = Array.from({ length: 53 }, (_, index) => index + 1);
 
-  const loadKpis = async () => {
-    if (!canUseCashflow) return;
-
+  const getApiBasics = () => {
     const token = sessionStorage.getItem('token');
     const baseUrl = import.meta.env.VITE_API_URL;
 
     if (!token) {
-      setKpisError('Kein Token gefunden.');
-      return;
+      throw new Error('Kein Token gefunden.');
     }
 
     if (!baseUrl) {
-      setKpisError('VITE_API_URL fehlt.');
-      return;
+      throw new Error('VITE_API_URL fehlt.');
     }
+
+    return { token, baseUrl };
+  };
+
+  const loadKpis = async () => {
+    if (!canUseCashflow) return;
 
     setKpisLoading(true);
     setKpisError('');
 
     try {
+      const { token, baseUrl } = getApiBasics();
+
       const response = await fetch(
         `${baseUrl}/api/cashflow/kpis?jahr=${jahr}&bisKw=${bisKw}`,
         {
@@ -84,7 +95,7 @@ export default function Cashflow() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || `HTTP ${response.status}`);
+        throw new Error(data?.error || data?.message || `HTTP ${response.status}`);
       }
 
       console.log('Cashflow KPIs:', data);
@@ -98,13 +109,77 @@ export default function Cashflow() {
     }
   };
 
+  const loadCashflowData = async () => {
+    if (!canUseCashflow) return;
+
+    setCashflowLoading(true);
+    setCashflowError('');
+
+    try {
+      const { token, baseUrl } = getApiBasics();
+
+      const [weeksResponse, buchungenResponse] = await Promise.all([
+        fetch(
+          `${baseUrl}/api/cashflow/jahresuebersicht?jahr=${jahr}&bisKw=${bisKw}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        ),
+        fetch(
+          `${baseUrl}/api/cashflow/buchungen?jahr=${jahr}&bisKw=${bisKw}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        ),
+      ]);
+
+      const weeksJson = await weeksResponse.json();
+      const buchungenJson = await buchungenResponse.json();
+
+      if (!weeksResponse.ok) {
+        throw new Error(
+          weeksJson?.error ||
+          weeksJson?.message ||
+          `HTTP ${weeksResponse.status} bei Jahresübersicht`
+        );
+      }
+
+      if (!buchungenResponse.ok) {
+        throw new Error(
+          buchungenJson?.error ||
+          buchungenJson?.message ||
+          `HTTP ${buchungenResponse.status} bei Buchungen`
+        );
+      }
+
+      console.log('Cashflow Jahresübersicht:', weeksJson);
+      console.log('Cashflow Buchungen:', buchungenJson);
+
+      setWeeksData(Array.isArray(weeksJson?.weeks) ? weeksJson.weeks : []);
+      setBuchungen(Array.isArray(buchungenJson?.buchungen) ? buchungenJson.buchungen : []);
+    } catch (error) {
+      console.error('Cashflow-Daten konnten nicht geladen werden:', error);
+      setWeeksData([]);
+      setBuchungen([]);
+      setCashflowError(error.message || 'Cashflow-Daten konnten nicht geladen werden.');
+    } finally {
+      setCashflowLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadKpis();
+    loadCashflowData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jahr, bisKw, canUseCashflow]);
 
   const reloadAll = () => {
     loadKpis();
+    loadCashflowData();
   };
 
   const handleZurueck = () => {
@@ -265,16 +340,29 @@ export default function Cashflow() {
           <div className="bg-white/10 border border-white/10 rounded-2xl p-8 shadow-[6px_6px_18px_rgba(0,0,0,0.45)]">
             <div className="flex items-start justify-between gap-6 mb-6">
               <div>
-                <div className="text-2xl font-bold">Buchungen</div>
+                <div className="text-2xl font-bold">Wochenübersicht</div>
                 <div className="text-white/70 mt-1">
                   Jahr {jahr} · bis KW {bisKw}
                 </div>
               </div>
 
               <div className="text-right text-white/60 text-sm">
-                {kpisLoading ? 'Lade KPIs…' : kpisError ? 'KPI-Fehler' : kpis ? 'KPIs geladen' : 'Phase 1 · Grundseite'}
+                {cashflowLoading
+                  ? 'Lade Cashflow…'
+                  : cashflowError
+                    ? 'Cashflow-Fehler'
+                    : `${buchungen.length} Buchungen geladen`}
+                <div className="mt-1">
+                  {kpisLoading ? 'Lade KPIs…' : kpisError ? 'KPI-Fehler' : kpis ? 'KPIs geladen' : 'Phase 2A'}
+                </div>
               </div>
             </div>
+
+            {cashflowError && (
+              <div className="mb-4 rounded-xl bg-red-900/40 border border-red-400/30 px-4 py-3 text-red-100">
+                {cashflowError}
+              </div>
+            )}
 
             {kpisError && (
               <div className="mb-4 rounded-xl bg-red-900/40 border border-red-400/30 px-4 py-3 text-red-100">
@@ -282,20 +370,16 @@ export default function Cashflow() {
               </div>
             )}
 
-            <div className="rounded-xl border border-white/10 overflow-hidden">
-              <div className="grid grid-cols-12 gap-2 bg-black/30 px-4 py-3 text-sm font-semibold text-white/80">
-                <div className="col-span-2">Datum</div>
-                <div className="col-span-1">KW</div>
-                <div className="col-span-3">Kategorie</div>
-                <div className="col-span-3">Beschreibung</div>
-                <div className="col-span-2 text-right">Betrag</div>
-                <div className="col-span-1 text-right">Aktion</div>
+            {cashflowLoading ? (
+              <div className="text-center text-white/60 py-12">
+                Lade Wochenübersicht…
               </div>
-
-              <div className="px-4 py-10 text-center text-white/60">
-                Noch keine Buchungsliste. KPI-Test läuft über Konsole.
-              </div>
-            </div>
+            ) : (
+              <CashflowWeekGrid
+                weeks={weeksData}
+                buchungen={buchungen}
+              />
+            )}
           </div>
         )}
       </div>
