@@ -8,6 +8,7 @@ import AdminPanel from './pages/AdminPanel';
 import Reklamationen from './pages/Reklamationen';
 import Budget from './pages/Budget';
 import Bestellungen from './pages/Bestellungen';
+import Cashflow from './pages/Cashflow';
 import Tasks from './pages/Tasks';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
@@ -67,6 +68,16 @@ function App() {
           </ProtectedRoute>
         }
       />
+
+      {/* Cashflow */}
+      <Route
+       path="/cashflow"
+       element={
+        <ProtectedRoute>
+        <Cashflow />
+      </ProtectedRoute>
+       }
+    />
 
       {/* Supervisor-Panel: Nur für Supervisor + Admin */}
       <Route
