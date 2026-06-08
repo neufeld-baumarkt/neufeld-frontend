@@ -25,13 +25,19 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-export default function CashflowWeekCard({ week, buchungenCount, letzteAenderung }) {
+export default function CashflowWeekCard({
+  week,
+  buchungenCount,
+  letzteAenderung,
+  onClick,
+}) {
   const saldo = Number(week?.saldo || 0);
   const saldoClass = saldo >= 0 ? 'text-emerald-300' : 'text-red-300';
 
   return (
     <button
       type="button"
+      onClick={onClick}
       className="w-full text-left bg-black/25 border border-white/10 rounded-2xl p-5 shadow-[4px_4px_14px_rgba(0,0,0,0.35)] hover:bg-white/10 hover:border-white/20 transition"
     >
       <div className="flex items-start justify-between gap-4 mb-5">

@@ -1,11 +1,15 @@
 // src/components/cashflow/CashflowWeekGrid.jsx
 
+import { useState } from 'react';
 import CashflowWeekCard from './CashflowWeekCard';
+import CashflowWeekDetailModal from './CashflowWeekDetailModal';
 
 export default function CashflowWeekGrid({
   weeks = [],
   buchungen = [],
 }) {
+  const [selectedWeek, setSelectedWeek] = useState(null);
+
   const getBuchungenForWeek = (kw) =>
     buchungen.filter((buchung) => Number(buchung.kw) === Number(kw));
 
@@ -34,19 +38,33 @@ export default function CashflowWeekGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-      {sortedWeeks.map((week) => {
-        const wochenBuchungen = getBuchungenForWeek(week.kw);
+    <>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        {sortedWeeks.map((week) => {
+          const wochenBuchungen = getBuchungenForWeek(week.kw);
 
-        return (
-          <CashflowWeekCard
-            key={week.kw}
-            week={week}
-            buchungenCount={wochenBuchungen.length}
-            letzteAenderung={getLetzteAenderung(wochenBuchungen)}
-          />
-        );
-      })}
-    </div>
+          return (
+            <CashflowWeekCard
+              key={week.kw}
+              week={week}
+              buchungenCount={wochenBuchungen.length}
+              letzteAenderung={getLetzteAenderung(wochenBuchungen)}
+              onClick={() => setSelectedWeek(week)}
+            />
+          );
+        })}
+      </div>
+
+      <CashflowWeekDetailModal
+       isOpen={!!selectedWeek}
+       week={selectedWeek}
+       buchungen={
+       selectedWeek
+      ? getBuchungenForWeek(selectedWeek.kw)
+      : []
+  }
+  onClose={() => setSelectedWeek(null)}
+/>
+    </>
   );
 }
