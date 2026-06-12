@@ -1,6 +1,7 @@
 // src/components/cashflow/CashflowWeekDetailModal.jsx
 
 import { useState } from 'react';
+import CashflowFastBookingModal from './CashflowFastBookingModal';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -68,6 +69,7 @@ export default function CashflowWeekDetailModal({
 }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [fastBookingCell, setFastBookingCell] = useState(null);
 
   if (!isOpen || !week) return null;
 
@@ -87,9 +89,13 @@ export default function CashflowWeekDetailModal({
   );
 
   const closeModal = () => {
-    setSelectedCell(null);
-    setSelectedBooking(null);
-    onClose();
+   setSelectedCell(null);
+   setSelectedBooking(null);
+   onClose();
+  };
+
+  const closeFastBookingModal = () => {
+   setFastBookingCell(null);
   };
 
   return (
@@ -190,17 +196,28 @@ export default function CashflowWeekDetailModal({
 
                     return (
                       <button
-                        key={`${tag}-${kategorie.id}`}
-                        type="button"
-                        disabled={!hasValue}
-                        onClick={() => {
-                          setSelectedCell({
-                            tag,
-                            kategorieId: kategorie.id,
-                            kategorieName: kategorie.name,
-                          });
-                          setSelectedBooking(null);
-                        }}
+  			key={`${tag}-${kategorie.id}`}
+  			type="button"
+  			onClick={() => {
+    			setFastBookingCell({
+      			jahr: week.jahr,
+      			kw: week.kw,
+      			tag,
+      			kategorieId: kategorie.id,
+      			kategorieName: kategorie.name,
+    		   });
+                }}
+  		onDoubleClick={() => {
+    		if (!hasValue) return;
+
+    		setSelectedCell({
+      		tag,
+      		kategorieId: kategorie.id,
+      		kategorieName: kategorie.name,
+    		});
+
+    		setSelectedBooking(null);
+  		}}
                         className={`min-h-[72px] border-r border-b border-white/10 px-3 py-3 text-left transition ${
                           hasValue
                             ? isSelected
@@ -393,6 +410,16 @@ export default function CashflowWeekDetailModal({
               </div>
             </div>
           )}
+
+	<CashflowFastBookingModal
+  	  isOpen={!!fastBookingCell}
+  	  context={fastBookingCell}
+  	  onClose={closeFastBookingModal}
+  	  onMockSave={(payload) => {
+    	   console.log('Mock Save erfolgreich:', payload);
+  	  }}
+	/>
+
         </div>
       </div>
     </div>
