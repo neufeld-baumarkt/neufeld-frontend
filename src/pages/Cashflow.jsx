@@ -56,7 +56,13 @@ export default function Cashflow() {
     role === 'Supervisor' ||
     role === 'Geschäftsführer';
 
-  const years = [2024, 2025, 2026];
+  const currentYear = new Date().getFullYear();
+
+const years = Array.from(
+  { length: currentYear - 2023 + 2 },
+  (_, index) => 2023 + index
+);
+
   const weeks = Array.from({ length: 53 }, (_, index) => index + 1);
 
   const getApiBasics = () => {
@@ -376,9 +382,10 @@ export default function Cashflow() {
               </div>
             ) : (
               <CashflowWeekGrid
-                weeks={weeksData}
-                buchungen={buchungen}
-              />
+  		jahr={jahr}
+  		weeks={weeksData}
+ 		 buchungen={buchungen}
+	    />
             )}
           </div>
         )}

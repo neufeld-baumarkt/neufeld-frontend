@@ -64,6 +64,7 @@ function getCellData(buchungen, tag, kategorieId) {
 export default function CashflowWeekDetailModal({
   isOpen,
   onClose,
+  jahr,
   week,
   buchungen = [],
 }) {
@@ -97,6 +98,40 @@ export default function CashflowWeekDetailModal({
   const closeFastBookingModal = () => {
    setFastBookingCell(null);
   };
+
+const saveFastBooking = async (payload) => {
+  try {
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+
+    const response = await fetch(
+      `${baseUrl}/api/cashflow/buchungen`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Fehler beim Speichern');
+    }
+
+    console.log('Cashflow gespeichert:', data);
+
+    setFastBookingCell(null);
+
+    window.location.reload();
+  } catch (err) {
+    console.error(err);
+    alert(err.message || 'Fehler beim Speichern');
+  }
+};
 
   return (
     <div
@@ -200,12 +235,12 @@ export default function CashflowWeekDetailModal({
   			type="button"
   			onClick={() => {
     			setFastBookingCell({
-      			jahr: week.jahr,
-      			kw: week.kw,
-      			tag,
-      			kategorieId: kategorie.id,
-      			kategorieName: kategorie.name,
-    		   });
+  			 jahr,
+  			 kw: week.kw,
+  			 tag,
+  			 kategorieId: kategorie.id,
+  			 kategorieName: kategorie.name,
+			});
                 }}
   		onDoubleClick={() => {
     		if (!hasValue) return;
@@ -411,14 +446,12 @@ export default function CashflowWeekDetailModal({
             </div>
           )}
 
-	<CashflowFastBookingModal
-  	  isOpen={!!fastBookingCell}
-  	  context={fastBookingCell}
-  	  onClose={closeFastBookingModal}
-  	  onMockSave={(payload) => {
-    	   console.log('Mock Save erfolgreich:', payload);
-  	  }}
-	/>
+		<CashflowFastBookingModal
+  		 isOpen={!!fastBookingCell}
+  		 context={fastBookingCell}
+  		 onClose={closeFastBookingModal}
+  		 onMockSave={saveFastBooking}
+	   />
 
         </div>
       </div>

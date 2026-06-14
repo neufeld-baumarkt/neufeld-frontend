@@ -5,6 +5,7 @@ import CashflowWeekCard from './CashflowWeekCard';
 import CashflowWeekDetailModal from './CashflowWeekDetailModal';
 
 export default function CashflowWeekGrid({
+  jahr,
   weeks = [],
   buchungen = [],
 }) {
@@ -56,15 +57,16 @@ export default function CashflowWeekGrid({
       </div>
 
       <CashflowWeekDetailModal
-       isOpen={!!selectedWeek}
-       week={selectedWeek}
-       buchungen={
-       selectedWeek
-      ? getBuchungenForWeek(selectedWeek.kw)
-      : []
-  }
-  onClose={() => setSelectedWeek(null)}
-/>
+  	isOpen={!!selectedWeek}
+  	jahr={jahr}
+  	week={selectedWeek}
+  	buchungen={
+    	  selectedWeek
+           ? getBuchungenForWeek(selectedWeek.kw)
+      	   : []
+  	}
+  	onClose={() => setSelectedWeek(null)}
+      />
     </>
   );
 }
