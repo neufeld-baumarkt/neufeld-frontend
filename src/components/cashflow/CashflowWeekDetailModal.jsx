@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import CashflowFastBookingModal from './CashflowFastBookingModal';
+import CashflowCellDetailModal from './CashflowCellDetailModal';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -55,9 +56,14 @@ function getCellData(buchungen, tag, kategorieId) {
     0
   );
 
+  const hasOpenBooking = cellBuchungen.some(
+    (buchung) => buchung.status === 'angekuendigt'
+  );
+
   return {
     count: cellBuchungen.length,
     summe,
+    hasOpenBooking,
   };
 }
 
@@ -88,6 +94,14 @@ export default function CashflowWeekDetailModal({
     (total, buchung) => total + Number(buchung.betrag || 0),
     0
   );
+
+  const cellDetailBuchungen = selectedCell
+  ? getCellBuchungen(
+      buchungen,
+      selectedCell.tag,
+      selectedCell.kategorieId
+    )
+  : [];
 
   const closeModal = () => {
    setSelectedCell(null);
@@ -263,15 +277,38 @@ const saveFastBooking = async (payload) => {
                       >
                         {hasValue ? (
                           <div>
-                            <div className="font-bold text-white">
-                              {formatEuro(cell.summe)}
-                            </div>
+                            <div
+  			className={`font-bold ${
+    			 cell.hasOpenBooking ? 'text-orange-300' : 'text-white'
+  			}`}
+		      >
+  			{formatEuro(cell.summe)}
+		      </div>
 
-                            {cell.count > 1 && (
-                              <div className="text-xs text-white/55 mt-1">
-                                {cell.count} Buchungen
-                              </div>
-                            )}
+                            {cell.count > 0 && (
+  			      <div className="flex items-center justify-between mt-1">
+    			<div className="text-xs text-white/55">
+      			 {cell.count} Buchungen
+    			</div>
+
+    			<button
+      			 type="button"
+      			 onClick={(e) => {
+        		  e.stopPropagation();
+
+        		  setSelectedCell({
+          		  tag,
+          		  kw: week.kw,
+          		  kategorieId: kategorie.id,
+          		  kategorieName: kategorie.name,
+        		});
+      		      }}
+      		      className="text-xs font-bold text-cyan-300 hover:text-cyan-200 transition"
+    		    >
+      		      +
+    		    </button>
+  		  </div>
+		)}
                           </div>
                         ) : (
                           <div className="text-white/20">–</div>
@@ -284,167 +321,15 @@ const saveFastBooking = async (payload) => {
             </div>
           </div>
 
-          {selectedCell && (
-            <div className="mt-6 rounded-xl border border-white/10 bg-black/25 overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/10 flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xl font-bold text-white">
-                    {selectedCell.tag} · {selectedCell.kategorieName}
-                  </div>
-                  <div className="text-white/60 mt-1">
-                    {selectedBuchungen.length} Buchung
-                    {selectedBuchungen.length === 1 ? '' : 'en'} · Summe {formatEuro(selectedSumme)}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCell(null);
-                    setSelectedBooking(null);
-                  }}
-                  className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                >
-                  Auswahl löschen
-                </button>
-              </div>
-
-              <div className="divide-y divide-white/10">
-                {selectedBuchungen.map((buchung) => {
-                  const isSelected = selectedBooking?.id === buchung.id;
-
-                  return (
-                    <button
-                      key={buchung.id}
-                      type="button"
-                      onClick={() => setSelectedBooking(buchung)}
-                      className={`w-full text-left grid grid-cols-12 gap-3 px-5 py-4 transition ${
-                        isSelected ? 'bg-white/15' : 'hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="col-span-2">
-                        <div className="text-white/50 text-xs">Tag</div>
-                        <div className="font-semibold">{buchung.tag}</div>
-                      </div>
-
-                      <div className="col-span-4">
-                        <div className="text-white/50 text-xs">Kategorie</div>
-                        <div className="font-semibold">{buchung.kategorie}</div>
-                      </div>
-
-                      <div className="col-span-2 text-right">
-                        <div className="text-white/50 text-xs">Betrag</div>
-                        <div className="font-bold">{formatEuro(buchung.betrag)}</div>
-                      </div>
-
-                      <div className="col-span-2">
-                        <div className="text-white/50 text-xs">Quelle</div>
-                        <div className="font-semibold truncate">
-                          {buchung.quelle || '—'}
-                        </div>
-                      </div>
-
-                      <div className="col-span-2 text-right">
-                        <div className="text-white/50 text-xs">Zeile</div>
-                        <div className="font-semibold">
-                          {buchung.quelle_zeile || '—'}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {selectedBooking && (
-            <div className="mt-6 rounded-xl border border-white/10 bg-white/10 overflow-hidden">
-              <div className="px-5 py-4 border-b border-white/10 flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xl font-bold text-white">
-                    Buchungsdetails
-                  </div>
-                  <div className="text-white/60 mt-1">
-                    ID: {selectedBooking.id}
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedBooking(null)}
-                  className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                >
-                  Details schließen
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Jahr</div>
-                  <div className="font-bold mt-1">{selectedBooking.jahr}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">KW</div>
-                  <div className="font-bold mt-1">{selectedBooking.kw}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Tag</div>
-                  <div className="font-bold mt-1">{selectedBooking.tag || '—'}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Kategorie</div>
-                  <div className="font-bold mt-1">{selectedBooking.kategorie}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Typ</div>
-                  <div className="font-bold mt-1">{selectedBooking.typ}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Betrag</div>
-                  <div className="font-bold mt-1">{formatEuro(selectedBooking.betrag)}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Quelle</div>
-                  <div className="font-bold mt-1">{selectedBooking.quelle || '—'}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Quelle Zeile</div>
-                  <div className="font-bold mt-1">{selectedBooking.quelle_zeile || '—'}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Erstellt von</div>
-                  <div className="font-bold mt-1">{selectedBooking.erstellt_von || '—'}</div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Erstellt am</div>
-                  <div className="font-bold mt-1">
-                    {formatDateTime(selectedBooking.erstellt_am)}
-                  </div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Geändert am</div>
-                  <div className="font-bold mt-1">
-                    {formatDateTime(selectedBooking.geaendert_am)}
-                  </div>
-                </div>
-
-                <div className="bg-black/20 rounded-xl p-4">
-                  <div className="text-white/50 text-sm">Datum</div>
-                  <div className="font-bold mt-1">{selectedBooking.datum || '—'}</div>
-                </div>
-              </div>
-            </div>
-          )}
+		<CashflowCellDetailModal
+  		 isOpen={!!selectedCell}
+  		  cell={selectedCell}
+  		   buchungen={cellDetailBuchungen}
+ 		    onClose={() => {
+   		  setSelectedCell(null);
+    		  setSelectedBooking(null);
+  		  }}
+		/>
 
 		<CashflowFastBookingModal
   		 isOpen={!!fastBookingCell}
