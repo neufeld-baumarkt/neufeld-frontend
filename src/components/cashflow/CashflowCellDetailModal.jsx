@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -21,6 +22,7 @@ export default function CashflowCellDetailModal({
   const [editableBuchungen, setEditableBuchungen] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function CashflowCellDetailModal({
     setSelectedId(mapped[0]?.id || null);
     setError('');
     setSaving(false);
+    setDeletingId(null);
   }, [buchungen, isOpen]);
 
   if (!isOpen || !cell) return null;
@@ -180,11 +183,63 @@ export default function CashflowCellDetailModal({
     }
   };
 
+  const deleteBuchung = async (buchungId) => {
+    const baseUrl = import.meta.env.VITE_API_URL;
+    const token = sessionStorage.getItem('token');
+
+    if (!baseUrl) {
+      setError('VITE_API_URL fehlt.');
+      return;
+    }
+
+    if (!token) {
+      setError('Kein Login-Token vorhanden.');
+      return;
+    }
+
+    const confirmed = window.confirm('Buchung wirklich löschen?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(buchungId);
+    setError('');
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/buchungen/${buchungId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Buchung konnte nicht gelöscht werden.');
+      }
+
+      if (typeof onReload === 'function') {
+        await onReload();
+      }
+
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Fehler beim Löschen.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div
       className="fixed inset-0 z-[75] bg-black/60 px-4 flex items-center justify-center"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving) {
+        if (event.target === event.currentTarget && !saving && !deletingId) {
           onClose();
         }
       }}
@@ -215,7 +270,7 @@ export default function CashflowCellDetailModal({
           <button
             type="button"
             onClick={onClose}
-            disabled={saving}
+            disabled={saving || !!deletingId}
             className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition text-white"
           >
             Schließen
@@ -233,6 +288,7 @@ export default function CashflowCellDetailModal({
                 {editableBuchungen.map((buchung, index) => {
                   const isSelected = buchung.id === selectedId;
                   const isOpen = buchung.editStatus === 'angekuendigt';
+                  const isDeleting = deletingId === buchung.id;
                   const title =
                     buchung.editEintragTyp === 'feiertag'
                       ? 'Feiertag'
@@ -242,7 +298,7 @@ export default function CashflowCellDetailModal({
                     <button
                       key={buchung.id}
                       type="button"
-                      disabled={saving}
+                      disabled={saving || !!deletingId}
                       onClick={() => setSelectedId(buchung.id)}
                       className={`text-left rounded-xl border p-4 transition disabled:opacity-50 ${
                         isSelected
@@ -270,8 +326,34 @@ export default function CashflowCellDetailModal({
                           </div>
                         </div>
 
-                        <div className="text-white/35 text-xs">
-                          #{index + 1}
+                        <div className="flex items-center gap-2">
+                          <div className="text-white/35 text-xs">
+                            #{index + 1}
+                          </div>
+
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            title="Buchung löschen"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              deleteBuchung(buchung.id);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                deleteBuchung(buchung.id);
+                              }
+                            }}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 transition"
+                          >
+                            {isDeleting ? (
+                              <span className="text-xs">...</span>
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </span>
                         </div>
                       </div>
 
@@ -304,7 +386,7 @@ export default function CashflowCellDetailModal({
 
                       <button
                         type="button"
-                        disabled={saving}
+                        disabled={saving || !!deletingId}
                         onClick={saveSelectedAndClose}
                         className="px-5 py-2 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed transition text-white font-semibold"
                       >
@@ -322,7 +404,7 @@ export default function CashflowCellDetailModal({
                           min="2000"
                           max="2100"
                           value={selectedBuchung.editJahr}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -343,7 +425,7 @@ export default function CashflowCellDetailModal({
                           min="1"
                           max="53"
                           value={selectedBuchung.editKw}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -361,7 +443,7 @@ export default function CashflowCellDetailModal({
                         </label>
                         <select
                           value={selectedBuchung.editTag}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -390,6 +472,7 @@ export default function CashflowCellDetailModal({
                           value={selectedBuchung.editBetrag}
                           disabled={
                             saving ||
+                            !!deletingId ||
                             selectedBuchung.editEintragTyp === 'feiertag'
                           }
                           onChange={(event) =>
@@ -413,7 +496,7 @@ export default function CashflowCellDetailModal({
                         </label>
                         <select
                           value={selectedBuchung.editFiliale}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -437,7 +520,7 @@ export default function CashflowCellDetailModal({
                         </label>
                         <select
                           value={selectedBuchung.editStatus}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -462,7 +545,7 @@ export default function CashflowCellDetailModal({
                         </label>
                         <select
                           value={selectedBuchung.editEintragTyp}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
@@ -487,7 +570,7 @@ export default function CashflowCellDetailModal({
                         <input
                           type="text"
                           value={selectedBuchung.editNotiz}
-                          disabled={saving}
+                          disabled={saving || !!deletingId}
                           onChange={(event) =>
                             updateLocalBuchung(
                               selectedBuchung.id,
