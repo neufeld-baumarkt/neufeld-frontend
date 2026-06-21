@@ -73,6 +73,7 @@ export default function CashflowWeekDetailModal({
   jahr,
   week,
   buchungen = [],
+  onReload,
 }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -324,8 +325,9 @@ const saveFastBooking = async (payload) => {
 		<CashflowCellDetailModal
   		 isOpen={!!selectedCell}
   		  cell={selectedCell}
-  		   buchungen={cellDetailBuchungen}
- 		    onClose={() => {
+  		  buchungen={cellDetailBuchungen}
+		  onReload={onReload}
+ 		  onClose={() => {
    		  setSelectedCell(null);
     		  setSelectedBooking(null);
   		  }}

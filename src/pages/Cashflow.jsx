@@ -376,17 +376,18 @@ const years = Array.from(
               </div>
             )}
 
-            {cashflowLoading ? (
-              <div className="text-center text-white/60 py-12">
+            {cashflowLoading && weeksData.length === 0 ? (
+  	      <div className="text-center text-white/60 py-12">
                 Lade Wochenübersicht…
               </div>
-            ) : (
+	    ) : (
               <CashflowWeekGrid
-  		jahr={jahr}
-  		weeks={weeksData}
- 		 buchungen={buchungen}
-	    />
-            )}
+    	       jahr={jahr}
+    	       weeks={weeksData}
+    	       buchungen={buchungen}
+    	       onReload={reloadAll}
+  	   />
+	)}
           </div>
         )}
       </div>

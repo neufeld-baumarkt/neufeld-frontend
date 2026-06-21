@@ -8,6 +8,7 @@ export default function CashflowWeekGrid({
   jahr,
   weeks = [],
   buchungen = [],
+  onReload,
 }) {
   const [selectedWeek, setSelectedWeek] = useState(null);
 
@@ -65,6 +66,7 @@ export default function CashflowWeekGrid({
            ? getBuchungenForWeek(selectedWeek.kw)
       	   : []
   	}
+	onReload={onReload}
   	onClose={() => setSelectedWeek(null)}
       />
     </>
