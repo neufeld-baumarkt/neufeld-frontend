@@ -9,6 +9,7 @@ function formatEuro(value) {
 
 const FILIALEN = ['Verwaltung', 'Ahaus', 'Münster', 'Telgte', 'Vreden'];
 const EINTRAG_TYPEN = ['betrag', 'feiertag'];
+const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 export default function CashflowCellDetailModal({
   isOpen,
@@ -18,25 +19,33 @@ export default function CashflowCellDetailModal({
   onReload,
 }) {
   const [editableBuchungen, setEditableBuchungen] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setEditableBuchungen(
-      buchungen.map((buchung) => ({
-        ...buchung,
-        editBetrag: String(buchung.betrag ?? 0),
-        editFiliale: buchung.filiale || 'Verwaltung',
-        editStatus: buchung.status || 'angekuendigt',
-        editEintragTyp: buchung.eintrag_typ || 'betrag',
-        editNotiz: buchung.notiz || '',
-      }))
-    );
+    const mapped = buchungen.map((buchung) => ({
+      ...buchung,
+      editJahr: String(buchung.jahr ?? ''),
+      editKw: String(buchung.kw ?? ''),
+      editTag: buchung.tag || 'Mo',
+      editBetrag: String(buchung.betrag ?? 0),
+      editFiliale: buchung.filiale || 'Verwaltung',
+      editStatus: buchung.status || 'angekuendigt',
+      editEintragTyp: buchung.eintrag_typ || 'betrag',
+      editNotiz: buchung.notiz || '',
+    }));
+
+    setEditableBuchungen(mapped);
+    setSelectedId(mapped[0]?.id || null);
     setError('');
     setSaving(false);
   }, [buchungen, isOpen]);
 
   if (!isOpen || !cell) return null;
+
+  const selectedBuchung =
+    editableBuchungen.find((buchung) => buchung.id === selectedId) || null;
 
   const summe = editableBuchungen.reduce(
     (total, buchung) => total + Number(buchung.editBetrag || 0),
@@ -65,9 +74,49 @@ export default function CashflowCellDetailModal({
     );
   };
 
-  const saveAllAndClose = async () => {
+  const validateBuchung = (buchung) => {
+    const jahr = Number(buchung.editJahr);
+    const kw = Number(buchung.editKw);
+    const betrag = Number(buchung.editBetrag);
+
+    if (!Number.isInteger(jahr) || jahr < 2000 || jahr > 2100) {
+      return 'Ungültiges Jahr.';
+    }
+
+    if (!Number.isInteger(kw) || kw < 1 || kw > 53) {
+      return 'Ungültige KW.';
+    }
+
+    if (!TAGE.includes(buchung.editTag)) {
+      return 'Ungültiger Tag.';
+    }
+
+    if (
+      buchung.editEintragTyp === 'betrag' &&
+      (!Number.isFinite(betrag) || betrag <= 0)
+    ) {
+      return 'Bei Eintragstyp betrag muss der Betrag größer 0 sein.';
+    }
+
+    if (!FILIALEN.includes(buchung.editFiliale)) {
+      return 'Ungültige Filiale.';
+    }
+
+    if (!EINTRAG_TYPEN.includes(buchung.editEintragTyp)) {
+      return 'Ungültiger Eintragstyp.';
+    }
+
+    return '';
+  };
+
+  const saveSelectedAndClose = async () => {
     const baseUrl = import.meta.env.VITE_API_URL;
     const token = sessionStorage.getItem('token');
+
+    if (!selectedBuchung) {
+      setError('Keine Buchung ausgewählt.');
+      return;
+    }
 
     if (!baseUrl) {
       setError('VITE_API_URL fehlt.');
@@ -79,60 +128,45 @@ export default function CashflowCellDetailModal({
       return;
     }
 
-    for (const buchung of editableBuchungen) {
-      const betrag = Number(buchung.editBetrag);
+    const validationError = validateBuchung(selectedBuchung);
 
-      if (buchung.editEintragTyp === 'betrag' && (!Number.isFinite(betrag) || betrag <= 0)) {
-        setError('Bei Eintragstyp betrag muss der Betrag größer 0 sein.');
-        return;
-      }
-
-      if (!FILIALEN.includes(buchung.editFiliale)) {
-        setError('Ungültige Filiale.');
-        return;
-      }
-
-      if (!EINTRAG_TYPEN.includes(buchung.editEintragTyp)) {
-        setError('Ungültiger Eintragstyp.');
-        return;
-      }
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     setSaving(true);
     setError('');
 
     try {
-      await Promise.all(
-        editableBuchungen.map(async (buchung) => {
-          const response = await fetch(
-            `${baseUrl}/api/cashflow/buchungen/${buchung.id}`,
-            {
-              method: 'PATCH',
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                betrag: Number(buchung.editBetrag),
-                filiale: buchung.editFiliale,
-                status: buchung.editStatus,
-                eintrag_typ: buchung.editEintragTyp,
-                notiz: buchung.editNotiz,
-              }),
-            }
-          );
-
-          const data = await response.json().catch(() => null);
-
-          if (!response.ok) {
-            throw new Error(
-              data?.message || 'Buchung konnte nicht aktualisiert werden.'
-            );
-          }
-
-          return data.buchung;
-        })
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/buchungen/${selectedBuchung.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jahr: Number(selectedBuchung.editJahr),
+            kw: Number(selectedBuchung.editKw),
+            tag: selectedBuchung.editTag,
+            betrag: Number(selectedBuchung.editBetrag),
+            filiale: selectedBuchung.editFiliale,
+            status: selectedBuchung.editStatus,
+            eintrag_typ: selectedBuchung.editEintragTyp,
+            notiz: selectedBuchung.editNotiz,
+          }),
+        }
       );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || 'Buchung konnte nicht aktualisiert werden.'
+        );
+      }
 
       if (typeof onReload === 'function') {
         await onReload();
@@ -155,7 +189,7 @@ export default function CashflowCellDetailModal({
         }
       }}
     >
-      <div className="w-full max-w-[1200px] max-h-[82vh] rounded-2xl border border-white/10 bg-[#2f2d2d] shadow-[6px_6px_18px_rgba(0,0,0,0.75)] overflow-hidden">
+      <div className="w-full max-w-[1100px] max-h-[86vh] rounded-2xl border border-white/10 bg-[#2f2d2d] shadow-[6px_6px_18px_rgba(0,0,0,0.75)] overflow-hidden">
         <div className="px-6 py-5 border-b border-white/10 flex items-start justify-between gap-6">
           <div>
             <div className="text-2xl font-bold text-white">
@@ -182,64 +216,207 @@ export default function CashflowCellDetailModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition"
+            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition text-white"
           >
             Schließen
           </button>
         </div>
 
-        <div className="p-6 overflow-auto max-h-[calc(82vh-110px)]">
+        <div className="p-6 overflow-auto max-h-[calc(86vh-112px)]">
           {editableBuchungen.length === 0 ? (
             <div className="text-center text-white/50 py-10">
               Keine Buchungen in dieser Zelle.
             </div>
           ) : (
-            <div className="rounded-xl border border-white/10 overflow-hidden">
-              <div className="grid grid-cols-13 gap-3 px-5 py-3 bg-black/35 border-b border-white/10 text-xs font-bold text-white/60">
-                <div className="col-span-2">Betrag</div>
-                <div className="col-span-2">Filiale</div>
-                <div className="col-span-2">Status</div>
-                <div className="col-span-2">Typ</div>
-                <div className="col-span-4">Notiz</div>
-                <div className="col-span-1 text-right">Aktion</div>
-              </div>
-
-              <div className="divide-y divide-white/10">
-                {editableBuchungen.map((buchung) => {
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                {editableBuchungen.map((buchung, index) => {
+                  const isSelected = buchung.id === selectedId;
                   const isOpen = buchung.editStatus === 'angekuendigt';
+                  const title =
+                    buchung.editEintragTyp === 'feiertag'
+                      ? 'Feiertag'
+                      : formatEuro(buchung.editBetrag);
 
                   return (
-                    <div
+                    <button
                       key={buchung.id}
-                      className="grid grid-cols-13 gap-3 px-5 py-4 text-sm hover:bg-white/5 transition items-center"
+                      type="button"
+                      disabled={saving}
+                      onClick={() => setSelectedId(buchung.id)}
+                      className={`text-left rounded-xl border p-4 transition disabled:opacity-50 ${
+                        isSelected
+                          ? 'border-white/40 bg-white/15'
+                          : 'border-white/10 bg-black/25 hover:bg-white/10'
+                      }`}
                     >
-                      <div className="col-span-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div
+                            className={`text-lg font-bold ${
+                              isOpen ? 'text-orange-300' : 'text-white'
+                            }`}
+                          >
+                            {title}
+                          </div>
+
+                          <div className="text-white/65 text-sm mt-1">
+                            {buchung.editFiliale} · {buchung.editStatus}
+                          </div>
+
+                          <div className="text-white/45 text-xs mt-2">
+                            Jahr {buchung.editJahr} · KW {buchung.editKw} ·{' '}
+                            {buchung.editTag}
+                          </div>
+                        </div>
+
+                        <div className="text-white/35 text-xs">
+                          #{index + 1}
+                        </div>
+                      </div>
+
+                      {buchung.editNotiz && (
+                        <div className="text-white/45 text-xs mt-3 truncate">
+                          {buchung.editNotiz}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-black/25 p-5">
+                {!selectedBuchung ? (
+                  <div className="text-white/50 text-center py-8">
+                    Keine Buchung ausgewählt.
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <div className="text-white font-bold text-lg">
+                          Ausgewählte Buchung bearbeiten
+                        </div>
+                        <div className="text-white/50 text-sm">
+                          Änderungen gelten nur für diese eine Buchung.
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={saveSelectedAndClose}
+                        className="px-5 py-2 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed transition text-white font-semibold"
+                      >
+                        {saving ? 'Speichern...' : 'OK'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Jahr
+                        </label>
+                        <input
+                          type="number"
+                          min="2000"
+                          max="2100"
+                          value={selectedBuchung.editJahr}
+                          disabled={saving}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              selectedBuchung.id,
+                              'editJahr',
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          KW
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="53"
+                          value={selectedBuchung.editKw}
+                          disabled={saving}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              selectedBuchung.id,
+                              'editKw',
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Tag
+                        </label>
+                        <select
+                          value={selectedBuchung.editTag}
+                          disabled={saving}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              selectedBuchung.id,
+                              'editTag',
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                        >
+                          {TAGE.map((tag) => (
+                            <option key={tag} value={tag}>
+                              {tag}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Betrag
+                        </label>
                         <input
                           type="number"
                           min="0"
                           step="0.01"
-                          value={buchung.editBetrag}
-                          disabled={saving || buchung.editEintragTyp === 'feiertag'}
+                          value={selectedBuchung.editBetrag}
+                          disabled={
+                            saving ||
+                            selectedBuchung.editEintragTyp === 'feiertag'
+                          }
                           onChange={(event) =>
                             updateLocalBuchung(
-                              buchung.id,
+                              selectedBuchung.id,
                               'editBetrag',
                               event.target.value
                             )
                           }
                           className={`w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 outline-none disabled:opacity-50 ${
-                            isOpen ? 'text-orange-300' : 'text-white'
+                            selectedBuchung.editStatus === 'angekuendigt'
+                              ? 'text-orange-300'
+                              : 'text-white'
                           }`}
                         />
                       </div>
 
-                      <div className="col-span-2">
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Filiale
+                        </label>
                         <select
-                          value={buchung.editFiliale}
+                          value={selectedBuchung.editFiliale}
                           disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
-                              buchung.id,
+                              selectedBuchung.id,
                               'editFiliale',
                               event.target.value
                             )
@@ -254,19 +431,24 @@ export default function CashflowCellDetailModal({
                         </select>
                       </div>
 
-                      <div className="col-span-2">
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Status
+                        </label>
                         <select
-                          value={buchung.editStatus}
+                          value={selectedBuchung.editStatus}
                           disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
-                              buchung.id,
+                              selectedBuchung.id,
                               'editStatus',
                               event.target.value
                             )
                           }
                           className={`w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 outline-none disabled:opacity-50 ${
-                            isOpen ? 'text-orange-300' : 'text-white'
+                            selectedBuchung.editStatus === 'angekuendigt'
+                              ? 'text-orange-300'
+                              : 'text-white'
                           }`}
                         >
                           <option value="angekuendigt">angekuendigt</option>
@@ -274,32 +456,41 @@ export default function CashflowCellDetailModal({
                         </select>
                       </div>
 
-                      <div className="col-span-2">
+                      <div>
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Typ
+                        </label>
                         <select
-                          value={buchung.editEintragTyp}
+                          value={selectedBuchung.editEintragTyp}
                           disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
-                              buchung.id,
+                              selectedBuchung.id,
                               'editEintragTyp',
                               event.target.value
                             )
                           }
                           className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
                         >
-                          <option value="betrag">betrag</option>
-                          <option value="feiertag">feiertag</option>
+                          {EINTRAG_TYPEN.map((typ) => (
+                            <option key={typ} value={typ}>
+                              {typ}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
-                      <div className="col-span-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-white/50 mb-1">
+                          Notiz
+                        </label>
                         <input
                           type="text"
-                          value={buchung.editNotiz}
+                          value={selectedBuchung.editNotiz}
                           disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
-                              buchung.id,
+                              selectedBuchung.id,
                               'editNotiz',
                               event.target.value
                             )
@@ -308,20 +499,9 @@ export default function CashflowCellDetailModal({
                           className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white placeholder-white/30 outline-none disabled:opacity-50"
                         />
                       </div>
-
-                      <div className="col-span-1 text-right">
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={saveAllAndClose}
-                          className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed transition text-white"
-                        >
-                          {saving ? '...' : 'OK'}
-                        </button>
-                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
             </div>
           )}
