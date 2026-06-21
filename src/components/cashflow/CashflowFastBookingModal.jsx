@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const FILIALEN = ['Ahaus', 'Münster', 'Telgte', 'Vreden'];
+const FILIALEN = ['Ahaus', 'Münster', 'Telgte', 'Vreden', 'Verwaltung', 'Unternehmen'];
 
 function isValidInput(value) {
   const trimmed = String(value || '').trim();
