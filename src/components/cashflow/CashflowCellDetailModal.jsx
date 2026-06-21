@@ -7,6 +7,9 @@ function formatEuro(value) {
   }).format(Number(value || 0));
 }
 
+const FILIALEN = ['Verwaltung', 'Ahaus', 'Münster', 'Telgte', 'Vreden'];
+const EINTRAG_TYPEN = ['betrag', 'feiertag'];
+
 export default function CashflowCellDetailModal({
   isOpen,
   onClose,
@@ -22,7 +25,10 @@ export default function CashflowCellDetailModal({
     setEditableBuchungen(
       buchungen.map((buchung) => ({
         ...buchung,
+        editBetrag: String(buchung.betrag ?? 0),
+        editFiliale: buchung.filiale || 'Verwaltung',
         editStatus: buchung.status || 'angekuendigt',
+        editEintragTyp: buchung.eintrag_typ || 'betrag',
         editNotiz: buchung.notiz || '',
       }))
     );
@@ -33,7 +39,7 @@ export default function CashflowCellDetailModal({
   if (!isOpen || !cell) return null;
 
   const summe = editableBuchungen.reduce(
-    (total, buchung) => total + Number(buchung.betrag || 0),
+    (total, buchung) => total + Number(buchung.editBetrag || 0),
     0
   );
 
@@ -43,9 +49,19 @@ export default function CashflowCellDetailModal({
 
   const updateLocalBuchung = (id, field, value) => {
     setEditableBuchungen((prev) =>
-      prev.map((buchung) =>
-        buchung.id === id ? { ...buchung, [field]: value } : buchung
-      )
+      prev.map((buchung) => {
+        if (buchung.id !== id) return buchung;
+
+        if (field === 'editEintragTyp' && value === 'feiertag') {
+          return {
+            ...buchung,
+            editEintragTyp: value,
+            editBetrag: '0',
+          };
+        }
+
+        return { ...buchung, [field]: value };
+      })
     );
   };
 
@@ -63,6 +79,25 @@ export default function CashflowCellDetailModal({
       return;
     }
 
+    for (const buchung of editableBuchungen) {
+      const betrag = Number(buchung.editBetrag);
+
+      if (buchung.editEintragTyp === 'betrag' && (!Number.isFinite(betrag) || betrag <= 0)) {
+        setError('Bei Eintragstyp betrag muss der Betrag größer 0 sein.');
+        return;
+      }
+
+      if (!FILIALEN.includes(buchung.editFiliale)) {
+        setError('Ungültige Filiale.');
+        return;
+      }
+
+      if (!EINTRAG_TYPEN.includes(buchung.editEintragTyp)) {
+        setError('Ungültiger Eintragstyp.');
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
 
@@ -78,7 +113,10 @@ export default function CashflowCellDetailModal({
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
+                betrag: Number(buchung.editBetrag),
+                filiale: buchung.editFiliale,
                 status: buchung.editStatus,
+                eintrag_typ: buchung.editEintragTyp,
                 notiz: buchung.editNotiz,
               }),
             }
@@ -175,21 +213,51 @@ export default function CashflowCellDetailModal({
                       key={buchung.id}
                       className="grid grid-cols-13 gap-3 px-5 py-4 text-sm hover:bg-white/5 transition items-center"
                     >
-                      <div
-                        className={`col-span-2 font-bold ${
-                          isOpen ? 'text-orange-300' : 'text-white'
-                        }`}
-                      >
-                        {formatEuro(buchung.betrag)}
+                      <div className="col-span-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={buchung.editBetrag}
+                          disabled={saving || buchung.editEintragTyp === 'feiertag'}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              buchung.id,
+                              'editBetrag',
+                              event.target.value
+                            )
+                          }
+                          className={`w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 outline-none disabled:opacity-50 ${
+                            isOpen ? 'text-orange-300' : 'text-white'
+                          }`}
+                        />
                       </div>
 
-                      <div className="col-span-2 text-white/85">
-                        {buchung.filiale || '—'}
+                      <div className="col-span-2">
+                        <select
+                          value={buchung.editFiliale}
+                          disabled={saving}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              buchung.id,
+                              'editFiliale',
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                        >
+                          {FILIALEN.map((filiale) => (
+                            <option key={filiale} value={filiale}>
+                              {filiale}
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="col-span-2">
                         <select
                           value={buchung.editStatus}
+                          disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
                               buchung.id,
@@ -197,7 +265,7 @@ export default function CashflowCellDetailModal({
                               event.target.value
                             )
                           }
-                          className={`w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 outline-none ${
+                          className={`w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 outline-none disabled:opacity-50 ${
                             isOpen ? 'text-orange-300' : 'text-white'
                           }`}
                         >
@@ -206,14 +274,29 @@ export default function CashflowCellDetailModal({
                         </select>
                       </div>
 
-                      <div className="col-span-2 text-white/75">
-                        {buchung.eintrag_typ || 'betrag'}
+                      <div className="col-span-2">
+                        <select
+                          value={buchung.editEintragTyp}
+                          disabled={saving}
+                          onChange={(event) =>
+                            updateLocalBuchung(
+                              buchung.id,
+                              'editEintragTyp',
+                              event.target.value
+                            )
+                          }
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                        >
+                          <option value="betrag">betrag</option>
+                          <option value="feiertag">feiertag</option>
+                        </select>
                       </div>
 
                       <div className="col-span-4">
                         <input
                           type="text"
                           value={buchung.editNotiz}
+                          disabled={saving}
                           onChange={(event) =>
                             updateLocalBuchung(
                               buchung.id,
@@ -222,7 +305,7 @@ export default function CashflowCellDetailModal({
                             )
                           }
                           placeholder="Notiz"
-                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white placeholder-white/30 outline-none"
+                          className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white placeholder-white/30 outline-none disabled:opacity-50"
                         />
                       </div>
 
