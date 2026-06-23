@@ -51,14 +51,13 @@ export default function CashflowFastBookingModal({
   if (!isOpen || !context) return null;
 
   const canSave = isValidInput(value);
+  const isEinnahme = Boolean(context.isEinnahme);
 
-  const handleFilialeClick = (filiale) => {
-    if (!canSave) return;
-
+  const buildPayload = (filiale) => {
     const trimmed = value.trim();
     const isFeiertag = trimmed.toLowerCase() === 'feiertag';
 
-    const payload = {
+    return {
       ...context,
       filiale,
       eintrag_typ: isFeiertag ? 'feiertag' : 'betrag',
@@ -66,14 +65,26 @@ export default function CashflowFastBookingModal({
       status: 'angekuendigt',
       notiz: null,
     };
+  };
 
-    console.log('Cashflow Fast Booking Mock Save:', payload);
+  const savePayload = (payload) => {
+    console.log('Cashflow Fast Booking Save:', payload);
 
     if (onMockSave) {
       onMockSave(payload);
     }
 
     onClose();
+  };
+
+  const handleFilialeClick = (filiale) => {
+    if (!canSave) return;
+    savePayload(buildPayload(filiale));
+  };
+
+  const handleEinnahmeSave = () => {
+    if (!canSave) return;
+    savePayload(buildPayload('Unternehmen'));
   };
 
   return (
@@ -107,27 +118,50 @@ export default function CashflowFastBookingModal({
             className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/35"
           />
 
-          <div className="text-xs text-white/45 mt-2">
-            Speichern erfolgt durch Auswahl der Filiale.
-          </div>
+          {isEinnahme ? (
+            <>
+              <div className="text-xs text-white/45 mt-2">
+                Einnahmen werden automatisch als Unternehmen gespeichert.
+              </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-5">
-            {FILIALEN.map((filiale) => (
               <button
-                key={filiale}
                 type="button"
                 disabled={!canSave}
-                onClick={() => handleFilialeClick(filiale)}
-                className={`rounded-xl px-4 py-3 font-semibold transition ${
+                onClick={handleEinnahmeSave}
+                className={`w-full mt-5 rounded-xl px-4 py-3 font-semibold transition ${
                   canSave
-                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                    ? 'bg-orange-400/20 hover:bg-orange-400/30 text-orange-200'
                     : 'bg-white/5 text-white/25 cursor-not-allowed'
                 }`}
               >
-                {filiale}
+                Einnahme buchen
               </button>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="text-xs text-white/45 mt-2">
+                Speichern erfolgt durch Auswahl der Kostenstelle.
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                {FILIALEN.map((filiale) => (
+                  <button
+                    key={filiale}
+                    type="button"
+                    disabled={!canSave}
+                    onClick={() => handleFilialeClick(filiale)}
+                    className={`rounded-xl px-4 py-3 font-semibold transition ${
+                      canSave
+                        ? 'bg-white/10 hover:bg-white/20 text-white'
+                        : 'bg-white/5 text-white/25 cursor-not-allowed'
+                    }`}
+                  >
+                    {filiale}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           <button
             type="button"

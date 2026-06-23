@@ -255,7 +255,8 @@ const saveFastBooking = async (payload) => {
   			 tag,
   			 kategorieId: kategorie.id,
   			 kategorieName: kategorie.name,
-			});
+  			 isEinnahme: Number(kategorie.id) === 1,
+		     });
                 }}
   		onDoubleClick={() => {
     		if (!hasValue) return;
