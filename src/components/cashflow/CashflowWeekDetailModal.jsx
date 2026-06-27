@@ -83,6 +83,28 @@ export default function CashflowWeekDetailModal({
 
   const saldo = Number(week.saldo || 0);
 
+  const gebuchteEinnahmenMitForecast = buchungen.filter(
+    (buchung) =>
+      Number(buchung.kategorie_id) === 1 &&
+      buchung.status === 'gebucht' &&
+      buchung.planbetrag != null
+  );
+
+  const forecastPlanSumme = gebuchteEinnahmenMitForecast.reduce(
+    (sum, buchung) => sum + Number(buchung.planbetrag || 0),
+    0
+  );
+
+  const forecastIstSumme = gebuchteEinnahmenMitForecast.reduce(
+    (sum, buchung) => sum + Number(buchung.betrag || 0),
+    0
+  );
+
+  const forecastProzent =
+    forecastPlanSumme > 0
+      ? ((forecastIstSumme - forecastPlanSumme) / forecastPlanSumme) * 100
+      : 0;
+
   const selectedBuchungen = selectedCell
     ? getCellBuchungen(
         buchungen,
@@ -184,8 +206,18 @@ const saveFastBooking = async (payload) => {
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="bg-black/20 rounded-xl p-4">
               <div className="text-white/60 text-sm">Einnahmen</div>
-              <div className="text-xl font-bold mt-2">
-                {formatEuro(week.einnahmen)}
+              <div className="flex items-center gap-3 mt-2">
+                <div className="text-xl font-bold">
+                  {formatEuro(week.einnahmen)}
+                </div>
+                <div
+                  className={`text-sm font-bold ${
+                    forecastProzent >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}
+                >
+                  {forecastProzent > 0 ? '+' : ''}
+                  {forecastProzent.toFixed(2)} %
+                </div>
               </div>
             </div>
 
@@ -289,9 +321,21 @@ const saveFastBooking = async (payload) => {
 
                             {cell.count > 0 && (
   			      <div className="flex items-center justify-between mt-1">
-    			<div className="text-xs text-white/55">
-      			 {cell.count} Buchungen
-    			</div>
+    			<div className={`text-xs font-bold ${
+                  cell.hasOpenBooking
+                    ? 'text-orange-300'
+                    : 'text-white/70'
+                }`}>
+                  {Number(kategorie.id) === 1
+                    ? (cell.hasOpenBooking
+                        ? 'Geplant'
+                        : (() => {
+                            const prozent = getCellBuchungen(buchungen, tag, kategorie.id)
+                              .reduce((_, b) => Number(b.abweichung_prozent || 0), 0);
+                            return `${prozent > 0 ? '+' : ''}${prozent.toFixed(2)} %`;
+                          })())
+                    : `${cell.count} Buchungen`}
+                </div>
 
     			<button
       			 type="button"

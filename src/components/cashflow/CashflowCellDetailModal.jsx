@@ -436,7 +436,9 @@ export default function CashflowCellDetailModal({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-white/50 mb-1">
-                            Betrag
+                            {selectedBuchung.editStatus === 'gebucht'
+                              ? 'Ist'
+                              : 'Betrag'}
                           </label>
                           <input
                             type="number"
@@ -482,6 +484,16 @@ export default function CashflowCellDetailModal({
                             <option value="angekuendigt">Geplant</option>
                             <option value="gebucht">Gebucht</option>
                           </select>
+
+                          {selectedBuchung.editStatus === 'gebucht' &&
+                            selectedBuchung.abweichung_prozent != null && (
+                              <div className="mt-4 rounded-lg border border-white/10 bg-black/25 p-3">
+                                <div className="text-xs font-bold text-white/50">Abweichung</div>
+                                <div className={`text-2xl font-bold mt-1 ${Number(selectedBuchung.abweichung_prozent)>=0?'text-green-400':'text-red-400'}`}>
+                                  {Number(selectedBuchung.abweichung_prozent)>0?'+':''}{Number(selectedBuchung.abweichung_prozent).toFixed(2)} %
+                                </div>
+                              </div>
+                            )}
                         </div>
                       </div>
                     ) : (
@@ -554,7 +566,9 @@ export default function CashflowCellDetailModal({
 
                         <div>
                           <label className="block text-xs font-bold text-white/50 mb-1">
-                            Betrag
+                            {selectedBuchung.editStatus === 'gebucht'
+                              ? 'Ist'
+                              : 'Betrag'}
                           </label>
                           <input
                             type="number"
