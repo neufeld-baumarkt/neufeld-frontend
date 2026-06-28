@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CashflowWeekGrid from '../components/cashflow/CashflowWeekGrid';
+import AlexCashflowHub from '../components/cashflow/AlexCashflowHub';
 
 function getIsoWeekYear(date = new Date()) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -58,10 +59,10 @@ export default function Cashflow() {
 
   const currentYear = new Date().getFullYear();
 
-const years = Array.from(
-  { length: currentYear - 2023 + 2 },
-  (_, index) => 2023 + index
-);
+  const years = Array.from(
+    { length: currentYear - 2023 + 2 },
+    (_, index) => 2023 + index
+  );
 
   const weeks = Array.from({ length: 53 }, (_, index) => index + 1);
 
@@ -343,52 +344,15 @@ const years = Array.from(
             </div>
           </div>
         ) : (
-          <div className="bg-white/10 border border-white/10 rounded-2xl p-8 shadow-[6px_6px_18px_rgba(0,0,0,0.45)]">
-            <div className="flex items-start justify-between gap-6 mb-6">
-              <div>
-                <div className="text-2xl font-bold">Wochenübersicht</div>
-                <div className="text-white/70 mt-1">
-                  Jahr {jahr} · bis KW {bisKw}
-                </div>
-              </div>
-
-              <div className="text-right text-white/60 text-sm">
-                {cashflowLoading
-                  ? 'Lade Cashflow…'
-                  : cashflowError
-                    ? 'Cashflow-Fehler'
-                    : `${buchungen.length} Buchungen geladen`}
-                <div className="mt-1">
-                  {kpisLoading ? 'Lade KPIs…' : kpisError ? 'KPI-Fehler' : kpis ? 'KPIs geladen' : 'Phase 2A'}
-                </div>
-              </div>
-            </div>
-
-            {cashflowError && (
-              <div className="mb-4 rounded-xl bg-red-900/40 border border-red-400/30 px-4 py-3 text-red-100">
-                {cashflowError}
-              </div>
-            )}
-
-            {kpisError && (
-              <div className="mb-4 rounded-xl bg-red-900/40 border border-red-400/30 px-4 py-3 text-red-100">
-                {kpisError}
-              </div>
-            )}
-
-            {cashflowLoading && weeksData.length === 0 ? (
-  	      <div className="text-center text-white/60 py-12">
-                Lade Wochenübersicht…
-              </div>
-	    ) : (
-              <CashflowWeekGrid
-    	       jahr={jahr}
-    	       weeks={weeksData}
-    	       buchungen={buchungen}
-    	       onReload={reloadAll}
-  	   />
-	)}
-          </div>
+          <AlexCashflowHub 
+	     jahr={jahr}
+  	     bisKw={bisKw}
+  	     weeksData={weeksData}
+  	     buchungen={buchungen}
+  	     cashflowLoading={cashflowLoading}
+  	     cashflowError={cashflowError}
+  	     onReload={reloadAll}
+	  />
         )}
       </div>
 
