@@ -81,7 +81,15 @@ export default function CashflowWeekDetailModal({
 
   if (!isOpen || !week) return null;
 
-  const saldo = Number(week.saldo || 0);
+  const einnahmenSumme = buchungen
+    .filter((buchung) => Number(buchung.kategorie_id) === 1)
+    .reduce((sum, buchung) => sum + Number(buchung.betrag || 0), 0);
+
+  const ausgabenSumme = buchungen
+    .filter((buchung) => Number(buchung.kategorie_id) !== 1)
+    .reduce((sum, buchung) => sum + Number(buchung.betrag || 0), 0);
+
+  const modalSaldo = einnahmenSumme - ausgabenSumme;
 
   const gebuchteEinnahmenMitForecast = buchungen.filter(
     (buchung) =>
@@ -141,17 +149,14 @@ const saveFastBooking = async (payload) => {
     const token = sessionStorage.getItem('token');
     const baseUrl = import.meta.env.VITE_API_URL;
 
-    const response = await fetch(
-      `${baseUrl}/api/cashflow/buchungen`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      }
-    );
+    const response = await fetch(`${baseUrl}/api/cashflow/buchungen`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
 
     const data = await response.json();
 
@@ -163,7 +168,9 @@ const saveFastBooking = async (payload) => {
 
     setFastBookingCell(null);
 
-    window.location.reload();
+    if (typeof onReload === 'function') {
+      await onReload();
+    }
   } catch (err) {
     console.error(err);
     alert(err.message || 'Fehler beim Speichern');
@@ -208,7 +215,7 @@ const saveFastBooking = async (payload) => {
               <div className="text-white/60 text-sm">Einnahmen</div>
               <div className="flex items-center gap-3 mt-2">
                 <div className="text-xl font-bold">
-                  {formatEuro(week.einnahmen)}
+                  {formatEuro(einnahmenSumme)}
                 </div>
                 <div
                   className={`text-sm font-bold ${
@@ -224,7 +231,7 @@ const saveFastBooking = async (payload) => {
             <div className="bg-black/20 rounded-xl p-4">
               <div className="text-white/60 text-sm">Ausgaben</div>
               <div className="text-xl font-bold mt-2">
-                {formatEuro(week.ausgaben)}
+                {formatEuro(ausgabenSumme)}
               </div>
             </div>
 
@@ -232,10 +239,10 @@ const saveFastBooking = async (payload) => {
               <div className="text-white/60 text-sm">Saldo</div>
               <div
                 className={`text-xl font-bold mt-2 ${
-                  saldo >= 0 ? 'text-emerald-300' : 'text-red-300'
+                  modalSaldo >= 0 ? 'text-emerald-300' : 'text-red-300'
                 }`}
               >
-                {formatEuro(week.saldo)}
+                {formatEuro(modalSaldo)}
               </div>
             </div>
           </div>
@@ -330,8 +337,33 @@ const saveFastBooking = async (payload) => {
                     ? (cell.hasOpenBooking
                         ? 'Geplant'
                         : (() => {
-                            const prozent = getCellBuchungen(buchungen, tag, kategorie.id)
-                              .reduce((_, b) => Number(b.abweichung_prozent || 0), 0);
+                            const forecastBuchungen = getCellBuchungen(
+                              buchungen,
+                              tag,
+                              kategorie.id
+                            ).filter(
+                              (buchung) =>
+                                buchung.status === 'gebucht' &&
+                                buchung.planbetrag != null
+                            );
+
+                            const planSumme = forecastBuchungen.reduce(
+                              (sum, buchung) =>
+                                sum + Number(buchung.planbetrag || 0),
+                              0
+                            );
+
+                            const istSumme = forecastBuchungen.reduce(
+                              (sum, buchung) =>
+                                sum + Number(buchung.betrag || 0),
+                              0
+                            );
+
+                            const prozent =
+                              planSumme > 0
+                                ? ((istSumme - planSumme) / planSumme) * 100
+                                : 0;
+
                             return `${prozent > 0 ? '+' : ''}${prozent.toFixed(2)} %`;
                           })())
                     : `${cell.count} Buchungen`}
