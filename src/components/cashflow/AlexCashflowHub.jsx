@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import AlexSidebarKeys from './AlexSidebarKeys';
 import CashflowWeekGrid from './CashflowWeekGrid';
+import CashflowWeekPreview from './CashflowWeekPreview';
 
 const MODULES = [
   {
@@ -39,7 +40,11 @@ const MODULES = [
 
 export default function AlexCashflowHub({
   jahr,
+  setJahr,
   bisKw,
+  setBisKw,
+  years = [],
+  weeks = [],
   weeksData = [],
   buchungen = [],
   cashflowLoading = false,
@@ -109,58 +114,18 @@ export default function AlexCashflowHub({
 
             <div className="p-6">
               {activeModule.id === 'einnahmenAusgaben' ? (
-                <div className="rounded-xl border border-white/10 overflow-hidden bg-black/20">
-                  <div className="grid grid-cols-9 text-xs font-bold text-white/75">
-                    {[
-                      'Tag',
-                      'Einnahmen',
-                      'Wareneinsatz',
-                      'Kosten',
-                      'Büro',
-                      'Lohn',
-                      'Fuhrpark',
-                      'Steuern',
-                      'Stadt',
-                    ].map((headline) => (
-                      <div
-                        key={headline}
-                        className="bg-black/40 border-r border-b border-white/10 px-2 py-2 truncate"
-                      >
-                        {headline}
-                      </div>
-                    ))}
-
-                    {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((tag) => (
-                      <>
-                        <div
-                          key={`${tag}-label`}
-                          className="bg-black/25 border-r border-b border-white/10 px-2 py-3 text-white"
-                        >
-                          {tag}
-                        </div>
-
-                        {Array.from({ length: 8 }, (_, index) => (
-                          <div
-                            key={`${tag}-${index}`}
-                            className={`border-r border-b border-white/10 px-2 py-3 ${
-                              index === 0 && tag !== 'So'
-                                ? 'bg-white/10 text-white/80'
-                                : 'bg-black/10 text-white/25'
-                            }`}
-                          >
-                            {index === 0 && tag !== 'So' ? '€' : '–'}
-                          </div>
-                        ))}
-                      </>
-                    ))}
-                  </div>
-                </div>
+                <CashflowWeekPreview
+                  weeks={weeksData}
+                  buchungen={buchungen}
+                  maxWeeks={6}
+                />
               ) : (
                 <div className="h-[340px] rounded-xl border border-white/10 bg-black/20 flex items-center justify-center">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-white">
                       {activeModule.title}
                     </div>
+
                     <div className="text-white/50 mt-3">
                       Dieses Alex-Modul ist vorbereitet.
                     </div>
@@ -174,7 +139,7 @@ export default function AlexCashflowHub({
 
       {openModule && (
         <div
-          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-black/70"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
               setOpenId(null);
@@ -202,8 +167,8 @@ export default function AlexCashflowHub({
               </button>
             </div>
 
-            <div className="p-6 overflow-auto h-[calc(100vh-100px)]">
-              {openModule.id === 'einnahmenAusgaben' ? (
+            <div className="p-6 overflow-auto h-[calc(100vh-82px)]">
+              {openModule.id === 'einnahmenAusgaben' && (
                 <>
                   {cashflowError && (
                     <div className="mb-4 rounded-xl bg-red-900/40 border border-red-400/30 px-4 py-3 text-red-100">
@@ -218,13 +183,20 @@ export default function AlexCashflowHub({
                   ) : (
                     <CashflowWeekGrid
                       jahr={jahr}
+                      setJahr={setJahr}
+                      bisKw={bisKw}
+                      setBisKw={setBisKw}
+                      years={years}
+                      weeksOptions={weeks}
                       weeks={weeksData}
                       buchungen={buchungen}
                       onReload={onReload}
                     />
                   )}
                 </>
-              ) : (
+              )}
+
+              {openModule.id !== 'einnahmenAusgaben' && (
                 <div className="text-white/60">
                   Dieses Alex-Modul folgt später.
                 </div>

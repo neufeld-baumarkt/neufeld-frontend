@@ -1,7 +1,6 @@
 // src/pages/Cashflow.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CashflowWeekGrid from '../components/cashflow/CashflowWeekGrid';
 import AlexCashflowHub from '../components/cashflow/AlexCashflowHub';
 
 function getIsoWeekYear(date = new Date()) {
@@ -273,69 +272,18 @@ export default function Cashflow() {
         Cashflow
       </h1>
 
-      <div className="absolute top-[230px] left-[90px] right-[80px] flex flex-wrap items-center justify-between gap-6">
-        <div className="flex flex-wrap items-center gap-6">
-          <label className="flex items-center gap-3">
-            <span className="font-semibold text-white/80">Jahr</span>
-            <select
-              value={jahr}
-              onChange={(e) => setJahr(Number(e.target.value))}
-              className="px-4 py-3 rounded-lg bg-white/15 text-white outline-none hover:bg-white/20"
-            >
-              {years.map((year) => (
-                <option key={year} value={year} className="text-black">
-                  {year}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex items-center gap-3">
-            <span className="font-semibold text-white/80">bis KW</span>
-            <select
-              value={bisKw}
-              onChange={(e) => setBisKw(Number(e.target.value))}
-              className="px-4 py-3 rounded-lg bg-white/15 text-white outline-none hover:bg-white/20"
-            >
-              {weeks.map((week) => (
-                <option key={week} value={week} className="text-black">
-                  KW {week}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            disabled={!canUseCashflow}
-            className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
-          >
-            Neue Buchung
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAnalyseOpen(true)}
-            disabled={!canUseCashflow}
-            className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
-          >
-            📊 Cashflowanalyse
-          </button>
-
-          <button
-            type="button"
-            onClick={reloadAll}
-            disabled={!canUseCashflow}
-            className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
-          >
-            Neu laden
-          </button>
-        </div>
+      <div className="absolute top-[230px] left-[90px] right-[80px] flex items-center justify-end">
+        <button
+          type="button"
+          onClick={() => setAnalyseOpen(true)}
+          disabled={!canUseCashflow}
+          className="px-5 py-3 rounded-lg bg-white/15 hover:bg-white/25 transition disabled:opacity-50"
+        >
+          📊 Cashflowanalyse
+        </button>
       </div>
 
-      <div className="absolute top-[310px] left-[90px] right-[80px] bottom-[40px] overflow-auto pr-2">
+      <div className="absolute top-[295px] left-[90px] right-[80px] bottom-[40px] overflow-auto pr-2">
         {!canUseCashflow ? (
           <div className="bg-white/10 border border-white/10 rounded-2xl p-8 shadow-[6px_6px_18px_rgba(0,0,0,0.45)]">
             <div className="text-2xl font-bold mb-2">Kein Zugriff</div>
@@ -344,15 +292,19 @@ export default function Cashflow() {
             </div>
           </div>
         ) : (
-          <AlexCashflowHub 
-	     jahr={jahr}
-  	     bisKw={bisKw}
-  	     weeksData={weeksData}
-  	     buchungen={buchungen}
-  	     cashflowLoading={cashflowLoading}
-  	     cashflowError={cashflowError}
-  	     onReload={reloadAll}
-	  />
+          <AlexCashflowHub
+            jahr={jahr}
+            setJahr={setJahr}
+            bisKw={bisKw}
+            setBisKw={setBisKw}
+            years={years}
+            weeks={weeks}
+            weeksData={weeksData}
+            buchungen={buchungen}
+            cashflowLoading={cashflowLoading}
+            cashflowError={cashflowError}
+            onReload={reloadAll}
+          />
         )}
       </div>
 
