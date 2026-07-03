@@ -269,7 +269,7 @@ export default function Cashflow() {
         className="absolute text-8xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] text-white z-10"
         style={{ top: '65px', left: '95px' }}
       >
-        Cashflow
+        Controlling
       </h1>
 
       <div className="absolute top-[230px] left-[90px] right-[80px] flex items-center justify-end">

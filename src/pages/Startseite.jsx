@@ -110,7 +110,7 @@ function Startseite() {
 
 	  <div className="group cursor-pointer" onClick={() => handleNavigate('/cashflow')}>
            <img src="/icons/cashflow.png" alt="Cashflow" className="w-8 h-8 inline-block mr-2" />
-           <span className="text-base font-semibold group-hover:text-[#800000] transition">Cashflow</span>
+           <span className="text-base font-semibold group-hover:text-[#800000] transition">Controlling</span>
           </div>
 
           <div className="group cursor-pointer" onClick={() => handleNavigate('/bestellungen')}>

@@ -4,17 +4,29 @@ import { useState } from 'react';
 import AlexSidebarKeys from './AlexSidebarKeys';
 import CashflowWeekGrid from './CashflowWeekGrid';
 import CashflowWeekPreview from './CashflowWeekPreview';
+import EcCashPreview from '../controlling/EcCashPreview';
+import EcCashModal from '../controlling/EcCashModal';
 
 const MODULES = [
   {
     id: 'einnahmenAusgaben',
     title: 'Einnahmen / Ausgaben',
-    subtitle: 'Wochenmatrix · Cashflow',
+    subtitle: 'Alex-Modul 1 · Cashflow',
+  },
+  {
+    id: 'ecCashKreditkarte',
+    title: 'EC Cash / Kreditkarte',
+    subtitle: 'Alex-Modul 2 · Controlling',
+  },
+  {
+    id: 'ezAz',
+    title: 'EZ / AZ',
+    subtitle: 'Alex-Modul 3 · Bar an Bank',
   },
   {
     id: 'umsatzplanung',
     title: 'Umsatzplanung',
-    subtitle: 'Soll / Ist · Filialen',
+    subtitle: 'In Vorbereitung',
   },
   {
     id: 'liquiditaet',
@@ -24,16 +36,6 @@ const MODULES = [
   {
     id: 'prognosen',
     title: 'Prognosen',
-    subtitle: 'In Vorbereitung',
-  },
-  {
-    id: 'jahresplanung',
-    title: 'Jahresplanung',
-    subtitle: 'In Vorbereitung',
-  },
-  {
-    id: 'sonstiges',
-    title: 'Sonstiges',
     subtitle: 'In Vorbereitung',
   },
 ];
@@ -119,6 +121,8 @@ export default function AlexCashflowHub({
                   buchungen={buchungen}
                   maxWeeks={6}
                 />
+              ) : activeModule.id === 'ecCashKreditkarte' ? (
+                <EcCashPreview />
               ) : (
                 <div className="h-[340px] rounded-xl border border-white/10 bg-black/20 flex items-center justify-center">
                   <div className="text-center">
@@ -196,11 +200,14 @@ export default function AlexCashflowHub({
                 </>
               )}
 
-              {openModule.id !== 'einnahmenAusgaben' && (
-                <div className="text-white/60">
-                  Dieses Alex-Modul folgt später.
-                </div>
-              )}
+              {openModule.id === 'ecCashKreditkarte' && <EcCashModal />}
+
+              {openModule.id !== 'einnahmenAusgaben' &&
+                openModule.id !== 'ecCashKreditkarte' && (
+                  <div className="text-white/60">
+                    Dieses Alex-Modul folgt später.
+                  </div>
+                )}
             </div>
           </div>
         </div>
