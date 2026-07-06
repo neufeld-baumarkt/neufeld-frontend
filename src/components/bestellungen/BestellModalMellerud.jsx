@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import SplitModal_Mellerud from './SplitModal_Mellerud';
@@ -44,6 +44,10 @@ function buildBudgetSplitsFromArticles(splitDataByArticle, rows, sourceFiliale) 
   }));
 }
 
+function normalizeSearchValue(value) {
+  return String(value || '').toLowerCase().trim();
+}
+
 export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSaved }) {
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [loadingArticles, setLoadingArticles] = useState(false);
@@ -56,6 +60,17 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const [splitModalArticle, setSplitModalArticle] = useState(null);
 
   const [selectedFiliale, setSelectedFiliale] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [highlightedArticleId, setHighlightedArticleId] = useState(null);
+
+  const searchInputRef = useRef(null);
+  const tableScrollRef = useRef(null);
+  const rowRefs = useRef({});
+  const mengeInputRefs = useRef({});
+  const highlightTimeoutRef = useRef(null);
+
   const baseUrl = import.meta.env.VITE_API_URL;
 
   let user = null;
@@ -92,6 +107,10 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     setProfiles([]);
     setArticles([]);
     setSelectedFiliale('');
+    setSearchTerm('');
+    setSearchOpen(false);
+    setActiveSearchIndex(0);
+    setHighlightedArticleId(null);
     onClose();
   };
 
@@ -156,7 +175,19 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     setMengen({});
     setSplitDataByArticle({});
     setSplitModalArticle(null);
+    setSearchTerm('');
+    setSearchOpen(false);
+    setActiveSearchIndex(0);
+    setHighlightedArticleId(null);
   }, [isOpen, lieferant?.code]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const selectedProfile = useMemo(() => {
     return profiles.find((item) => item.filiale === selectedFiliale) || null;
@@ -256,6 +287,21 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     });
   }, [articles, mengen, splitDataByArticle]);
 
+  const searchResults = useMemo(() => {
+    const term = normalizeSearchValue(searchTerm);
+    if (!term) return [];
+
+    return rows
+      .filter((row) => {
+        const name = normalizeSearchValue(row.name);
+        const ean = normalizeSearchValue(row.ean);
+        const articleNo = normalizeSearchValue(row.supplier_article_no);
+
+        return name.includes(term) || ean.includes(term) || articleNo.includes(term);
+      })
+      .slice(0, 12);
+  }, [rows, searchTerm]);
+
   const gesamtsumme = useMemo(() => {
     return rows.reduce((sum, row) => sum + row.zeilensumme, 0);
   }, [rows]);
@@ -281,6 +327,89 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const isFilialeLocked = requiresFilialeSelection && !selectedFiliale;
   const isFormLocked = loadingProfiles || loadingArticles || saving || isFilialeLocked;
   const canSave = !isFormLocked && aktivePositionen.length > 0;
+
+  const focusArticleMenge = (articleId) => {
+    window.setTimeout(() => {
+      const input = mengeInputRefs.current[articleId];
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 120);
+  };
+
+  const selectSearchResult = (row) => {
+    if (!row?.id) return;
+
+    setSearchTerm('');
+    setSearchOpen(false);
+    setActiveSearchIndex(0);
+    setHighlightedArticleId(row.id);
+
+    const rowElement = rowRefs.current[row.id];
+    if (rowElement) {
+      rowElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+
+    focusArticleMenge(row.id);
+
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+
+    highlightTimeoutRef.current = window.setTimeout(() => {
+      setHighlightedArticleId(null);
+    }, 1800);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (isFormLocked) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (searchResults.length === 0) return;
+      setSearchOpen(true);
+      setActiveSearchIndex((prev) => (prev + 1 >= searchResults.length ? 0 : prev + 1));
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (searchResults.length === 0) return;
+      setSearchOpen(true);
+      setActiveSearchIndex((prev) => (prev - 1 < 0 ? searchResults.length - 1 : prev - 1));
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (searchResults.length === 0) return;
+      const selected = searchResults[activeSearchIndex] || searchResults[0];
+      selectSearchResult(selected);
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setSearchOpen(false);
+    }
+  };
+
+  const handleMengeKeyDown = (e) => {
+    if (e.key !== 'Enter') return;
+
+    e.preventDefault();
+
+    window.setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+        searchInputRef.current.select();
+      }
+    }, 0);
+  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -479,8 +608,72 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
             </div>
           </div>
 
+          {/* Suche */}
+          <div className={`shrink-0 border-b border-black/15 bg-white px-6 py-4 ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+            <div className="relative max-w-[760px]">
+              <label className="block text-sm font-semibold mb-2">Artikelsuche</label>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setSearchOpen(true);
+                  setActiveSearchIndex(0);
+                }}
+                onFocus={() => {
+                  if (searchTerm.trim()) {
+                    setSearchOpen(true);
+                  }
+                }}
+                onKeyDown={handleSearchKeyDown}
+                disabled={isFormLocked}
+                placeholder="Artikelname, EAN oder Art.-Nr. suchen..."
+                className="w-full h-[42px] rounded-lg border border-black/20 px-3 bg-white disabled:bg-black/5 disabled:text-black/50"
+              />
+
+              {searchOpen && searchTerm.trim() && !isFormLocked && (
+                <div className="absolute left-0 right-0 top-[72px] z-30 rounded-lg border border-black/20 bg-white shadow-xl overflow-hidden">
+                  {searchResults.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-black/60">
+                      Keine Treffer gefunden.
+                    </div>
+                  ) : (
+                    <div className="max-h-[360px] overflow-auto">
+                      {searchResults.map((row, index) => (
+                        <button
+                          key={row.id}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectSearchResult(row);
+                          }}
+                          className={[
+                            'w-full text-left px-4 py-3 border-b border-black/10 last:border-b-0',
+                            index === activeSearchIndex ? 'bg-[#fff1cc]' : 'bg-white hover:bg-black/[0.04]',
+                          ].join(' ')}
+                        >
+                          <div className="font-semibold text-[14px] leading-5">
+                            {row.name || '-'}
+                          </div>
+                          <div className="mt-1 text-xs text-black/60 flex flex-wrap gap-x-4 gap-y-1">
+                            <span>Art.-Nr.: {row.supplier_article_no || '-'}</span>
+                            <span>EAN: {row.ean || '-'}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Tabelle */}
-          <div className={`flex-1 overflow-auto bg-white ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+          <div
+            ref={tableScrollRef}
+            className={`flex-1 overflow-auto bg-white ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}
+          >
             <table className="w-full border-collapse text-[14px]">
               <thead className="sticky top-0 z-10 bg-[#f4f4f4]">
                 <tr className="border-b border-black">
@@ -513,7 +706,17 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                   rows.map((row, index) => (
                     <tr
                       key={row.id}
-                      className={`border-b border-black/10 ${index % 2 === 0 ? 'bg-white' : 'bg-black/[0.02]'}`}
+                      ref={(el) => {
+                        if (el) rowRefs.current[row.id] = el;
+                      }}
+                      className={[
+                        'border-b border-black/10 transition-colors duration-300',
+                        highlightedArticleId === row.id
+                          ? 'bg-[#fff1cc]'
+                          : index % 2 === 0
+                          ? 'bg-white'
+                          : 'bg-black/[0.02]',
+                      ].join(' ')}
                     >
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{row.ean || '-'}</td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{row.supplier_article_no || '-'}</td>
@@ -527,11 +730,15 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                       </td>
                       <td className="px-3 py-2 align-middle text-right">
                         <input
+                          ref={(el) => {
+                            if (el) mengeInputRefs.current[row.id] = el;
+                          }}
                           type="number"
                           min="0"
                           step="1"
                           value={mengen[row.id] ?? ''}
                           onChange={(e) => handleMengeChange(row.id, e.target.value)}
+                          onKeyDown={handleMengeKeyDown}
                           disabled={isFormLocked}
                           className="w-[92px] h-[36px] rounded-md border border-black/20 px-2 text-right bg-white disabled:bg-black/5 disabled:text-black/50"
                         />
