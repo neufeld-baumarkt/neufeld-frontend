@@ -8,6 +8,22 @@ function formatEuro(value) {
   }).format(Number(value || 0));
 }
 
+function toDateInputValue(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value).slice(0, 10);
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
 function getStatusLabel(status, isEinnahme) {
   if (isEinnahme) {
     return status === 'gebucht' ? 'Gebucht' : 'Geplant';
@@ -19,6 +35,11 @@ function getStatusLabel(status, isEinnahme) {
 const FILIALEN = ['Unternehmen', 'Verwaltung', 'Ahaus', 'Münster', 'Telgte', 'Vreden'];
 const EINTRAG_TYPEN = ['betrag', 'feiertag'];
 const TAGE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const ZAHLUNGSARTEN = [
+  { value: '', label: 'Nicht festgelegt' },
+  { value: 'abbuchung', label: 'Abbuchung' },
+  { value: 'ueberweisung', label: 'Überweisung' },
+];
 
 export default function CashflowCellDetailModal({
   isOpen,
@@ -47,6 +68,10 @@ export default function CashflowCellDetailModal({
       editStatus: buchung.status || 'angekuendigt',
       editEintragTyp: buchung.eintrag_typ || 'betrag',
       editNotiz: buchung.notiz || '',
+      editRechnungsnummer: buchung.rechnungsnummer || '',
+      editRechnungsdatum: toDateInputValue(buchung.rechnungsdatum),
+      editAvisNummer: buchung.avis_nummer || '',
+      editZahlungsart: buchung.zahlungsart || '',
     }));
 
     setEditableBuchungen(mapped);
@@ -98,11 +123,15 @@ export default function CashflowCellDetailModal({
     const betrag = Number(buchung.editBetrag);
     const isEinnahmenBuchung = Number(buchung.kategorie_id) === 1;
 
-    if (!Number.isFinite(betrag) || betrag <= 0) {
-      return 'Der Betrag muss größer 0 sein.';
+    if (!Number.isFinite(betrag)) {
+      return 'Der Betrag ist ungültig.';
     }
 
     if (isEinnahmenBuchung) {
+      if (betrag <= 0) {
+        return 'Einnahmen müssen größer 0 sein.';
+      }
+
       return '';
     }
 
@@ -118,11 +147,8 @@ export default function CashflowCellDetailModal({
       return 'Ungültiger Tag.';
     }
 
-    if (
-      buchung.editEintragTyp === 'betrag' &&
-      (!Number.isFinite(betrag) || betrag <= 0)
-    ) {
-      return 'Bei Eintragstyp betrag muss der Betrag größer 0 sein.';
+    if (buchung.editEintragTyp === 'betrag' && betrag === 0) {
+      return 'Ausgaben und Gutschriften müssen ungleich 0 sein.';
     }
 
     if (!FILIALEN.includes(buchung.editFiliale)) {
@@ -181,6 +207,10 @@ export default function CashflowCellDetailModal({
           status: selectedBuchung.editStatus,
           eintrag_typ: selectedBuchung.editEintragTyp,
           notiz: selectedBuchung.editNotiz,
+          rechnungsnummer: selectedBuchung.editRechnungsnummer || null,
+          rechnungsdatum: selectedBuchung.editRechnungsdatum || null,
+          avis_nummer: selectedBuchung.editAvisNummer || null,
+          zahlungsart: selectedBuchung.editZahlungsart || null,
         };
 
     setSaving(true);
@@ -572,7 +602,6 @@ export default function CashflowCellDetailModal({
                           </label>
                           <input
                             type="number"
-                            min="0"
                             step="0.01"
                             value={selectedBuchung.editBetrag}
                             disabled={
@@ -663,6 +692,89 @@ export default function CashflowCellDetailModal({
                             {EINTRAG_TYPEN.map((typ) => (
                               <option key={typ} value={typ}>
                                 {typ}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Rechnungsnummer
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedBuchung.editRechnungsnummer}
+                            disabled={saving || !!deletingId}
+                            onChange={(event) =>
+                              updateLocalBuchung(
+                                selectedBuchung.id,
+                                'editRechnungsnummer',
+                                event.target.value
+                              )
+                            }
+                            placeholder="Rechnungsnummer"
+                            className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white placeholder-white/30 outline-none disabled:opacity-50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Rechnungsdatum
+                          </label>
+                          <input
+                            type="date"
+                            value={selectedBuchung.editRechnungsdatum}
+                            disabled={saving || !!deletingId}
+                            onChange={(event) =>
+                              updateLocalBuchung(
+                                selectedBuchung.id,
+                                'editRechnungsdatum',
+                                event.target.value
+                              )
+                            }
+                            className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Avis-Nummer
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedBuchung.editAvisNummer}
+                            disabled={saving || !!deletingId}
+                            onChange={(event) =>
+                              updateLocalBuchung(
+                                selectedBuchung.id,
+                                'editAvisNummer',
+                                event.target.value
+                              )
+                            }
+                            placeholder="Avis-Nummer"
+                            className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white placeholder-white/30 outline-none disabled:opacity-50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Zahlungsart
+                          </label>
+                          <select
+                            value={selectedBuchung.editZahlungsart}
+                            disabled={saving || !!deletingId}
+                            onChange={(event) =>
+                              updateLocalBuchung(
+                                selectedBuchung.id,
+                                'editZahlungsart',
+                                event.target.value
+                              )
+                            }
+                            className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                          >
+                            {ZAHLUNGSARTEN.map((zahlungsart) => (
+                              <option key={zahlungsart.value || 'leer'} value={zahlungsart.value}>
+                                {zahlungsart.label}
                               </option>
                             ))}
                           </select>

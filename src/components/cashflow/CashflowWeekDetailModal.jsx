@@ -78,6 +78,11 @@ export default function CashflowWeekDetailModal({
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [fastBookingCell, setFastBookingCell] = useState(null);
+  const [searchValue, setSearchValue] = useState('');
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [bookingAction, setBookingAction] = useState('');
 
   if (!isOpen || !week) return null;
 
@@ -137,11 +142,178 @@ export default function CashflowWeekDetailModal({
   const closeModal = () => {
    setSelectedCell(null);
    setSelectedBooking(null);
+   setFastBookingCell(null);
+   setSearchValue('');
+   setSearchResults(null);
+   setSearchError('');
+   setBookingAction('');
    onClose();
   };
 
   const closeFastBookingModal = () => {
    setFastBookingCell(null);
+  };
+
+  const runSearch = async (value = searchValue) => {
+    const suchwert = String(value || '').trim();
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+
+    if (!suchwert) {
+      setSearchResults(null);
+      setSearchError('Bitte Avis- oder Rechnungsnummer eingeben.');
+      return;
+    }
+
+    if (!baseUrl) {
+      setSearchError('VITE_API_URL fehlt.');
+      return;
+    }
+
+    if (!token) {
+      setSearchError('Kein Login-Token vorhanden.');
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchError('');
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/buchungen/suche?suchwert=${encodeURIComponent(suchwert)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || 'Suche konnte nicht ausgeführt werden.'
+        );
+      }
+
+      setSearchResults(data);
+    } catch (err) {
+      setSearchResults(null);
+      setSearchError(err.message || 'Fehler bei der Suche.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const openBookingFromSearch = (buchungId) => {
+    const buchung = buchungen.find((item) => item.id === buchungId);
+
+    if (!buchung) {
+      setSearchError(
+        'Die Buchung wurde gefunden, ist aber in der aktuell geladenen Wochenansicht nicht verfügbar.'
+      );
+      return;
+    }
+
+    setSelectedCell({
+      tag: buchung.tag,
+      kw: buchung.kw,
+      kategorieId: buchung.kategorie_id,
+      kategorieName: buchung.kategorie,
+    });
+    setSelectedBooking(buchung.id);
+  };
+
+  const bookSingleInvoice = async (buchungId) => {
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+
+    if (!baseUrl) {
+      setSearchError('VITE_API_URL fehlt.');
+      return;
+    }
+
+    if (!token) {
+      setSearchError('Kein Login-Token vorhanden.');
+      return;
+    }
+
+    setBookingAction(`rechnung:${buchungId}`);
+    setSearchError('');
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/buchungen/${buchungId}/buchen`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Rechnung konnte nicht gebucht werden.');
+      }
+
+      if (typeof onReload === 'function') {
+        await onReload();
+      }
+
+      await runSearch(searchValue);
+    } catch (err) {
+      setSearchError(err.message || 'Fehler beim Buchen der Rechnung.');
+    } finally {
+      setBookingAction('');
+    }
+  };
+
+  const bookAvis = async (avisNummer) => {
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+
+    if (!baseUrl) {
+      setSearchError('VITE_API_URL fehlt.');
+      return;
+    }
+
+    if (!token) {
+      setSearchError('Kein Login-Token vorhanden.');
+      return;
+    }
+
+    setBookingAction(`avis:${avisNummer}`);
+    setSearchError('');
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/avis/${encodeURIComponent(avisNummer)}/buchen`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || 'Avis konnte nicht gebucht werden.');
+      }
+
+      if (typeof onReload === 'function') {
+        await onReload();
+      }
+
+      await runSearch(searchValue);
+    } catch (err) {
+      setSearchError(err.message || 'Fehler beim Buchen des Avis.');
+    } finally {
+      setBookingAction('');
+    }
   };
 
 const saveFastBooking = async (payload) => {
@@ -245,6 +417,190 @@ const saveFastBooking = async (payload) => {
                 {formatEuro(modalSaldo)}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 mb-4">
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <label className="sr-only">
+                  Avis- oder Rechnungsnummer
+                </label>
+                <input
+                  type="text"
+                  value={searchValue}
+                  disabled={searchLoading || !!bookingAction}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      runSearch();
+                    }
+                  }}
+                  placeholder="Avis- oder Rechnungsnummer"
+                  className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-sm text-white placeholder-white/30 outline-none focus:border-cyan-300/60 disabled:opacity-50"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={searchLoading || !!bookingAction}
+                onClick={() => runSearch()}
+                className="shrink-0 px-4 py-2 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-sm text-cyan-100 font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {searchLoading ? 'Suche...' : 'Suchen'}
+              </button>
+            </div>
+
+            {searchError && (
+              <div className="mt-2 text-sm text-red-300">{searchError}</div>
+            )}
+
+            {searchResults && (
+              <div className="mt-3 max-h-[260px] overflow-auto pr-1 space-y-3">
+                <div className="text-sm text-white/60">
+                  {searchResults.anzahl_treffer === 1
+                    ? '1 Treffer'
+                    : `${searchResults.anzahl_treffer} Treffer`}
+                </div>
+
+                {searchResults.anzahl_treffer === 0 && (
+                  <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/50">
+                    Keine passende Avis- oder Rechnungsnummer gefunden.
+                  </div>
+                )}
+
+                {searchResults.avis?.map((avis) => (
+                  <div
+                    key={`avis-${avis.avis_nummer}`}
+                    className="rounded-xl border border-white/10 bg-black/25 p-3"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <div className="text-white font-bold">
+                          Avis {avis.avis_nummer}
+                        </div>
+                        <div className="text-white/55 text-sm mt-1">
+                          {avis.anzahl_rechnungen} Rechnung
+                          {avis.anzahl_rechnungen === 1 ? '' : 'en'} ·{' '}
+                          {formatEuro(avis.gesamtsumme)} · Status: {avis.status}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={
+                          avis.status === 'gebucht' ||
+                          searchLoading ||
+                          !!bookingAction
+                        }
+                        onClick={() => bookAvis(avis.avis_nummer)}
+                        className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-sm text-emerald-100 font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {bookingAction === `avis:${avis.avis_nummer}`
+                          ? 'Avis wird gebucht...'
+                          : avis.status === 'gebucht'
+                            ? 'Avis gebucht'
+                            : 'Avis vollständig buchen'}
+                      </button>
+                    </div>
+
+                    <div className="mt-3 space-y-2">
+                      {avis.rechnungen.map((rechnung) => (
+                        <div
+                          key={`avis-rechnung-${rechnung.id}`}
+                          className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2"
+                        >
+                          <div>
+                            <div className="text-white font-semibold">
+                              {rechnung.rechnungsnummer || 'Ohne Rechnungsnummer'}
+                            </div>
+                            <div className="text-white/50 text-xs mt-1">
+                              {rechnung.kategorie} · {rechnung.filiale} ·{' '}
+                              {formatEuro(rechnung.betrag)} · {rechnung.status}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={searchLoading || !!bookingAction}
+                              onClick={() => openBookingFromSearch(rechnung.id)}
+                              className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition disabled:opacity-50"
+                            >
+                              Bearbeiten
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={
+                                rechnung.status === 'gebucht' ||
+                                searchLoading ||
+                                !!bookingAction
+                              }
+                              onClick={() => bookSingleInvoice(rechnung.id)}
+                              className="px-4 py-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-100 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {bookingAction === `rechnung:${rechnung.id}`
+                                ? 'Wird gebucht...'
+                                : rechnung.status === 'gebucht'
+                                  ? 'Gebucht'
+                                  : 'Rechnung buchen'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {searchResults.rechnungen?.map((rechnung) => (
+                  <div
+                    key={`rechnung-${rechnung.id}`}
+                    className="rounded-xl border border-white/10 bg-black/25 p-3 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3"
+                  >
+                    <div>
+                      <div className="text-white font-bold">
+                        Rechnung {rechnung.rechnungsnummer}
+                      </div>
+                      <div className="text-white/55 text-sm mt-1">
+                        {rechnung.avis_nummer
+                          ? `Avis ${rechnung.avis_nummer} · `
+                          : ''}
+                        {rechnung.kategorie} · {rechnung.filiale} ·{' '}
+                        {formatEuro(rechnung.betrag)} · {rechnung.status}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={searchLoading || !!bookingAction}
+                        onClick={() => openBookingFromSearch(rechnung.id)}
+                        className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition disabled:opacity-50"
+                      >
+                        Bearbeiten
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={
+                          rechnung.status === 'gebucht' ||
+                          searchLoading ||
+                          !!bookingAction
+                        }
+                        onClick={() => bookSingleInvoice(rechnung.id)}
+                        className="px-4 py-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-100 font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {bookingAction === `rechnung:${rechnung.id}`
+                          ? 'Wird gebucht...'
+                          : rechnung.status === 'gebucht'
+                            ? 'Gebucht'
+                            : 'Rechnung buchen'}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl border border-white/10 overflow-auto">
@@ -381,7 +737,7 @@ const saveFastBooking = async (payload) => {
           		  kategorieName: kategorie.name,
         		});
       		      }}
-      		      className="text-xs font-bold text-cyan-300 hover:text-cyan-200 transition"
+      		      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-xl leading-none font-bold text-cyan-200 hover:text-white transition shadow-[0_0_0_1px_rgba(103,232,249,0.22)]"
     		    >
       		      +
     		    </button>
