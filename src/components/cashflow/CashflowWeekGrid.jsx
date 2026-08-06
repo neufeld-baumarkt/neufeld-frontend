@@ -4,6 +4,15 @@ import { useState } from 'react';
 import CashflowWeekCard from './CashflowWeekCard';
 import CashflowWeekDetailModal from './CashflowWeekDetailModal';
 
+function getIsoWeeksInYear(year) {
+  const date = new Date(Date.UTC(Number(year), 11, 28));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+}
+
 export default function CashflowWeekGrid({
   jahr,
   setJahr,
@@ -36,6 +45,62 @@ export default function CashflowWeekGrid({
   const sortedWeeks = [...weeks].sort(
     (a, b) => Number(b.kw) - Number(a.kw)
   );
+
+  const minYear = years.length ? Math.min(...years.map(Number)) : jahr;
+  const maxYear = years.length ? Math.max(...years.map(Number)) : jahr;
+
+  const canGoToPreviousWeek =
+    !!selectedWeek &&
+    !(Number(jahr) === minYear && Number(selectedWeek.kw) === 1);
+
+  const canGoToNextWeek =
+    !!selectedWeek &&
+    !(
+      Number(jahr) === maxYear &&
+      Number(selectedWeek.kw) === getIsoWeeksInYear(jahr)
+    );
+
+  const openPreviousWeek = () => {
+    if (!selectedWeek || !canGoToPreviousWeek) return;
+
+    const currentKw = Number(selectedWeek.kw);
+
+    if (currentKw > 1) {
+      setSelectedWeek({ kw: currentKw - 1 });
+      return;
+    }
+
+    const previousYear = Number(jahr) - 1;
+    const previousYearLastKw = getIsoWeeksInYear(previousYear);
+
+    setJahr(previousYear);
+    setBisKw(previousYearLastKw);
+    setSelectedWeek({ kw: previousYearLastKw });
+  };
+
+  const openNextWeek = () => {
+    if (!selectedWeek || !canGoToNextWeek) return;
+
+    const currentKw = Number(selectedWeek.kw);
+    const currentYearLastKw = getIsoWeeksInYear(jahr);
+
+    if (currentKw < currentYearLastKw) {
+      const nextKw = currentKw + 1;
+
+      if (nextKw > Number(bisKw)) {
+        setBisKw(nextKw);
+      }
+
+      setSelectedWeek({ kw: nextKw });
+      return;
+    }
+
+    const nextYear = Number(jahr) + 1;
+
+    setJahr(nextYear);
+    setBisKw(1);
+    setSelectedWeek({ kw: 1 });
+  };
 
   return (
     <>
@@ -157,6 +222,10 @@ export default function CashflowWeekGrid({
               : []
           }
           onReload={onReload}
+          onPreviousWeek={openPreviousWeek}
+          onNextWeek={openNextWeek}
+          canGoToPreviousWeek={canGoToPreviousWeek}
+          canGoToNextWeek={canGoToNextWeek}
           onClose={() => setSelectedWeek(null)}
         />
       )}

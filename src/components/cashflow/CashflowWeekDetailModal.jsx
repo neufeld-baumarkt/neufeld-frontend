@@ -74,6 +74,10 @@ export default function CashflowWeekDetailModal({
   week,
   buchungen = [],
   onReload,
+  onPreviousWeek,
+  onNextWeek,
+  canGoToPreviousWeek = true,
+  canGoToNextWeek = true,
 }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -152,6 +156,30 @@ export default function CashflowWeekDetailModal({
 
   const closeFastBookingModal = () => {
    setFastBookingCell(null);
+  };
+
+  const resetWeekInteraction = () => {
+    setSelectedCell(null);
+    setSelectedBooking(null);
+    setFastBookingCell(null);
+    setSearchValue('');
+    setSearchResults(null);
+    setSearchError('');
+    setBookingAction('');
+  };
+
+  const handlePreviousWeek = () => {
+    if (!canGoToPreviousWeek || typeof onPreviousWeek !== 'function') return;
+
+    resetWeekInteraction();
+    onPreviousWeek();
+  };
+
+  const handleNextWeek = () => {
+    if (!canGoToNextWeek || typeof onNextWeek !== 'function') return;
+
+    resetWeekInteraction();
+    onNextWeek();
   };
 
   const clearSearch = () => {
@@ -369,14 +397,38 @@ const saveFastBooking = async (payload) => {
       <div className="w-full max-w-[1500px] max-h-[90vh] bg-[#2f2d2d] rounded-2xl border border-white/10 shadow-[6px_6px_18px_rgba(0,0,0,0.7)] overflow-hidden">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-start justify-between gap-6">
-            <div>
-              <div className="text-3xl font-bold text-white">
-                KW {week.kw}
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={handlePreviousWeek}
+                disabled={!canGoToPreviousWeek}
+                aria-label="Vorherige Kalenderwoche"
+                title="Vorherige Kalenderwoche"
+                className="min-w-[170px] px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/10 text-base font-black text-white transition disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_0_0_1px_rgba(255,255,255,0.05)]"
+              >
+                ← Vorherige KW
+              </button>
+
+              <div className="min-w-[190px] px-5 py-2 text-center rounded-xl bg-black/20 border border-white/10">
+                <div className="text-4xl font-black text-white leading-none">
+                  KW {week.kw}
+                </div>
+
+                <div className="text-white/60 mt-2 text-sm font-semibold">
+                  Jahr {jahr} · {buchungen.length} Buchungen
+                </div>
               </div>
 
-              <div className="text-white/60 mt-2">
-                Wochenmatrix · {buchungen.length} Buchungen
-              </div>
+              <button
+                type="button"
+                onClick={handleNextWeek}
+                disabled={!canGoToNextWeek}
+                aria-label="Nächste Kalenderwoche"
+                title="Nächste Kalenderwoche"
+                className="min-w-[170px] px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/10 text-base font-black text-white transition disabled:opacity-30 disabled:cursor-not-allowed shadow-[0_0_0_1px_rgba(255,255,255,0.05)]"
+              >
+                Nächste KW →
+              </button>
             </div>
 
             <button

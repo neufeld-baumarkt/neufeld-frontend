@@ -16,6 +16,11 @@ function getIsoWeekYear(date = new Date()) {
   };
 }
 
+function getIsoWeeksInYear(year) {
+  const december28 = new Date(Date.UTC(Number(year), 11, 28));
+  return getIsoWeekYear(december28).week;
+}
+
 function safeParseUser() {
   try {
     return JSON.parse(sessionStorage.getItem('user'));
@@ -63,7 +68,10 @@ export default function Cashflow() {
     (_, index) => 2023 + index
   );
 
-  const weeks = Array.from({ length: 53 }, (_, index) => index + 1);
+  const weeks = Array.from(
+    { length: getIsoWeeksInYear(jahr) },
+    (_, index) => index + 1
+  );
 
   const getApiBasics = () => {
     const token = sessionStorage.getItem('token');
@@ -178,6 +186,13 @@ export default function Cashflow() {
   };
 
   useEffect(() => {
+    const maxKw = getIsoWeeksInYear(jahr);
+
+    if (bisKw > maxKw) {
+      setBisKw(maxKw);
+      return;
+    }
+
     loadKpis();
     loadCashflowData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
