@@ -154,6 +154,12 @@ export default function CashflowWeekDetailModal({
    setFastBookingCell(null);
   };
 
+  const clearSearch = () => {
+    setSearchValue('');
+    setSearchResults(null);
+    setSearchError('');
+  };
+
   const runSearch = async (value = searchValue) => {
     const suchwert = String(value || '').trim();
     const token = sessionStorage.getItem('token');
@@ -215,6 +221,8 @@ export default function CashflowWeekDetailModal({
       return;
     }
 
+    clearSearch();
+
     setSelectedCell({
       tag: buchung.tag,
       kw: buchung.kw,
@@ -262,7 +270,7 @@ export default function CashflowWeekDetailModal({
         await onReload();
       }
 
-      await runSearch(searchValue);
+      clearSearch();
     } catch (err) {
       setSearchError(err.message || 'Fehler beim Buchen der Rechnung.');
     } finally {
@@ -308,7 +316,7 @@ export default function CashflowWeekDetailModal({
         await onReload();
       }
 
-      await runSearch(searchValue);
+      clearSearch();
     } catch (err) {
       setSearchError(err.message || 'Fehler beim Buchen des Avis.');
     } finally {
@@ -473,15 +481,24 @@ const saveFastBooking = async (payload) => {
                     key={`avis-${avis.avis_nummer}`}
                     className="rounded-xl border border-white/10 bg-black/25 p-3"
                   >
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div>
+                    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center gap-3">
+                      <div className="min-w-0">
                         <div className="text-white font-bold">
                           Avis {avis.avis_nummer}
                         </div>
-                        <div className="text-white/55 text-sm mt-1">
+                        <div className="text-white/55 text-xs mt-1">
                           {avis.anzahl_rechnungen} Rechnung
-                          {avis.anzahl_rechnungen === 1 ? '' : 'en'} ·{' '}
-                          {formatEuro(avis.gesamtsumme)} · Status: {avis.status}
+                          {avis.anzahl_rechnungen === 1 ? '' : 'en'} · Status:{' '}
+                          {avis.status}
+                        </div>
+                      </div>
+
+                      <div className="lg:px-5">
+                        <div className="text-[clamp(1.7rem,3vw,2.6rem)] leading-none font-black tracking-tight text-white whitespace-nowrap">
+                          {formatEuro(avis.gesamtsumme)}
+                        </div>
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-white/35 mt-1">
+                          Avis-Gesamtbetrag
                         </div>
                       </div>
 
@@ -493,7 +510,7 @@ const saveFastBooking = async (payload) => {
                           !!bookingAction
                         }
                         onClick={() => bookAvis(avis.avis_nummer)}
-                        className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-sm text-emerald-100 font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-5 py-3 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 text-sm text-emerald-100 font-black transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap shadow-[0_0_0_1px_rgba(52,211,153,0.18)]"
                       >
                         {bookingAction === `avis:${avis.avis_nummer}`
                           ? 'Avis wird gebucht...'
