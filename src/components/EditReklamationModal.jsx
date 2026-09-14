@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getTrackingConflictAlert } from '../lib/reklamationen/trackingConflict.mjs';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -390,6 +391,12 @@ export default function EditReklamationModal({ onClose, onSuccess }) {
       const status = err?.response?.status;
       const code = err?.response?.data?.code;
       const msgFromBackend = err?.response?.data?.message;
+      const trackingConflictAlert = getTrackingConflictAlert(err, formData.tracking_id);
+
+      if (trackingConflictAlert) {
+        window.alert(trackingConflictAlert);
+        return;
+      }
 
       // Blockierend (nur OK): Dublette Rekla-Nr.
       if (status === 409 && code === 'REKLA_NR_EXISTS' && msgFromBackend) {

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getTrackingConflictAlert } from '../lib/reklamationen/trackingConflict.mjs';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -325,6 +326,12 @@ export default function CreateReklamationModal({ onClose, onSuccess }) {
       const status = error?.response?.status;
       const code = error?.response?.data?.code;
       const msgFromBackend = error?.response?.data?.message;
+      const trackingConflictAlert = getTrackingConflictAlert(error, formData.tracking_id);
+
+      if (trackingConflictAlert) {
+        window.alert(trackingConflictAlert);
+        return;
+      }
 
       // DEIN WUNSCH: Blockierendes Alert, nur OK, keine Alternative.
       if (status === 409 && code === 'REKLA_NR_EXISTS' && msgFromBackend) {
