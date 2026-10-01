@@ -376,10 +376,36 @@ export default function Budget() {
 
     try {
       setLoadingBookings(true);
-      await axios.post(`${baseUrl}/api/budget/bookings`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      toast.success('Buchung angelegt.');
+      let response;
+
+      try {
+        response = await axios.post(`${baseUrl}/api/budget/bookings`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {
+        const conflict = err?.response?.data;
+        if (err?.response?.status !== 409 || conflict?.code !== 'ACTION_ALREADY_EXISTS') {
+          throw err;
+        }
+
+        const existing = conflict.existing_action || {};
+        const actionNumber = existing.aktion_nr || payload.aktion_nr;
+        const actionKw = existing.kw || '—';
+        const confirmed = window.confirm(
+          `Die Aktion ${actionNumber} gibt es bereits in KW ${actionKw}.\n\n` +
+            'Soll sie mit der neuen Buchung zusammengefügt werden?'
+        );
+
+        if (!confirmed) return false;
+
+        response = await axios.post(
+          `${baseUrl}/api/budget/bookings`,
+          { ...payload, merge_existing_action: true },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+      }
+
+      toast.success(response?.data?.merged ? 'Aktion zusammengeführt.' : 'Buchung angelegt.');
       await reloadAll();
       return true;
     } catch (err) {
