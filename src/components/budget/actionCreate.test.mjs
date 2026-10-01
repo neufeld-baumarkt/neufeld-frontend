@@ -31,3 +31,13 @@ test('requires an amount for every selected branch and omits unchecked branches'
   assert.equal(valid.ok, true);
   assert.deepEqual(valid.payload.filialen, [{ filiale: 'Ahaus', betrag: 1234.56 }]);
 });
+
+test('adds a trimmed optional remark and omits an empty one', () => {
+  const rows = [{ name: 'Ahaus', enabled: true, amount: '10' }];
+
+  const withRemark = buildActionPayload('A02645', rows, '  Aufbau am Eingang  ');
+  assert.equal(withRemark.payload.beschreibung, 'Aufbau am Eingang');
+
+  const withoutRemark = buildActionPayload('A02645', rows, '   ');
+  assert.equal('beschreibung' in withoutRemark.payload, false);
+});

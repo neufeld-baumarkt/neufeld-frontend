@@ -13,6 +13,7 @@ function normalizeBranches(payload) {
 
 export default function ActionCreateModal({ open, onClose, onCreated }) {
   const [actionNumber, setActionNumber] = useState('');
+  const [remark, setRemark] = useState('');
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -22,6 +23,7 @@ export default function ActionCreateModal({ open, onClose, onCreated }) {
   useEffect(() => {
     if (!open) return;
     setActionNumber('');
+    setRemark('');
     setBranches([]);
 
     const token = sessionStorage.getItem('token');
@@ -69,7 +71,7 @@ export default function ActionCreateModal({ open, onClose, onCreated }) {
   };
 
   const submit = async () => {
-    const built = buildActionPayload(actionNumber, branches);
+    const built = buildActionPayload(actionNumber, branches, remark);
     if (!built.ok) {
       toast.error(built.message);
       return;
@@ -163,6 +165,21 @@ export default function ActionCreateModal({ open, onClose, onCreated }) {
               {target.ok ? `Wird in Jahr ${target.jahr}, KW ${target.kw} gebucht.` : target.message}
             </div>
           )}
+
+          <label className="flex flex-col gap-2 mt-5">
+            <span className="text-white/80 font-semibold">Bemerkung (optional)</span>
+            <textarea
+              value={remark}
+              onChange={(event) => setRemark(event.target.value)}
+              rows={3}
+              placeholder="Optionaler Hinweis zur Aktion"
+              className="w-full px-3 py-2 rounded-lg bg-white/10 text-white outline-none focus:ring-2 focus:ring-white/30 resize-y"
+            />
+          </label>
+
+          <div className="mt-3 text-white/60 text-sm">
+            Lieferant wird automatisch als <span className="font-semibold text-white/80">Zentrallager</span> gespeichert.
+          </div>
 
           <div className="mt-6">
             <div className="font-semibold">Filialbeträge</div>

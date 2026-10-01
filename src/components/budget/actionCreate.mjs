@@ -29,7 +29,7 @@ export function parseActionAmount(value) {
   return Number.isFinite(amount) ? amount : null;
 }
 
-export function buildActionPayload(actionNumberValue, branchRows) {
+export function buildActionPayload(actionNumberValue, branchRows, remarkValue = '') {
   const parsedAction = parseActionNumber(actionNumberValue);
   if (!parsedAction.ok) return parsedAction;
 
@@ -50,9 +50,13 @@ export function buildActionPayload(actionNumberValue, branchRows) {
     filialen.push({ filiale: row.name, betrag: Math.round(amount * 100) / 100 });
   }
 
+  const beschreibung = String(remarkValue ?? '').trim();
+  const payload = { aktion_nr: parsedAction.aktion_nr, filialen };
+  if (beschreibung) payload.beschreibung = beschreibung;
+
   return {
     ok: true,
     target: parsedAction,
-    payload: { aktion_nr: parsedAction.aktion_nr, filialen }
+    payload
   };
 }
