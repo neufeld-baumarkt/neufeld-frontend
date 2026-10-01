@@ -39,22 +39,17 @@ function parseAktionsnummerTarget(value) {
     };
   }
 
-  if (raw.length !== 6) {
+  const normalized = raw.toUpperCase();
+
+  if (!/^[AS]\d{5}$/.test(normalized)) {
     return {
       ok: false,
-      message: 'Aktionsnummer ist ungültig. Erwartet werden exakt 6 Zeichen, z. B. A02645 oder S02645.',
+      message: 'Aktionsnummer ist ungültig. Erlaubt sind A oder S gefolgt von fünf Ziffern, z. B. A02645.',
     };
   }
 
-  const yearPart = raw.slice(2, 4);
-  const kwPart = raw.slice(4, 6);
-
-  if (!/^\d{2}$/.test(yearPart) || !/^\d{2}$/.test(kwPart)) {
-    return {
-      ok: false,
-      message: 'Aktionsnummer ist ungültig. Stellen 3-4 müssen das Jahr und Stellen 5-6 die KW enthalten.',
-    };
-  }
+  const yearPart = normalized.slice(2, 4);
+  const kwPart = normalized.slice(4, 6);
 
   const jahr = 2000 + Number(yearPart);
   const kw = Number(kwPart);
@@ -70,7 +65,7 @@ function parseAktionsnummerTarget(value) {
     ok: true,
     jahr,
     kw,
-    raw,
+    raw: normalized,
   };
 }
 

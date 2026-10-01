@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import BookingModal from './BookingModal';
+import ActionCreateModal from './ActionCreateModal';
 
 function toNumber(value) {
   if (value === null || value === undefined) return null;
@@ -45,13 +46,19 @@ function allowedCreateTypes({ isFilialeUser, role }) {
 
   if (isFilialeUser) return ['bestellung', 'sonderbestellung'];
   if (r === 'Admin' || r === 'Supervisor') {
-    return ['bestellung', 'sonderbestellung', 'aktionsvorab', 'abgabe', 'korrektur'];
+    return ['bestellung', 'sonderbestellung', 'abgabe', 'korrektur'];
   }
   if (r === 'Manager-1' || r === 'Geschäftsführer') {
-    return ['bestellung', 'sonderbestellung', 'aktionsvorab'];
+    return ['bestellung', 'sonderbestellung'];
   }
 
   return ['sonderbestellung'];
+}
+
+function canCreateActions({ isFilialeUser, role }) {
+  if (isFilialeUser) return false;
+  const r = normalizeRole(role);
+  return r === 'Admin' || r === 'Supervisor' || r === 'Manager-1' || r === 'Geschäftsführer';
 }
 
 function titleForTyp(typ) {
@@ -110,10 +117,12 @@ export default function BudgetBookingsPanel({
   weekSummary,
   loading,
   onReload,
+  onActionsCreated,
   onCreate,
   onUpdate,
 }) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [actionModalOpen, setActionModalOpen] = useState(false);
   const [editBooking, setEditBooking] = useState(null);
 
   const createTypes = useMemo(
@@ -122,6 +131,7 @@ export default function BudgetBookingsPanel({
   );
 
   const canCreateAnything = createTypes.length > 0;
+  const mayCreateActions = canCreateActions({ isFilialeUser, role: userRole });
 
   const totalVerbraucht = useMemo(() => {
     return weekSummary?.verbraucht ?? null;
@@ -184,6 +194,15 @@ export default function BudgetBookingsPanel({
           >
             Reload
           </button>
+          {mayCreateActions && (
+            <button
+              onClick={() => setActionModalOpen(true)}
+              className="px-4 py-2 rounded-lg bg-sky-700 hover:bg-sky-600 transition font-semibold disabled:opacity-40"
+              disabled={loading}
+            >
+              Aktionen anlegen
+            </button>
+          )}
           <button
             onClick={openCreate}
             className="px-4 py-2 rounded-lg bg-white/20 hover:bg-white/30 transition font-semibold disabled:opacity-40"
@@ -268,6 +287,11 @@ export default function BudgetBookingsPanel({
         allowedTypes={createTypes}
         onSubmit={handleSubmit}
         onDeleted={onReload}
+      />
+      <ActionCreateModal
+        open={actionModalOpen}
+        onClose={() => setActionModalOpen(false)}
+        onCreated={onActionsCreated || onReload}
       />
     </div>
   );

@@ -644,6 +644,7 @@ export default function Budget() {
             weekSummary={weekSummaryFromBookings}
             loading={loadingBookings}
             onReload={fetchBookings}
+            onActionsCreated={reloadAll}
             onCreate={createBooking}
             onUpdate={updateBooking}
           />
