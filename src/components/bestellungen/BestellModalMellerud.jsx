@@ -2,46 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import SplitModal_Mellerud from './SplitModal_Mellerud';
+import { compactSplitPayload, dateInBerlin, normalizeSupplierCode, orderMeetsMinimumVe } from '../../lib/orderUi.mjs';
 
 function normalizeFiliale(value) {
   const t = String(value || '').trim();
   return t ? t : '';
-}
-
-function toMoneyNumber(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return 0;
-  return Math.round(n * 100) / 100;
-}
-
-function buildBudgetSplitsFromArticles(splitDataByArticle, rows, sourceFiliale) {
-  const source = normalizeFiliale(sourceFiliale);
-  const sumByFiliale = new Map();
-
-  for (const row of rows) {
-    if (!Number.isInteger(row.mengeKartons) || row.mengeKartons <= 0) continue;
-
-    const splitBlock = splitDataByArticle?.[row.id];
-    if (!splitBlock || splitBlock.active !== true) continue;
-
-    const zeilen = Array.isArray(splitBlock.zeilen) ? splitBlock.zeilen : [];
-    for (const zeile of zeilen) {
-      const targetFiliale = normalizeFiliale(zeile?.target_filiale);
-      const betrag = toMoneyNumber(zeile?.betrag_netto_berechnet);
-
-      if (!targetFiliale) continue;
-      if (targetFiliale === source) continue;
-      if (betrag <= 0) continue;
-
-      const current = sumByFiliale.get(targetFiliale) || 0;
-      sumByFiliale.set(targetFiliale, Math.round((current + betrag) * 100) / 100);
-    }
-  }
-
-  return Array.from(sumByFiliale.entries()).map(([filiale, betrag]) => ({
-    filiale,
-    betrag,
-  }));
 }
 
 function normalizeSearchValue(value) {
@@ -88,7 +53,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     userFiliale.toLowerCase().trim() === 'alle' ||
     ['supervisor', 'manager', 'admin', 'geschäftsführer', 'manager-1'].includes(userRole.toLowerCase());
 
-  const todayIso = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayIso = useMemo(() => dateInBerlin(), []);
+  const minimumOrderVe = Number(lieferant?.minimum_order_ve) || 2;
 
   const getToken = () => {
     const token = sessionStorage.getItem('token');
@@ -168,7 +134,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   };
 
   useEffect(() => {
-    if (!isOpen || lieferant?.code !== 'mellerud') return;
+    if (!isOpen || normalizeSupplierCode(lieferant?.code) !== 'mellerud') return;
 
     loadProfiles();
     loadArticles();
@@ -188,6 +154,15 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const handleEscape = (event) => {
+      if (event.key === 'Escape' && !splitModalArticle && !saving) closeAndReset();
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, splitModalArticle, saving]);
 
   const selectedProfile = useMemo(() => {
     return profiles.find((item) => item.filiale === selectedFiliale) || null;
@@ -319,14 +294,11 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
       }));
   }, [rows]);
 
-  const budgetSplits = useMemo(() => {
-    return buildBudgetSplitsFromArticles(splitDataByArticle, rows, selectedFiliale);
-  }, [splitDataByArticle, rows, selectedFiliale]);
-
   const requiresFilialeSelection = isSuperUser;
   const isFilialeLocked = requiresFilialeSelection && !selectedFiliale;
   const isFormLocked = loadingProfiles || loadingArticles || saving || isFilialeLocked;
-  const canSave = !isFormLocked && aktivePositionen.length > 0;
+  const meetsMinimumVe = orderMeetsMinimumVe(totalKartons, minimumOrderVe);
+  const canSave = !isFormLocked && aktivePositionen.length > 0 && meetsMinimumVe;
 
   const focusArticleMenge = (articleId) => {
     window.setTimeout(() => {
@@ -434,18 +406,14 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
         bestelldatum: todayIso,
         status: 'saved',
         positionen: aktivePositionen,
-        split_details: splitDataByArticle,
-      },
-      budget: {
-        typ: 'bestellung',
-        splits: budgetSplits,
+        split_details: compactSplitPayload(splitDataByArticle),
       },
     };
 
     try {
       setSaving(true);
 
-      await axios.post(
+      const response = await axios.post(
         `${baseUrl}/api/bestellungen`,
         payload,
         {
@@ -455,10 +423,13 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
         }
       );
 
-      toast.success('Bestellung erfolgreich gespeichert.');
+      toast.success('Bestellung verbindlich und read-only gespeichert.');
+      if (response?.data?.delivery?.status && response.data.delivery.status !== 'sent') {
+        toast.error(`Versandstatus: ${response.data.delivery.message || response.data.delivery.status}`);
+      }
 
       if (typeof onSaved === 'function') {
-        onSaved();
+        await onSaved();
       }
 
       closeAndReset();
@@ -479,18 +450,22 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     <div
       className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center px-6 py-6"
       onClick={closeAndReset}
+      role="presentation"
     >
       <div
-        className="w-full max-w-[1700px] h-[92vh] rounded-2xl border border-white/10 bg-white text-black shadow-2xl overflow-hidden"
+        className="w-full max-w-[1700px] max-h-[94vh] sm:max-h-[92vh] rounded-xl sm:rounded-2xl border border-white/10 bg-white text-black shadow-2xl overflow-y-auto overflow-x-hidden"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mellerud-order-title"
       >
-        <div className="h-full flex flex-col">
+        <div className="min-h-full flex flex-col">
           {/* Kopf */}
           <div className="border-b border-black/15 bg-white shrink-0">
             <div className="px-6 pt-5 pb-4">
-              <div className="flex items-start justify-between gap-6">
+              <div className="flex flex-wrap items-start justify-between gap-4 sm:gap-6">
                 <div className="min-w-0">
-                  <div className="text-[32px] font-extrabold tracking-tight leading-none">
+                  <div id="mellerud-order-title" className="text-2xl sm:text-[32px] font-extrabold tracking-tight leading-none">
                     MELLERUD
                   </div>
                   <div className="text-sm mt-1">
@@ -521,7 +496,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
               </div>
 
               <div className="mt-5 border-t border-black pt-4">
-                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-semibold mb-2">Filiale</label>
 
@@ -561,7 +536,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                   </div>
                 </div>
 
-                <div className={`mt-5 grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-3 text-[15px] ${isFilialeLocked ? 'opacity-50' : ''}`}>
+                <div className={`mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-[15px] ${isFilialeLocked ? 'opacity-50' : ''}`}>
                   <div className="flex items-center gap-3">
                     <div className="w-[130px] font-semibold">Firma:</div>
                     <div className="flex-1 min-h-[34px] border-b border-black/40 flex items-end pb-1">
@@ -672,14 +647,15 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
           {/* Tabelle */}
           <div
             ref={tableScrollRef}
-            className={`flex-1 overflow-auto bg-white ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}
+            className={`w-full min-w-0 min-h-[260px] max-h-[50vh] overflow-auto bg-white ${isFilialeLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}
           >
             <table className="w-full border-collapse text-[14px]">
               <thead className="sticky top-0 z-10 bg-[#f4f4f4]">
                 <tr className="border-b border-black">
                   <th className="text-left px-3 py-3 font-bold whitespace-nowrap">EAN-Nr.</th>
-                  <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Art.-Nr.</th>
-                  <th className="text-left px-3 py-3 font-bold min-w-[420px]">Artikel-Bezeichnung</th>
+                    <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Hersteller-Art.-Nr.</th>
+                    <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Kunden-Art.-Nr.</th>
+                    <th className="text-left px-3 py-3 font-bold min-w-[300px] sm:min-w-[420px]">Artikel-Bezeichnung</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">VE / Stück</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">Einzel-EK</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">VE-EK</th>
@@ -692,13 +668,13 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
               <tbody>
                 {loadingArticles ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={10} className="px-4 py-8 text-center text-black/60">
                       Lade Mellerud-Artikel...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={10} className="px-4 py-8 text-center text-black/60">
                       Keine Artikel vorhanden.
                     </td>
                   </tr>
@@ -720,6 +696,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                     >
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{row.ean || '-'}</td>
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{row.supplier_article_no || '-'}</td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">{row.kunden_art_nr || '-'}</td>
                       <td className="px-3 py-2 align-middle">{row.name || '-'}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">{row.ve_stueck ?? '-'}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
@@ -782,7 +759,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
           {/* Footer */}
           <div className="shrink-0 border-t border-black bg-white">
             <div className="px-6 py-4">
-              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div className="text-sm text-black/70">
                   Die Ware bleibt bis zur vollständigen Bezahlung unser Eigentum.
                 </div>
@@ -818,6 +795,11 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
               {!isFilialeLocked && !saving && aktivePositionen.length === 0 && (
                 <div className="mt-3 text-sm font-semibold text-red-700">
                   Bitte mindestens einen Artikel mit Kartonmenge &gt; 0 erfassen.
+                </div>
+              )}
+              {!isFilialeLocked && !saving && aktivePositionen.length > 0 && !meetsMinimumVe && (
+                <div className="mt-3 text-sm font-semibold text-red-700">
+                  Die gesamte Bestellung muss mindestens {minimumOrderVe} VE enthalten. Aktuell: {totalKartons} VE.
                 </div>
               )}
             </div>

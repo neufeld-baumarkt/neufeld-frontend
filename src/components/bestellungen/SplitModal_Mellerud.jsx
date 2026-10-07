@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-const DEFAULT_FILIALEN = ['Ahaus', 'Münster', 'Telgte', 'Vreden'];
-
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
@@ -107,7 +105,7 @@ export default function SplitModal_Mellerud({
   sourceFiliale,
   bestellteKartons,
   existingSplitData = null,
-  filialen = DEFAULT_FILIALEN,
+  filialen = [],
 }) {
   const [rows, setRows] = useState([]);
 
@@ -134,7 +132,7 @@ export default function SplitModal_Mellerud({
 
   const selectableFilialen = useMemo(() => {
     const currentTargets = new Set(rows.map((row) => normalizeFiliale(row.target_filiale)));
-    return (Array.isArray(filialen) ? filialen : DEFAULT_FILIALEN)
+    return (Array.isArray(filialen) ? filialen : [])
       .map((f) => normalizeFiliale(f))
       .filter((f) => f)
       .filter((f) => f !== normalizedSourceFiliale)
@@ -384,6 +382,7 @@ export default function SplitModal_Mellerud({
   return (
     <div
       className="fixed inset-0 z-[70] bg-black/65 flex items-center justify-center px-4 py-6"
+      role="presentation"
       onMouseDown={(e) => {
         e.stopPropagation();
         if (e.target === e.currentTarget) {
@@ -395,14 +394,17 @@ export default function SplitModal_Mellerud({
       }}
     >
       <div
-        className="w-full max-w-3xl rounded-3xl border border-white/10 bg-[#f7f7f7] text-black shadow-[0_20px_60px_rgba(0,0,0,0.45)] overflow-hidden"
+        className="w-full max-w-3xl max-h-[94vh] rounded-2xl sm:rounded-3xl border border-white/10 bg-[#f7f7f7] text-black shadow-[0_20px_60px_rgba(0,0,0,0.45)] overflow-auto"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mellerud-split-title"
       >
         <div className="px-6 py-5 bg-white border-b border-black/10">
           <div className="flex items-start justify-between gap-6">
             <div className="min-w-0">
-              <div className="text-[28px] font-extrabold tracking-tight leading-none">
+              <div id="mellerud-split-title" className="text-2xl sm:text-[28px] font-extrabold tracking-tight leading-none">
                 Split-Verteilung
               </div>
               <div className="mt-2 text-sm text-black/65">
