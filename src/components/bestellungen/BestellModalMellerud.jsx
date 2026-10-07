@@ -2,15 +2,18 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import SplitModal_Mellerud from './SplitModal_Mellerud';
-import { compactSplitPayload, dateInBerlin, normalizeSupplierCode, orderMeetsMinimumVe } from '../../lib/orderUi.mjs';
+import MellerudArtikelEditModal from './MellerudArtikelEditModal';
+import {
+  compactSplitPayload,
+  dateInBerlin,
+  mellerudArticleMatchesSearch,
+  normalizeSupplierCode,
+  orderMeetsMinimumVe,
+} from '../../lib/orderUi.mjs';
 
 function normalizeFiliale(value) {
   const t = String(value || '').trim();
   return t ? t : '';
-}
-
-function normalizeSearchValue(value) {
-  return String(value || '').toLowerCase().trim();
 }
 
 export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSaved }) {
@@ -23,6 +26,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   const [mengen, setMengen] = useState({});
   const [splitDataByArticle, setSplitDataByArticle] = useState({});
   const [splitModalArticle, setSplitModalArticle] = useState(null);
+  const [editModalArticle, setEditModalArticle] = useState(null);
 
   const [selectedFiliale, setSelectedFiliale] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -52,6 +56,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     userFiliale.trim() === '-' ||
     userFiliale.toLowerCase().trim() === 'alle' ||
     ['supervisor', 'manager', 'admin', 'geschäftsführer', 'manager-1'].includes(userRole.toLowerCase());
+  const canEditArticleMaster = ['supervisor', 'admin', 'geschäftsführer', 'manager-1']
+    .includes(userRole.toLowerCase());
 
   const todayIso = useMemo(() => dateInBerlin(), []);
   const minimumOrderVe = Number(lieferant?.minimum_order_ve) || 2;
@@ -70,6 +76,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     setMengen({});
     setSplitDataByArticle({});
     setSplitModalArticle(null);
+    setEditModalArticle(null);
     setProfiles([]);
     setArticles([]);
     setSelectedFiliale('');
@@ -141,6 +148,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     setMengen({});
     setSplitDataByArticle({});
     setSplitModalArticle(null);
+    setEditModalArticle(null);
     setSearchTerm('');
     setSearchOpen(false);
     setActiveSearchIndex(0);
@@ -158,11 +166,11 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   useEffect(() => {
     if (!isOpen) return undefined;
     const handleEscape = (event) => {
-      if (event.key === 'Escape' && !splitModalArticle && !saving) closeAndReset();
+      if (event.key === 'Escape' && !splitModalArticle && !editModalArticle && !saving) closeAndReset();
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, splitModalArticle, saving]);
+  }, [isOpen, splitModalArticle, editModalArticle, saving]);
 
   const selectedProfile = useMemo(() => {
     return profiles.find((item) => item.filiale === selectedFiliale) || null;
@@ -263,19 +271,17 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
   }, [articles, mengen, splitDataByArticle]);
 
   const searchResults = useMemo(() => {
-    const term = normalizeSearchValue(searchTerm);
-    if (!term) return [];
-
     return rows
-      .filter((row) => {
-        const name = normalizeSearchValue(row.name);
-        const ean = normalizeSearchValue(row.ean);
-        const articleNo = normalizeSearchValue(row.supplier_article_no);
-
-        return name.includes(term) || ean.includes(term) || articleNo.includes(term);
-      })
+      .filter((row) => mellerudArticleMatchesSearch(row, searchTerm))
       .slice(0, 12);
   }, [rows, searchTerm]);
+
+  const handleArticleUpdated = (updatedArticle) => {
+    setArticles((current) => current.map((article) => (
+      article.id === updatedArticle.id ? { ...article, ...updatedArticle } : article
+    )));
+    setEditModalArticle(null);
+  };
 
   const gesamtsumme = useMemo(() => {
     return rows.reduce((sum, row) => sum + row.zeilensumme, 0);
@@ -603,7 +609,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                 }}
                 onKeyDown={handleSearchKeyDown}
                 disabled={isFormLocked}
-                placeholder="Artikelname, EAN oder Art.-Nr. suchen..."
+                placeholder="Artikelbezeichnung, EAN oder Neufeld-Art.-Nr. suchen..."
                 className="w-full h-[42px] rounded-lg border border-black/20 px-3 bg-white disabled:bg-black/5 disabled:text-black/50"
               />
 
@@ -632,7 +638,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                             {row.name || '-'}
                           </div>
                           <div className="mt-1 text-xs text-black/60 flex flex-wrap gap-x-4 gap-y-1">
-                            <span>Art.-Nr.: {row.supplier_article_no || '-'}</span>
+                            <span>Neufeld-Art.-Nr.: {row.kunden_art_nr || '-'}</span>
                             <span>EAN: {row.ean || '-'}</span>
                           </div>
                         </button>
@@ -653,9 +659,8 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
               <thead className="sticky top-0 z-10 bg-[#f4f4f4]">
                 <tr className="border-b border-black">
                   <th className="text-left px-3 py-3 font-bold whitespace-nowrap">EAN-Nr.</th>
-                    <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Hersteller-Art.-Nr.</th>
-                    <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Kunden-Art.-Nr.</th>
-                    <th className="text-left px-3 py-3 font-bold min-w-[300px] sm:min-w-[420px]">Artikel-Bezeichnung</th>
+                  <th className="text-left px-3 py-3 font-bold whitespace-nowrap">Neufeld-Art.-Nr.</th>
+                  <th className="text-left px-3 py-3 font-bold min-w-[300px] sm:min-w-[420px]">Artikel-Bezeichnung</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">VE / Stück</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">Einzel-EK</th>
                   <th className="text-right px-3 py-3 font-bold whitespace-nowrap">VE-EK</th>
@@ -668,13 +673,13 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
               <tbody>
                 {loadingArticles ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
                       Lade Mellerud-Artikel...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-8 text-center text-black/60">
+                    <td colSpan={9} className="px-4 py-8 text-center text-black/60">
                       Keine Artikel vorhanden.
                     </td>
                   </tr>
@@ -695,8 +700,19 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
                       ].join(' ')}
                     >
                       <td className="px-3 py-2 align-middle whitespace-nowrap">{row.ean || '-'}</td>
-                      <td className="px-3 py-2 align-middle whitespace-nowrap">{row.supplier_article_no || '-'}</td>
-                      <td className="px-3 py-2 align-middle whitespace-nowrap">{row.kunden_art_nr || '-'}</td>
+                      <td className="px-3 py-2 align-middle whitespace-nowrap">
+                        <div>{row.kunden_art_nr || '-'}</div>
+                        {canEditArticleMaster && (
+                          <button
+                            type="button"
+                            onClick={() => setEditModalArticle(row)}
+                            disabled={isFormLocked}
+                            className="mt-1 text-xs font-semibold text-[#800000] underline underline-offset-2 disabled:opacity-40"
+                          >
+                            Artikelnummern bearbeiten
+                          </button>
+                        )}
+                      </td>
                       <td className="px-3 py-2 align-middle">{row.name || '-'}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">{row.ve_stueck ?? '-'}</td>
                       <td className="px-3 py-2 align-middle text-right whitespace-nowrap">
@@ -820,6 +836,12 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
         bestellteKartons={splitModalArticle?.mengeKartons || 0}
         existingSplitData={splitModalArticle ? splitDataByArticle[splitModalArticle.id] || null : null}
         filialen={profiles.map((profile) => profile.filiale)}
+      />
+
+      <MellerudArtikelEditModal
+        article={editModalArticle}
+        onClose={() => setEditModalArticle(null)}
+        onSaved={handleArticleUpdated}
       />
     </div>
   );

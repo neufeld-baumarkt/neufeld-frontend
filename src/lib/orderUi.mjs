@@ -2,6 +2,19 @@ export function normalizeSupplierCode(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+export function normalizeOrderSearchValue(value) {
+  return String(value || '').toLocaleLowerCase('de-DE').trim();
+}
+
+export function mellerudArticleMatchesSearch(article, searchTerm) {
+  const term = normalizeOrderSearchValue(searchTerm);
+  if (!term) return false;
+
+  return [article?.ean, article?.kunden_art_nr, article?.name]
+    .map(normalizeOrderSearchValue)
+    .some((value) => value.includes(term));
+}
+
 export function dateInBerlin(date = new Date()) {
   const parts = new Intl.DateTimeFormat('de-DE', {
     timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',

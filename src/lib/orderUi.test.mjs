@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { compactSplitPayload, dateInBerlin, normalizeSupplierCode, orderMeetsMinimumVe } from './orderUi.mjs';
+import {
+  compactSplitPayload,
+  dateInBerlin,
+  mellerudArticleMatchesSearch,
+  normalizeSupplierCode,
+  orderMeetsMinimumVe,
+} from './orderUi.mjs';
 
 test('supplier codes are case independent', () => {
   assert.equal(normalizeSupplierCode(' MELLERUD '), 'mellerud');
@@ -14,6 +20,20 @@ test('Berlin business date does not use the previous UTC day after local midnigh
 test('minimum VE applies to the whole order', () => {
   assert.equal(orderMeetsMinimumVe(1, 2), false);
   assert.equal(orderMeetsMinimumVe(2, 2), true);
+});
+
+test('Mellerud order search uses EAN, Neufeld article number and description only', () => {
+  const article = {
+    ean: '4004666005047',
+    kunden_art_nr: 'NF-4711',
+    supplier_article_no: '2001005047',
+    name: 'Schimmel Schutz 0,5l',
+  };
+
+  assert.equal(mellerudArticleMatchesSearch(article, '4004666005047'), true);
+  assert.equal(mellerudArticleMatchesSearch(article, 'nf-4711'), true);
+  assert.equal(mellerudArticleMatchesSearch(article, 'SCHIMMEL SCHUTZ'), true);
+  assert.equal(mellerudArticleMatchesSearch(article, '2001005047'), false);
 });
 
 test('split payload contains only user intent, never client-calculated money', () => {
