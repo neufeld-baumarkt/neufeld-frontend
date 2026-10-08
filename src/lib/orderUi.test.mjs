@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  canManageMellerudArticleMaster,
   compactSplitPayload,
   dateInBerlin,
   mellerudArticleMatchesSearch,
@@ -8,6 +9,15 @@ import {
   normalizeSupplierCode,
   orderMeetsMinimumVe,
 } from './orderUi.mjs';
+
+test('only Admin, Supervisor and Geschäftsführer may manage Mellerud article master data', () => {
+  assert.equal(canManageMellerudArticleMaster('Admin'), true);
+  assert.equal(canManageMellerudArticleMaster('Supervisor'), true);
+  assert.equal(canManageMellerudArticleMaster('Geschäftsführer'), true);
+  assert.equal(canManageMellerudArticleMaster('Manager-1'), false);
+  assert.equal(canManageMellerudArticleMaster('Manager'), false);
+  assert.equal(canManageMellerudArticleMaster('Filiale'), false);
+});
 
 test('supplier codes are case independent', () => {
   assert.equal(normalizeSupplierCode(' MELLERUD '), 'mellerud');

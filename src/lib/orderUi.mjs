@@ -2,6 +2,11 @@ export function normalizeSupplierCode(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+export function canManageMellerudArticleMaster(role) {
+  return ['admin', 'supervisor', 'geschäftsführer']
+    .includes(String(role || '').trim().toLocaleLowerCase('de-DE'));
+}
+
 export function normalizeOrderSearchValue(value) {
   return String(value || '').toLocaleLowerCase('de-DE').trim();
 }

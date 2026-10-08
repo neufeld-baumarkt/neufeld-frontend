@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import SplitModal_Mellerud from './SplitModal_Mellerud';
 import MellerudArtikelEditModal from './MellerudArtikelEditModal';
 import {
+  canManageMellerudArticleMaster,
   compactSplitPayload,
   dateInBerlin,
   mellerudArticleMatchesSearch,
@@ -56,8 +57,7 @@ export default function BestellModalMellerud({ isOpen, lieferant, onClose, onSav
     userFiliale.trim() === '-' ||
     userFiliale.toLowerCase().trim() === 'alle' ||
     ['supervisor', 'manager', 'admin', 'geschäftsführer', 'manager-1'].includes(userRole.toLowerCase());
-  const canEditArticleMaster = ['supervisor', 'admin', 'geschäftsführer', 'manager-1']
-    .includes(userRole.toLowerCase());
+  const canEditArticleMaster = canManageMellerudArticleMaster(userRole);
 
   const todayIso = useMemo(() => dateInBerlin(), []);
   const minimumOrderVe = Number(lieferant?.minimum_order_ve) || 2;

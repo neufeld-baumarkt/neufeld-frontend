@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import BestellModalMellerud from '../components/bestellungen/BestellModalMellerud';
 import BestellungDetailModal from '../components/bestellungen/BestellungDetailModal';
 import MellerudArtikelManagerModal from '../components/bestellungen/MellerudArtikelManagerModal';
-import { normalizeSupplierCode } from '../lib/orderUi.mjs';
+import { canManageMellerudArticleMaster, normalizeSupplierCode } from '../lib/orderUi.mjs';
 
 const money = (value) => {
   const number = Number(value);
@@ -41,8 +41,7 @@ export default function Bestellungen() {
 
   let user = null;
   try { user = JSON.parse(sessionStorage.getItem('user')); } catch {}
-  const canManageArticles = ['supervisor', 'admin', 'geschäftsführer', 'manager-1']
-    .includes(String(user?.role || '').toLocaleLowerCase('de-DE'));
+  const canManageArticles = canManageMellerudArticleMaster(user?.role);
 
   const token = sessionStorage.getItem('token');
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
