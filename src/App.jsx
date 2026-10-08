@@ -34,9 +34,9 @@ function App() {
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute><PrivateRoute roles={['Supervisor', 'Admin']}>
             <Tasks />
-          </ProtectedRoute>
+          </PrivateRoute></ProtectedRoute>
         }
       />
 

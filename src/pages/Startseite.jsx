@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import PushTaskCenter from '../components/tasks/PushTaskCenter';
+import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
 
 function Startseite() {
   let user = null;
@@ -41,7 +43,7 @@ function Startseite() {
   };
 
   return (
-    <div className="relative w-screen h-screen bg-[#3A3838] overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-x-hidden bg-[#3A3838] pb-10">
       <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: "57px" }}></div>
       <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: "57px" }}></div>
       <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: "7px" }}></div>
@@ -129,6 +131,12 @@ function Startseite() {
           </div>
         </div>
       </div>
+
+      {canUsePushTaskPilot(user?.role) && (
+        <div className="relative z-20 mx-3 mt-20 sm:ml-[95px] sm:mr-[80px] sm:mt-24">
+          <PushTaskCenter user={user} compact />
+        </div>
+      )}
     </div>
   );
 }
