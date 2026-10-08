@@ -26,7 +26,7 @@ export default function PushTaskCenter({ user, compact=false }) {
   }),[tasks,tab,user.id]);
   const unread=notifications.filter((item)=>!item.read_at).length;
 
-  const saveTask=async(payload)=>{setSaving(true);try{await(editTask?pushTasksApi.update(editTask.id,payload):pushTasksApi.create(payload));toast.success(editTask?'Task aktualisiert.':'Task erstellt.');setFormOpen(false);setEditTask(null);await load();}catch(error){toast.error(error.message);}finally{setSaving(false);}};
+  const saveTask=async(payload)=>{setSaving(true);try{const editing=Boolean(editTask);await(editing?pushTasksApi.update(editTask.id,payload):pushTasksApi.create(payload));if(!editing)setTab('created');toast.success(editing?'Task aktualisiert.':'Task erstellt und unter „Von mir erstellt“ geöffnet.');setFormOpen(false);setEditTask(null);await load();}catch(error){toast.error(error.message);}finally{setSaving(false);}};
   const run=async(action,success)=>{setSaving(true);try{await action();toast.success(success);await load();}catch(error){toast.error(error.message);}finally{setSaving(false);}};
   const submitOwn=async(task)=>{const own=ownAssignment(task,user.id);await run(async()=>{if(photo)await pushTasksApi.uploadPhoto(task.id,own.id,photo);await pushTasksApi.submit(task.id,comment);setPhoto(null);setComment('');},'Erledigung zur Abnahme eingereicht.');};
   const deescalate=async(task)=>{if(!deesc.reason||!deesc.until)return toast.error('Grund und Wiedervorlage fehlen.');await run(()=>pushTasksApi.deescalate(task.id,{reason:deesc.reason,snoozed_until:new Date(deesc.until).toISOString(),level:Number(deesc.level)}),'Task deeskaliert.');setDeesc({reason:'',until:'',level:0});};
