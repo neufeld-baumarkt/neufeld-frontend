@@ -4,6 +4,7 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 import BestellModalMellerud from '../components/bestellungen/BestellModalMellerud';
 import BestellungDetailModal from '../components/bestellungen/BestellungDetailModal';
+import MellerudArtikelManagerModal from '../components/bestellungen/MellerudArtikelManagerModal';
 import { normalizeSupplierCode } from '../lib/orderUi.mjs';
 
 const money = (value) => {
@@ -35,10 +36,13 @@ export default function Bestellungen() {
   const [selectedLieferant, setSelectedLieferant] = useState(null);
   const [detailOrderId, setDetailOrderId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [articleManagerOpen, setArticleManagerOpen] = useState(false);
   const baseUrl = import.meta.env.VITE_API_URL;
 
   let user = null;
   try { user = JSON.parse(sessionStorage.getItem('user')); } catch {}
+  const canManageArticles = ['supervisor', 'admin', 'geschäftsführer', 'manager-1']
+    .includes(String(user?.role || '').toLocaleLowerCase('de-DE'));
 
   const token = sessionStorage.getItem('token');
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -111,7 +115,13 @@ export default function Bestellungen() {
           </aside>
 
           <section className="min-w-0 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-6">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black">Gespeicherte Bestellungen</h2><p className="text-sm text-white/55">Verbindlich gespeichert und ausschließlich read-only.</p></div><button type="button" onClick={fetchBestellungen} disabled={loadingBestellungen} className="rounded-lg border border-white/15 px-4 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-50">Aktualisieren</button></div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div><h2 className="text-xl font-black">Gespeicherte Bestellungen</h2><p className="text-sm text-white/55">Verbindlich gespeichert und ausschließlich read-only.</p></div>
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                {canManageArticles && <button type="button" onClick={() => setArticleManagerOpen(true)} className="min-h-11 rounded-lg bg-white px-4 text-sm font-bold text-[#800000] hover:bg-white/90">Mellerud-Artikelstamm verwalten</button>}
+                <button type="button" onClick={fetchBestellungen} disabled={loadingBestellungen} className="min-h-11 rounded-lg border border-white/15 px-4 text-sm font-semibold hover:bg-white/10 disabled:opacity-50">Aktualisieren</button>
+              </div>
+            </div>
             {loadingBestellungen ? <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-white/55">Bestellungen werden geladen…</div> : bestellungen.length === 0 ? <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-white/55">Noch keine Bestellungen vorhanden.</div> : (
               <div className="grid gap-3 xl:grid-cols-2">{bestellungen.map((order) => <button key={order.id} type="button" onClick={() => setDetailOrderId(order.id)} className="rounded-xl border border-white/10 bg-black/10 p-4 text-left transition hover:border-white/30 hover:bg-black/20"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-lg font-black">{order.supplier?.name || 'Lieferant'}</div><div className="mt-1 text-sm text-white/60">{order.filiale} · {date(order.bestelldatum)} · {order.gesamt_ve || '—'} VE</div></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${dispatchStyles[order.dispatch_status] || dispatchStyles.pending}`}>{dispatchLabels[order.dispatch_status] || order.dispatch_status}</span></div><div className="mt-4 flex items-end justify-between"><span className="text-sm text-white/55">{order.position_count} Positionen</span><strong className="text-2xl">{money(order.gesamtsumme_netto)}</strong></div></button>)}</div>
             )}
@@ -121,6 +131,7 @@ export default function Bestellungen() {
 
       <BestellModalMellerud isOpen={!!selectedLieferant && normalizeSupplierCode(selectedLieferant.code) === 'mellerud'} lieferant={selectedLieferant} onClose={() => setSelectedLieferant(null)} onSaved={fetchBestellungen} />
       <BestellungDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} onChanged={fetchBestellungen} />
+      <MellerudArtikelManagerModal isOpen={articleManagerOpen} onClose={() => setArticleManagerOpen(false)} />
     </main>
   );
 }

@@ -15,6 +15,15 @@ export function mellerudArticleMatchesSearch(article, searchTerm) {
     .some((value) => value.includes(term));
 }
 
+export function mellerudArticleMasterMatchesSearch(article, searchTerm) {
+  const term = normalizeOrderSearchValue(searchTerm);
+  if (!term) return true;
+
+  return [article?.ean, article?.kunden_art_nr, article?.supplier_article_no, article?.name]
+    .map(normalizeOrderSearchValue)
+    .some((value) => value.includes(term));
+}
+
 export function dateInBerlin(date = new Date()) {
   const parts = new Intl.DateTimeFormat('de-DE', {
     timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit',
