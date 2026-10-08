@@ -14,6 +14,16 @@ export function ownAssignment(task, userId) {
   return (task?.assignments || []).find((assignment) => Number(assignment.assignee_user_id) === Number(userId)) || null;
 }
 
+export function canManagePushTaskUi(task, user) {
+  return Number(task?.created_by_user_id) === Number(user?.id)
+    || ['admin', 'geschäftsführer'].includes(String(user?.role || '').trim().toLocaleLowerCase('de-DE'));
+}
+
+export function canCompletePushTaskUi(task, user) {
+  const assignment = ownAssignment(task, user?.id);
+  return task?.status === 'active' && Boolean(assignment) && !['submitted', 'approved'].includes(assignment.status);
+}
+
 export function taskProgress(task) {
   const assignments = Array.isArray(task?.assignments) ? task.assignments : [];
   return { approved: assignments.filter((item) => item.status === 'approved').length, total: assignments.length };
