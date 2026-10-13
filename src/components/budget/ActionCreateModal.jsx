@@ -102,7 +102,7 @@ export default function ActionCreateModal({ open, onClose, onCreated }) {
           .join('\n');
         const confirmed = window.confirm(
           `Die Aktion ${built.payload.aktion_nr} gibt es bereits in:\n\n${affected}\n\n` +
-            'Sollen die neuen Beträge in diesen Filialen mit den vorhandenen Buchungen zusammengeführt werden?'
+            'Sollen die vorhandenen Buchungen zusammengeführt und ihre bisherigen Beträge durch die neu eingegebenen Gesamtsummen ersetzt werden?'
         );
         if (!confirmed) return;
 

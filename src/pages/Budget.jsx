@@ -393,7 +393,7 @@ export default function Budget() {
         const actionKw = existing.kw || '—';
         const confirmed = window.confirm(
           `Die Aktion ${actionNumber} gibt es bereits in KW ${actionKw}.\n\n` +
-            'Soll sie mit der neuen Buchung zusammengefügt werden?'
+            'Soll sie zusammengeführt und der bisherige Betrag durch die neu eingegebene Gesamtsumme ersetzt werden?'
         );
 
         if (!confirmed) return false;
