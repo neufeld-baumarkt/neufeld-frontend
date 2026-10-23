@@ -1,40 +1,36 @@
-import { useState } from 'react';
-import { ChevronDown, LogOut, Menu, Package, Settings, UserRound, X } from 'lucide-react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
 import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
 
-const modules = [
-  { label: 'Reklamationen', description: 'Vorgänge erfassen und bearbeiten', path: '/reklamationen', image: '/Icons/reklamation.png' },
-  { label: 'Budgetliste', description: 'Budgets und Buchungen im Blick', path: '/budgetliste', image: '/Icons/budget.png' },
-  { label: 'Controlling', description: 'Cashflow und Auswertungen', path: '/cashflow', image: '/Icons/cashflow.png' },
-  { label: 'Bestellungen', description: 'Bestellungen vorbereiten', path: '/bestellungen', image: '/Icons/Bestellungen_gruen_rund.png' },
-  { label: 'Tageskassenabrechnung', description: 'Kassen und Tresor sicher abrechnen', path: '/tageskassenabrechnung', image: '/Icons/tageskassenabrechnung.png' },
-  { label: 'Technikstörungen', description: 'Störungen zentral melden', path: '/stoerungen', icon: Settings, disabled: true },
-  { label: 'Materialshop', description: 'Verbrauchsmaterial bestellen', path: '/materialshop', icon: Package, disabled: true },
+const menuItems = [
+  { label: 'Reklamationen', path: '/reklamationen', image: '/Icons/reklamation.png', alt: 'Reklamation' },
+  { label: 'Budgetliste', path: '/budgetliste', image: '/Icons/budget.png', alt: 'Budget' },
+  { label: 'Controlling', path: '/cashflow', image: '/Icons/cashflow.png', alt: 'Cashflow' },
+  { label: 'Bestellungen', path: '/bestellungen', image: '/Icons/Bestellungen_gruen_rund.png', alt: 'Bestellungen' },
+  {
+    label: 'Tageskassenabrechnung',
+    path: '/tageskassenabrechnung',
+    image: '/Icons/tageskassenabrechnung.png',
+    alt: 'Tageskassenabrechnung',
+  },
+  { label: 'Technikstörungen', path: '/stoerungen', image: '/Icons/technik.png', alt: 'Technik' },
+  { label: 'Materialshop', path: '/materialshop', image: '/Icons/materialshop.png', alt: 'Materialshop' },
 ];
 
-export default function Startseite() {
-  const navigate = useNavigate();
-  const [navOpen, setNavOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
-  let user = {};
-
+function Startseite() {
+  let user = null;
   try {
-    user = JSON.parse(sessionStorage.getItem('user')) || {};
-  } catch {
-    // Eine unlesbare Sitzung wird durch die geschützte Route behandelt.
+    user = JSON.parse(sessionStorage.getItem('user'));
+  } catch (error) {
+    console.warn('❗ Benutzer konnte nicht geladen werden:', error);
   }
+  const displayName = user?.name || 'Unbekannt';
 
-  const openModule = (module) => {
-    setNavOpen(false);
-    if (module.disabled) {
-      toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
-      return;
-    }
-    navigate(module.path);
-  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuGridOpen, setMenuGridOpen] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogout = () => {
     sessionStorage.removeItem('user');
@@ -42,126 +38,117 @@ export default function Startseite() {
     navigate('/');
   };
 
-  const firstName = String(user.name || '').split(' ')[0] || 'Kollege';
+  const implementedRoutes = new Set([
+    '/reklamationen',
+    '/budgetliste',
+    '/bestellungen',
+    '/cashflow',
+    '/tageskassenabrechnung',
+  ]);
+
+  const handleNavigate = (path) => {
+    setMenuGridOpen(false);
+
+    if (!implementedRoutes.has(path)) {
+      toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
+      return;
+    }
+
+    navigate(path);
+  };
 
   return (
-    <main className="min-h-screen min-h-dvh overflow-x-hidden bg-[#353232] text-white">
-      <header className="relative z-50 bg-[#800000] shadow-xl">
-        <div className="mx-auto flex min-h-16 max-w-[1500px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-10">
-          <button
-            type="button"
-            aria-expanded={navOpen}
-            aria-controls="start-navigation"
-            onClick={() => setNavOpen(!navOpen)}
-            className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-black hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white lg:hidden"
-          >
-            {navOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
-            <span>Menü</span>
-          </button>
+    <div className="relative min-h-screen min-h-dvh w-full overflow-x-hidden bg-[#3A3838] pb-10">
+      <div className="absolute left-0 top-0 h-[57px] w-full bg-[#800000]" />
+      <div className="absolute left-0 top-0 h-full w-[14px] bg-[#800000] sm:w-[32px] lg:w-[57px]" />
+      <div className="absolute left-[14px] right-0 top-[57px] h-[7px] bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:left-[32px] lg:left-[57px]" />
+      <div className="absolute bottom-0 left-[14px] top-[57px] w-[4px] bg-white sm:left-[32px] sm:w-[7px] lg:left-[57px]" />
+      <div className="absolute left-[28px] right-4 top-[184px] h-[7px] bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:left-[56px] sm:right-10 sm:top-[190px] lg:left-[95px] lg:right-[80px] lg:top-[165px] lg:h-[11px]" />
 
-          <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2 lg:hidden">
-            <img src="/logonb-emblem.png" alt="" className="h-9 w-9 rounded-full bg-white object-contain p-1" />
-            <span className="hidden font-black sm:inline">Neufeld Baumarkt</span>
-          </div>
+      <div className="relative z-10 px-7 pt-[74px] text-white sm:px-14 sm:pt-[76px] lg:ml-[60px] lg:mt-[50px] lg:p-8">
+        <h1 className="max-w-[calc(100vw-3.5rem)] text-3xl font-bold leading-tight drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:text-4xl lg:max-w-none lg:text-7xl">
+          Neufeld Baumarkt GmbH
+        </h1>
+      </div>
 
-          <div className="hidden items-center gap-3 lg:flex">
-            <img src="/logonb-emblem.png" alt="Neufeld Baumarkt" className="h-11 w-11 rounded-full bg-white object-contain p-1" />
-            <span className="text-lg font-black">Neufeld Baumarkt GmbH</span>
-          </div>
+      <div className="absolute right-4 top-[138px] text-sm font-semibold text-white drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:right-10 sm:top-[130px] sm:text-xl lg:right-[85px] lg:text-2xl">
+        Management Tool 3.0
+      </div>
+      <div className="absolute right-4 top-[162px] text-xs font-semibold text-white drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:right-10 sm:top-[160px] sm:text-base lg:right-[85px] lg:top-[175px]">
+        by Peter Neufeld
+      </div>
 
-          <div className="relative">
+      <div className="absolute right-3 top-2 z-30 select-none text-sm font-semibold text-white drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)] sm:right-10 sm:top-5 sm:text-base">
+        <button
+          type="button"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen(!menuOpen)}
+          className="min-h-11 rounded px-2 text-right hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <span className="hidden sm:inline">Angemeldet als: </span>{displayName}
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 z-50 mt-1 min-w-[160px] rounded bg-white/90 px-2 py-2 text-black shadow backdrop-blur-sm">
             <button
               type="button"
-              aria-label={`Benutzermenü für ${user.name || 'Benutzer'}`}
-              aria-expanded={userOpen}
-              onClick={() => setUserOpen(!userOpen)}
-              className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              onClick={handleLogout}
+              className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded px-2 text-left hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000]"
             >
-              <UserRound size={20} aria-hidden="true" />
-              <span className="hidden sm:inline">{user.name || 'Benutzer'}</span>
-              <ChevronDown size={16} aria-hidden="true" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
+                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+              </svg>
+              <span>Abmelden</span>
             </button>
-
-            {userOpen && (
-              <div className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-white p-2 text-[#242121] shadow-2xl">
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-3 text-left font-bold text-[#800000] hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000]"
-                >
-                  <LogOut size={18} aria-hidden="true" />
-                  Abmelden
-                </button>
-              </div>
-            )}
           </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[250px_1fr]">
-        <aside
-          id="start-navigation"
-          className={`${navOpen ? 'block' : 'hidden'} border-b border-white/10 bg-[#2b2929] p-4 lg:block lg:min-h-[calc(100vh-4rem)] lg:min-h-[calc(100dvh-4rem)] lg:border-b-0 lg:border-r lg:p-5`}
-        >
-          <div className="mb-3 hidden text-xs font-bold uppercase tracking-[.2em] text-white/40 lg:block">Hauptmenü</div>
-          <nav aria-label="Hauptmenü" className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
-            {modules.map((module) => {
-              const Icon = module.icon;
-              return (
-                <button
-                  type="button"
-                  key={module.label}
-                  onClick={() => openModule(module)}
-                  className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-left font-bold transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${module.disabled ? 'text-white/45' : 'text-white/80'}`}
-                >
-                  {module.image
-                    ? <img src={module.image} alt="" className="h-8 w-8 object-contain" />
-                    : <Icon size={24} aria-hidden="true" />}
-                  <span>{module.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </aside>
-
-        <div className="min-w-0 p-3 sm:p-6 lg:p-10">
-          <section className="rounded-3xl bg-gradient-to-br from-[#4a4747] to-[#302e2e] p-5 shadow-2xl sm:p-8">
-            <div className="max-w-3xl">
-              <div className="text-xs font-bold uppercase tracking-[.24em] text-white/45">Management Tool 3.0</div>
-              <h1 className="mt-2 text-3xl font-black leading-tight sm:text-5xl">Guten Tag, {firstName}.</h1>
-              <p className="mt-3 text-base text-white/60 sm:text-lg">Was steht heute an?</p>
-            </div>
-
-            <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {modules.filter((module) => !module.disabled).map((module) => (
-                <button
-                  type="button"
-                  key={module.label}
-                  onClick={() => openModule(module)}
-                  className="group min-h-36 rounded-2xl border border-white/10 bg-white/[.07] p-5 text-left transition hover:-translate-y-1 hover:bg-white/[.11] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
-                    <img src={module.image} alt="" className="h-9 w-9 object-contain" />
-                  </span>
-                  <h2 className="mt-4 text-xl font-black">{module.label}</h2>
-                  <p className="mt-1 text-sm text-white/60">{module.description}</p>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          {canUsePushTaskPilot(user.role) && (
-            <div className="mt-6">
-              <PushTaskCenter user={user} compact />
-            </div>
-          )}
-
-          <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs text-white/35 sm:flex-row sm:justify-between">
-            <span>Neufeld Baumarkt GmbH</span>
-            <span>Management Tool 3.0 · by Peter Neufeld</span>
-          </footer>
-        </div>
+        )}
       </div>
-    </main>
+
+      <div className="absolute left-[28px] top-[205px] z-20 flex items-center gap-1 text-2xl font-bold text-white sm:left-[56px] sm:top-[215px] sm:text-3xl lg:left-[100px] lg:top-[205px] lg:text-4xl">
+        <button
+          type="button"
+          aria-expanded={menuGridOpen}
+          aria-controls="main-menu-grid"
+          aria-label="Hauptmenü öffnen"
+          onClick={() => setMenuGridOpen(!menuGridOpen)}
+          className="flex min-h-11 min-w-11 items-center justify-center rounded hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <svg width="28" height="28" fill="white" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        Hauptmenü
+      </div>
+
+      <div
+        id="main-menu-grid"
+        className={`absolute left-[28px] right-4 top-[255px] z-50 overflow-hidden rounded-xl bg-white/90 shadow-xl backdrop-blur-sm transition-all duration-300 sm:left-[56px] sm:right-auto sm:top-[265px] sm:min-w-[220px] lg:left-[155px] lg:top-[230px] lg:min-w-[180px] ${
+          menuGridOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none -translate-x-10 opacity-0'
+        }`}
+        onMouseLeave={() => setMenuGridOpen(false)}
+      >
+        <nav aria-label="Hauptmenü" className="flex flex-col items-stretch gap-1 px-3 py-3 text-left text-black sm:px-4 lg:items-start lg:gap-4 lg:px-6 lg:py-4">
+          {menuItems.map((item) => (
+            <button
+              type="button"
+              key={item.path}
+              onClick={() => handleNavigate(item.path)}
+              className="group flex min-h-12 w-full cursor-pointer items-center rounded-lg px-2 text-left hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000] lg:min-h-0 lg:px-0 lg:hover:bg-transparent"
+            >
+              <img src={item.image} alt={item.alt} className="mr-3 h-9 w-9 shrink-0 rounded-full object-cover lg:mr-2 lg:h-8 lg:w-8" />
+              <span className="text-base font-semibold transition group-hover:text-[#800000]">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {canUsePushTaskPilot(user?.role) && (
+        <div className="relative z-20 mx-7 mt-[150px] sm:ml-[56px] sm:mr-10 sm:mt-24 lg:ml-[95px] lg:mr-[80px]">
+          <PushTaskCenter user={user} compact />
+        </div>
+      )}
+    </div>
   );
 }
+
+export default Startseite;
