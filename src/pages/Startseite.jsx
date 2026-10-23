@@ -1,21 +1,39 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { ChevronDown, LogOut, Menu, Package, Settings, UserRound, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
 import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
 
-function Startseite() {
-  let user = null;
-  try {
-    user = JSON.parse(sessionStorage.getItem('user'));
-  } catch (e) {
-    console.warn('❗ Benutzer konnte nicht geladen werden:', e);
-  }
-  const displayName = user?.name || 'Unbekannt';
+const modules = [
+  { label: 'Reklamationen', description: 'Vorgänge erfassen und bearbeiten', path: '/reklamationen', image: '/Icons/reklamation.png' },
+  { label: 'Budgetliste', description: 'Budgets und Buchungen im Blick', path: '/budgetliste', image: '/Icons/budget.png' },
+  { label: 'Controlling', description: 'Cashflow und Auswertungen', path: '/cashflow', image: '/Icons/cashflow.png' },
+  { label: 'Bestellungen', description: 'Bestellungen vorbereiten', path: '/bestellungen', image: '/Icons/Bestellungen_gruen_rund.png' },
+  { label: 'Technikstörungen', description: 'Störungen zentral melden', path: '/stoerungen', icon: Settings, disabled: true },
+  { label: 'Materialshop', description: 'Verbrauchsmaterial bestellen', path: '/materialshop', icon: Package, disabled: true },
+];
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuGridOpen, setMenuGridOpen] = useState(false);
+export default function Startseite() {
   const navigate = useNavigate();
+  const [navOpen, setNavOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  let user = {};
+
+  try {
+    user = JSON.parse(sessionStorage.getItem('user')) || {};
+  } catch {
+    // Eine unlesbare Sitzung wird durch die geschützte Route behandelt.
+  }
+
+  const openModule = (module) => {
+    setNavOpen(false);
+    if (module.disabled) {
+      toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
+      return;
+    }
+    navigate(module.path);
+  };
 
   const handleLogout = () => {
     sessionStorage.removeItem('user');
@@ -23,122 +41,126 @@ function Startseite() {
     navigate('/');
   };
 
-  // Nur Routen erlauben, die wirklich existieren
-  const implementedRoutes = new Set([
-    '/reklamationen',
-    '/budgetliste',
-    '/bestellungen',
-    '/cashflow',
-  ]);
-
-  const handleNavigate = (path) => {
-    setMenuGridOpen(false);
-
-    if (!implementedRoutes.has(path)) {
-      toast('Zur Zeit noch in Bearbeitung.', { icon: '🛠️' });
-      return;
-    }
-
-    navigate(path);
-  };
+  const firstName = String(user.name || '').split(' ')[0] || 'Kollege';
 
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden bg-[#3A3838] pb-10">
-      <div className="absolute top-0 left-0 w-full bg-[#800000]" style={{ height: "57px" }}></div>
-      <div className="absolute top-0 left-0 h-full bg-[#800000]" style={{ width: "57px" }}></div>
-      <div className="absolute top-[57px] left-[57px] right-0 bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: "7px" }}></div>
-      <div className="absolute top-[57px] left-[57px] bottom-0 bg-white" style={{ width: "7px" }}></div>
-      <div className="absolute bg-white shadow-[3px_3px_6px_rgba(0,0,0,0.6)]" style={{ height: '11px', top: '165px', left: '95px', right: '80px' }}></div>
-
-      <div className="relative z-10 text-white p-8 ml-[60px] mt-[50px]">
-        <h1 className="text-7xl font-bold drop-shadow-[3px_3px_6px_rgba(0,0,0,0.6)]">Neufeld Baumarkt GmbH</h1>
-      </div>
-
-      <div className="absolute top-[130px] text-2xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
-        Management Tool 3.0
-      </div>
-      <div className="absolute top-[175px] text-1xl font-semibold text-white" style={{ right: '85px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}>
-        by Peter Neufeld
-      </div>
-
-      <div
-        className="absolute top-[20px] text-1xl font-semibold text-white cursor-pointer select-none"
-        style={{ right: '40px', textShadow: '3px 3px 6px rgba(0,0,0,0.6)' }}
-        onClick={() => setMenuOpen(!menuOpen)}
-      >
-        Angemeldet als: {displayName}
-        {menuOpen && (
-          <div
-            className="absolute right-0 mt-2 bg-white/80 text-black rounded shadow z-50 px-4 py-2 backdrop-blur-sm"
-            style={{ minWidth: '160px' }}
+    <main className="min-h-screen min-h-dvh overflow-x-hidden bg-[#353232] text-white">
+      <header className="relative z-50 bg-[#800000] shadow-xl">
+        <div className="mx-auto flex min-h-16 max-w-[1500px] items-center justify-between gap-3 px-3 sm:px-6 lg:px-10">
+          <button
+            type="button"
+            aria-expanded={navOpen}
+            aria-controls="start-navigation"
+            onClick={() => setNavOpen(!navOpen)}
+            className="flex min-h-11 items-center gap-2 rounded-xl px-3 font-black hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white lg:hidden"
           >
-            <div onClick={handleLogout} className="hover:bg-gray-100 cursor-pointer flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#444" viewBox="0 0 24 24">
-                <path d="M16 13v-2H7V8l-5 4 5 4v-3h9z" />
-                <path d="M20 3h-8v2h8v14h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
-              </svg>
-              <span>Abmelden</span>
+            {navOpen ? <X aria-hidden="true" /> : <Menu aria-hidden="true" />}
+            <span>Menü</span>
+          </button>
+
+          <div className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 items-center gap-2 lg:hidden">
+            <img src="/logonb-emblem.png" alt="" className="h-9 w-9 rounded-full bg-white object-contain p-1" />
+            <span className="hidden font-black sm:inline">Neufeld Baumarkt</span>
+          </div>
+
+          <div className="hidden items-center gap-3 lg:flex">
+            <img src="/logonb-emblem.png" alt="Neufeld Baumarkt" className="h-11 w-11 rounded-full bg-white object-contain p-1" />
+            <span className="text-lg font-black">Neufeld Baumarkt GmbH</span>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              aria-label={`Benutzermenü für ${user.name || 'Benutzer'}`}
+              aria-expanded={userOpen}
+              onClick={() => setUserOpen(!userOpen)}
+              className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-bold hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <UserRound size={20} aria-hidden="true" />
+              <span className="hidden sm:inline">{user.name || 'Benutzer'}</span>
+              <ChevronDown size={16} aria-hidden="true" />
+            </button>
+
+            {userOpen && (
+              <div className="absolute right-0 top-full mt-2 w-60 rounded-xl bg-white p-2 text-[#242121] shadow-2xl">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-3 text-left font-bold text-[#800000] hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800000]"
+                >
+                  <LogOut size={18} aria-hidden="true" />
+                  Abmelden
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[250px_1fr]">
+        <aside
+          id="start-navigation"
+          className={`${navOpen ? 'block' : 'hidden'} border-b border-white/10 bg-[#2b2929] p-4 lg:block lg:min-h-[calc(100vh-4rem)] lg:min-h-[calc(100dvh-4rem)] lg:border-b-0 lg:border-r lg:p-5`}
+        >
+          <div className="mb-3 hidden text-xs font-bold uppercase tracking-[.2em] text-white/40 lg:block">Hauptmenü</div>
+          <nav aria-label="Hauptmenü" className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">
+            {modules.map((module) => {
+              const Icon = module.icon;
+              return (
+                <button
+                  type="button"
+                  key={module.label}
+                  onClick={() => openModule(module)}
+                  className={`flex min-h-12 items-center gap-3 rounded-xl px-3 text-left font-bold transition hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${module.disabled ? 'text-white/45' : 'text-white/80'}`}
+                >
+                  {module.image
+                    ? <img src={module.image} alt="" className="h-8 w-8 object-contain" />
+                    : <Icon size={24} aria-hidden="true" />}
+                  <span>{module.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <div className="min-w-0 p-3 sm:p-6 lg:p-10">
+          <section className="rounded-3xl bg-gradient-to-br from-[#4a4747] to-[#302e2e] p-5 shadow-2xl sm:p-8">
+            <div className="max-w-3xl">
+              <div className="text-xs font-bold uppercase tracking-[.24em] text-white/45">Management Tool 3.0</div>
+              <h1 className="mt-2 text-3xl font-black leading-tight sm:text-5xl">Guten Tag, {firstName}.</h1>
+              <p className="mt-3 text-base text-white/60 sm:text-lg">Was steht heute an?</p>
             </div>
-          </div>
-        )}
-      </div>
 
-      <div className="absolute text-4xl font-bold text-white flex items-center gap-1" style={{ marginLeft: '100px', marginTop: '30px' }}>
-        <button onClick={() => setMenuGridOpen(!menuGridOpen)} className="p-1 rounded hover:bg-white/10" style={{ transform: 'translateY(2px)' }}>
-          <svg width="28" height="28" fill="white" viewBox="0 0 24 24">
-            <path d="M4 6h16M4 12h16M4 18h16" stroke="white" strokeWidth="2" strokeLinecap="round" />
-          </svg>
-        </button>
-        Hauptmenü
-      </div>
+            <div className="mt-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {modules.filter((module) => !module.disabled).map((module) => (
+                <button
+                  type="button"
+                  key={module.label}
+                  onClick={() => openModule(module)}
+                  className="group min-h-36 rounded-2xl border border-white/10 bg-white/[.07] p-5 text-left transition hover:-translate-y-1 hover:bg-white/[.11] hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10">
+                    <img src={module.image} alt="" className="h-9 w-9 object-contain" />
+                  </span>
+                  <h2 className="mt-4 text-xl font-black">{module.label}</h2>
+                  <p className="mt-1 text-sm text-white/60">{module.description}</p>
+                </button>
+              ))}
+            </div>
+          </section>
 
-      <div
-        className={`absolute top-[230px] left-[155px] bg-white/80 backdrop-blur-sm rounded-xl shadow-xl z-50 overflow-hidden transition-all duration-300 ${
-          menuGridOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10 pointer-events-none'
-        }`}
-        style={{ minWidth: '180px' }}
-        onMouseLeave={() => setMenuGridOpen(false)}
-      >
-        <div className="flex flex-col items-start gap-4 px-6 py-4 text-black text-left">
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/reklamationen')}>
-            <img src="/icons/reklamation.png" alt="Reklamation" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Reklamationen</span>
-          </div>
+          {canUsePushTaskPilot(user.role) && (
+            <div className="mt-6">
+              <PushTaskCenter user={user} compact />
+            </div>
+          )}
 
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/budgetliste')}>
-            <img src="/icons/budget.png" alt="Budget" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Budgetliste</span>
-          </div>
-
-	  <div className="group cursor-pointer" onClick={() => handleNavigate('/cashflow')}>
-           <img src="/icons/cashflow.png" alt="Cashflow" className="w-8 h-8 inline-block mr-2" />
-           <span className="text-base font-semibold group-hover:text-[#800000] transition">Controlling</span>
-          </div>
-
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/bestellungen')}>
-            <img src="/icons/Bestellungen_gruen_rund.png" alt="Bestellungen" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Bestellungen</span>
-          </div>
-
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/stoerungen')}>
-            <img src="/icons/technik.png" alt="Technik" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Technikstörungen</span>
-          </div>
-
-          <div className="group cursor-pointer" onClick={() => handleNavigate('/materialshop')}>
-            <img src="/icons/materialshop.png" alt="Materialshop" className="w-8 h-8 inline-block mr-2" />
-            <span className="text-base font-semibold group-hover:text-[#800000] transition">Materialshop</span>
-          </div>
+          <footer className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-5 text-xs text-white/35 sm:flex-row sm:justify-between">
+            <span>Neufeld Baumarkt GmbH</span>
+            <span>Management Tool 3.0 · by Peter Neufeld</span>
+          </footer>
         </div>
       </div>
-
-      {canUsePushTaskPilot(user?.role) && (
-        <div className="relative z-20 mx-3 mt-20 sm:ml-[95px] sm:mr-[80px] sm:mt-24">
-          <PushTaskCenter user={user} compact />
-        </div>
-      )}
-    </div>
+    </main>
   );
 }
-
-export default Startseite;
