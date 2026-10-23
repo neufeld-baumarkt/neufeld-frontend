@@ -10,6 +10,7 @@ import Budget from './pages/Budget';
 import Bestellungen from './pages/Bestellungen';
 import Cashflow from './pages/Cashflow';
 import Controlling from './pages/Controlling';
+import Tageskassenabrechnung from './pages/Tageskassenabrechnung';
 import Tasks from './pages/Tasks';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
@@ -26,6 +27,16 @@ function App() {
         element={
           <ProtectedRoute>
             <Startseite />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Tageskassenabrechnung */}
+      <Route
+        path="/tageskassenabrechnung"
+        element={
+          <ProtectedRoute>
+            <Tageskassenabrechnung />
           </ProtectedRoute>
         }
       />

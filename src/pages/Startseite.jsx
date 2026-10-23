@@ -10,6 +10,7 @@ const modules = [
   { label: 'Budgetliste', description: 'Budgets und Buchungen im Blick', path: '/budgetliste', image: '/Icons/budget.png' },
   { label: 'Controlling', description: 'Cashflow und Auswertungen', path: '/cashflow', image: '/Icons/cashflow.png' },
   { label: 'Bestellungen', description: 'Bestellungen vorbereiten', path: '/bestellungen', image: '/Icons/Bestellungen_gruen_rund.png' },
+  { label: 'Tageskassenabrechnung', description: 'Kassen und Tresor sicher abrechnen', path: '/tageskassenabrechnung', image: '/Icons/tageskassenabrechnung.png' },
   { label: 'Technikstörungen', description: 'Störungen zentral melden', path: '/stoerungen', icon: Settings, disabled: true },
   { label: 'Materialshop', description: 'Verbrauchsmaterial bestellen', path: '/materialshop', icon: Package, disabled: true },
 ];
