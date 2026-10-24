@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
+import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 
 const processes = [
@@ -137,6 +138,8 @@ export default function Tageskassenabrechnung() {
           branch={branch}
           onClose={() => setOpeningCountOpen(false)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, options)}
+          loadFirstUseCandidates={() => employeePinApi.firstUseCandidates()}
+          activatePin={(payload) => employeePinApi.activate(payload)}
           previousClosingFor={({ drawerNumber }) => kasseneinzaehlungApi.previousClosing(drawerNumber)}
           onComplete={(payload) => kasseneinzaehlungApi.saveOpeningCount(payload)}
         />

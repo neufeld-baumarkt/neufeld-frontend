@@ -4,6 +4,7 @@ import {
   Banknote,
   Check,
   CircleAlert,
+  KeyRound,
   LockKeyhole,
   RotateCcw,
   ShieldCheck,
@@ -20,6 +21,7 @@ import {
   nextDifferenceStep,
   openingDifferenceCents,
 } from '../../lib/kasseneinzaehlung.mjs';
+import { needsPersonalPinSetup, personalPinError } from '../../lib/employeePinRules.mjs';
 
 const EMPTY_COUNTS = Object.freeze({});
 
@@ -46,6 +48,29 @@ function PinStep({ title, description, pin, setPin, onSubmit, busy, hint }) {
       <button disabled={busy||pin.length!==4} className="mt-5 min-h-12 w-full rounded-xl bg-[#800000] px-5 font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
         {busy?'PIN wird geprüft …':'PIN bestätigen'}
       </button>
+    </form>
+  </div>;
+}
+
+function FirstUsePinStep({ employees, employeeId, setEmployeeId, newPin, setNewPin, confirmPin, setConfirmPin, onSubmit, busy }) {
+  return <div className="mx-auto max-w-lg">
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-500 text-[#321b00]"><KeyRound size={32}/></div>
+    <h3 className="mt-5 text-center text-2xl font-black">Persönlichen PIN festlegen</h3>
+    <p className="mt-2 text-center text-black/60">0000 ist nur für den ersten Gebrauch. Wähle deinen Namen und vergib jetzt deinen eigenen vierstelligen PIN.</p>
+    <form onSubmit={onSubmit} className="mt-6 space-y-4">
+      <label className="block text-sm font-bold">Wer bist du?
+        <select value={employeeId} onChange={(event)=>setEmployeeId(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border-2 border-black/15 bg-white px-3 outline-none focus:border-[#800000]">
+          <option value="">Namen auswählen</option>
+          {employees.map((employee)=><option key={employee.id} value={employee.id}>{employee.display_name}</option>)}
+        </select>
+      </label>
+      <label className="block text-sm font-bold">Neuer persönlicher PIN
+        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={newPin} onChange={(event)=>setNewPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+      </label>
+      <label className="block text-sm font-bold">Neuen PIN wiederholen
+        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={confirmPin} onChange={(event)=>setConfirmPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+      </label>
+      <button disabled={busy||!employeeId||newPin.length!==4||confirmPin.length!==4} className="min-h-12 w-full rounded-xl bg-[#800000] px-5 font-black text-white disabled:opacity-40">{busy?'PIN wird gespeichert …':'Persönlichen PIN speichern'}</button>
     </form>
   </div>;
 }
@@ -80,7 +105,7 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
   </div>;
 }
 
-export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previousClosingFor, onComplete }) {
+export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previousClosingFor, onComplete, loadFirstUseCandidates, activatePin }) {
   const [stage, setStage] = useState('pin');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
@@ -92,6 +117,11 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
   const [counter, setCounter] = useState(null);
   const [previousClosing, setPreviousClosing] = useState(null);
   const [result, setResult] = useState(null);
+  const [firstUseEmployees, setFirstUseEmployees] = useState([]);
+  const [firstUseEmployeeId, setFirstUseEmployeeId] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [firstUseSecondPerson, setFirstUseSecondPerson] = useState(false);
   const countedCents = useMemo(()=>countCashCents(counts), [counts]);
   const differenceCents = openingDifferenceCents(countedCents);
 
@@ -106,6 +136,18 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     setError('');
     setBusy(true);
     try {
+      if (needsPersonalPinSetup(pin)) {
+        if (!loadFirstUseCandidates || !activatePin) throw new Error('Die Erst-PIN-Einrichtung ist noch nicht verfügbar.');
+        const candidates = await loadFirstUseCandidates({ branch });
+        if (!candidates.length) throw new Error('Für diese Filiale wartet kein Mitarbeiter auf die Erst-PIN-Einrichtung.');
+        setFirstUseEmployees(candidates);
+        setFirstUseEmployeeId('');
+        setNewPin('');
+        setConfirmPin('');
+        setFirstUseSecondPerson(secondPerson);
+        setStage('first-use-pin');
+        return;
+      }
       const identified = await verifyPin(pin, { branch, excludeEmployeeId: secondPerson ? employee?.id : null });
       if (secondPerson) {
         setCounter(identified);
@@ -115,6 +157,33 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
       } else {
         setEmployee(identified);
         setPin('');
+        setStage('drawer');
+      }
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const completeFirstUse = async (event) => {
+    event.preventDefault();
+    setError('');
+    const pinError = personalPinError(newPin, confirmPin);
+    if (pinError) return setError(pinError);
+    setBusy(true);
+    try {
+      await activatePin({ employeeId: Number(firstUseEmployeeId), currentPin: '0000', newPin, confirmPin });
+      const identified = await verifyPin(newPin, { branch, excludeEmployeeId: firstUseSecondPerson ? employee?.id : null });
+      setPin('');
+      setNewPin('');
+      setConfirmPin('');
+      if (firstUseSecondPerson) {
+        setCounter(identified);
+        setCounts({});
+        setStage('count');
+      } else {
+        setEmployee(identified);
         setStage('drawer');
       }
     } catch (failure) {
@@ -195,7 +264,7 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     setStage('count');
   };
 
-  const progress = ['pin','drawer','count','match','second-person-choice','second-pin','adjust','complete'];
+  const progress = ['pin','first-use-pin','drawer','count','match','second-person-choice','second-pin','adjust','complete'];
   const progressIndex = Math.max(0, progress.indexOf(stage));
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-count-title">
@@ -218,6 +287,8 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
         {error&&<div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"><CircleAlert className="mt-0.5 shrink-0" size={20}/>{error}</div>}
 
         {stage==='pin'&&<PinStep title="Wer beginnt diese Kassenschicht?" description="Mit deinem persönlichen PIN beginnt die Einzählung und wird dir eindeutig zugeordnet." pin={pin} setPin={setPin} onSubmit={authenticate} busy={busy}/>}
+
+        {stage==='first-use-pin'&&<FirstUsePinStep employees={firstUseEmployees} employeeId={firstUseEmployeeId} setEmployeeId={setFirstUseEmployeeId} newPin={newPin} setNewPin={setNewPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} onSubmit={completeFirstUse} busy={busy}/>}
 
         {stage==='drawer'&&<div>
           <div className="text-center"><Banknote className="mx-auto text-[#800000]" size={48}/><h3 className="mt-3 text-2xl font-black">Welche Lade zählst du ein?</h3><p className="mt-2 text-black/60">Die Zuordnung bleibt für die gesamte Kassenschicht bestehen.</p></div>

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import EmployeePinManagement from '../components/admin/EmployeePinManagement';
 
 function AdminPanel() {
   const navigate = useNavigate();
+  const [employeePinsOpen, setEmployeePinsOpen] = useState(false);
 
   let user = null;
   try {
@@ -210,6 +212,22 @@ function AdminPanel() {
               </button>
 
               <button
+                onClick={() => setEmployeePinsOpen(true)}
+                className="group text-left rounded-2xl p-5 bg-[#800000]/90 border border-red-300/30 shadow-[0_0_28px_rgba(128,0,0,0.75)] hover:bg-[#a00000] hover:-translate-y-1 transition"
+              >
+                <div className="text-xs uppercase tracking-[0.3em] text-white/50 mb-2">
+                  Aktiv
+                </div>
+                <div className="text-2xl font-black mb-2">Mitarbeiter-PINs</div>
+                <div className="text-white/70 text-sm">
+                  Kassenmitarbeiter anlegen, bearbeiten und Erst-PIN zurücksetzen.
+                </div>
+                <div className="mt-4 text-white/60 group-hover:text-white transition">
+                  Verwaltung öffnen →
+                </div>
+              </button>
+
+              <button
                 onClick={() => handleComingSoon('API Tests')}
                 className="text-left rounded-2xl p-5 bg-white/8 border border-white/15 shadow-xl opacity-75 hover:opacity-100 hover:bg-white/12 transition"
               >
@@ -276,6 +294,22 @@ function AdminPanel() {
           </div>
         </div>
       </div>
+      {employeePinsOpen && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/80 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="employee-pin-title">
+          <div className="flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl border border-white/15 bg-[#111] shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
+            <header className="flex items-center justify-between gap-4 bg-[#800000] px-5 py-4 text-white">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[.2em] text-white/60">Administration</div>
+                <h2 id="employee-pin-title" className="text-2xl font-black">Mitarbeiter-PINs</h2>
+              </div>
+              <button type="button" onClick={() => setEmployeePinsOpen(false)} aria-label="PIN-Verwaltung schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-3xl hover:bg-white/10">×</button>
+            </header>
+            <div className="overflow-y-auto p-4 sm:p-6">
+              <EmployeePinManagement />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
