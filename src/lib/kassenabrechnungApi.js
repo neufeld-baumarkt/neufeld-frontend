@@ -17,10 +17,14 @@ async function request(path, options = {}, branch = '') {
 }
 
 export const kassenabrechnungApi = {
-  async closingContext({ drawerNumber, proofToken }, branch) {
+  async employees(branch) {
+    const payload = await request('/api/tageskasse/employees', {}, branch);
+    return payload.employees || [];
+  },
+  async closingContext({ drawerNumber, proofToken, responsibleEmployeeId }, branch) {
     const payload = await request('/api/tageskasse/closing-context', {
       method: 'POST',
-      body: JSON.stringify({ drawerNumber, proofToken }),
+      body: JSON.stringify({ drawerNumber, proofToken, responsibleEmployeeId }),
     }, branch);
     return payload;
   },
@@ -30,5 +34,18 @@ export const kassenabrechnungApi = {
       body: JSON.stringify(payload),
     }, branch);
     return response.closing;
+  },
+  async listClosings(branch, businessDate = '') {
+    const suffix = businessDate ? `?businessDate=${encodeURIComponent(businessDate)}` : '';
+    return request(`/api/tageskasse/closings${suffix}`, {}, branch);
+  },
+  async closing(closingId, branch) {
+    return request(`/api/tageskasse/closings/${encodeURIComponent(closingId)}`, {}, branch);
+  },
+  async correctClosing(closingId, payload, branch) {
+    const response = await request(`/api/tageskasse/closings/${encodeURIComponent(closingId)}/corrections`, {
+      method:'POST', body:JSON.stringify(payload),
+    }, branch);
+    return response.correction;
   },
 };

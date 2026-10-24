@@ -12,6 +12,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
 import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsModal';
+import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
@@ -45,6 +46,7 @@ export default function Tageskassenabrechnung() {
   const navigate = useNavigate();
   const [openingCountOpen, setOpeningCountOpen] = useState(false);
   const [closingOpen, setClosingOpen] = useState(false);
+  const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
   const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
@@ -149,6 +151,7 @@ export default function Tageskassenabrechnung() {
               „Kasse einzählen“ und „Kasse abrechnen“ sind für den DEV-Test freigeschaltet. Jeder Vorgang wird eindeutig einer echten Filiale, einer Lade und den bestätigten Mitarbeitern zugeordnet.
             </p>
           </div>
+          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}/>}
         </section>
       </div>
       {openingCountOpen && (
@@ -167,8 +170,9 @@ export default function Tageskassenabrechnung() {
           branch={branch}
           onClose={() => setClosingOpen(false)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
-          loadContext={({ drawerNumber, employee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken }, branch)}
-          onComplete={(payload) => kassenabrechnungApi.saveClosing(payload, branch)}
+          loadEmployees={() => kassenabrechnungApi.employees(branch)}
+          loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}
+          onComplete={async(payload)=>{const saved=await kassenabrechnungApi.saveClosing(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
         />
       )}
       {requiresBranchChoice && !branch && (
