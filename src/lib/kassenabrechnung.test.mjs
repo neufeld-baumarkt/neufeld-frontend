@@ -1,14 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  bankCountDifferences,
   bankTotalCents,
   calculateClosingPlan,
   closingEquationCents,
-  expectedBankNoteCounts,
   parseEuroToCents,
   requiresDifferenceNotification,
-  validateRetainedNotes,
+  validateBankNoteCounts,
 } from './kassenabrechnung.mjs';
 
 test('ermittelt Kleingeldentnahme und glatten Startwert für das Hochzählen', () => {
@@ -19,25 +17,28 @@ test('ermittelt Kleingeldentnahme und glatten Startwert für das Hochzählen', (
   assert.equal(plan.notesNeededCents, 21_000);
 });
 
-test('erzwingt eine mögliche Aufteilung aus 5-, 10- und 20-Euro-Scheinen', () => {
-  const full = { 500: 4, 1000: 8, 2000: 10 };
-  assert.equal(validateRetainedNotes(full, { 500: 2, 1000: 4, 2000: 8 }, 21_000), null);
-  assert.match(validateRetainedNotes(full, { 500: 5, 1000: 4, 2000: 8 }, 22_500), /nicht mehr 5-Euro/);
-});
-
-test('vergleicht die unabhängig erneut gezählten Bar-an-Bank-Scheine je Stückelung', () => {
-  const full = { 500: 8, 1000: 8, 2000: 6, 5000: 2, 10000: 1, 20000: 1 };
-  const retained = { 500: 4, 1000: 3, 2000: 4 };
-  const expected = expectedBankNoteCounts(full, retained);
-  assert.deepEqual(expected, { 500: 4, 1000: 5, 2000: 2, 5000: 2, 10000: 1, 20000: 1 });
-  assert.equal(bankTotalCents(expected), 51_000);
-  assert.deepEqual(bankCountDifferences(full, retained, { ...expected, 1000: 4 }), [
-    { cents: 1000, expected: 5, actual: 4 },
-  ]);
+test('prüft Bar-an-Bank-Scheine ohne die in der Lade verbliebenen Scheine zu erfassen', () => {
+  const full = { 500: 17, 1000: 19, 2000: 13, 5000: 15, 10000: 0, 20000: 0 };
+  const bank = { 500: 7, 1000: 14, 2000: 9, 5000: 15, 10000: 0, 20000: 0 };
+  assert.equal(validateBankNoteCounts(full, bank), null);
+  assert.equal(bankTotalCents(bank), 110_500);
+  assert.match(validateBankNoteCounts(full, { ...bank, 500: 18 }), /mehr Bar-an-Bank/);
+  assert.match(validateBankNoteCounts(full, { ...bank, 5000: 14 }), /Alle 50-Euro/);
 });
 
 test('lässt den Abschluss ausschließlich bei exakt 250 Euro Restbestand zu', () => {
   assert.equal(closingEquationCents({ countedTotalCents: 67_337, bankAmountCents: 42_000, looseChangeCents: 337 }), 25_000);
+});
+
+test('berechnet Peters reale Kasse über Bar an Bank korrekt', () => {
+  const full = { 1:22, 2:10, 5:34, 10:50, 20:33, 50:5, 100:12, 200:21, 500:17, 1000:19, 2000:13, 5000:15, 10000:0, 20000:0 };
+  const bank = { 500:7, 1000:14, 2000:9, 5000:15, 10000:0, 20000:0 };
+  const plan = calculateClosingPlan(full);
+  assert.equal(plan.countedTotalCents, 135_522);
+  assert.equal(plan.retainedCoinCents, 7_000);
+  assert.equal(plan.looseChangeCents, 22);
+  assert.equal(bankTotalCents(bank), 110_500);
+  assert.equal(closingEquationCents({ countedTotalCents:plan.countedTotalCents, bankAmountCents:bankTotalCents(bank), looseChangeCents:plan.looseChangeCents }), 25_000);
 });
 
 test('parst EuroControl-Summen centgenau und markiert nur Einzelabweichungen über 5 Euro', () => {

@@ -1,7 +1,7 @@
 import { CASH_DENOMINATIONS, TARGET_CENTS, countCashCents } from './kasseneinzaehlung.mjs';
 
-export const FLOAT_NOTE_CENTS = Object.freeze([500, 1_000, 2_000]);
 export const BANK_NOTE_CENTS = Object.freeze([500, 1_000, 2_000, 5_000, 10_000, 20_000]);
+export const BANK_ONLY_NOTE_CENTS = Object.freeze([5_000, 10_000, 20_000]);
 
 function safeQuantity(value) {
   const quantity = Number(value);
@@ -30,41 +30,22 @@ export function calculateClosingPlan(fullCounts = {}) {
   };
 }
 
-export function retainedNotesTotalCents(retainedNoteCounts = {}) {
-  return FLOAT_NOTE_CENTS.reduce(
-    (sum, cents) => sum + cents * safeQuantity(retainedNoteCounts[cents]),
-    0,
-  );
-}
-
-export function validateRetainedNotes(fullCounts = {}, retainedNoteCounts = {}, notesNeededCents) {
-  for (const cents of FLOAT_NOTE_CENTS) {
-    if (safeQuantity(retainedNoteCounts[cents]) > safeQuantity(fullCounts[cents])) {
-      return `Es können nicht mehr ${cents / 100}-Euro-Scheine in der Lade bleiben als gezählt wurden.`;
-    }
-  }
-  const retainedTotal = retainedNotesTotalCents(retainedNoteCounts);
-  if (retainedTotal !== Number(notesNeededCents)) {
-    return `Mit den ausgewählten Scheinen fehlen noch ${(Number(notesNeededCents) - retainedTotal) / 100} Euro bis 250 Euro.`;
-  }
-  return null;
-}
-
-export function expectedBankNoteCounts(fullCounts = {}, retainedNoteCounts = {}) {
-  return Object.fromEntries(BANK_NOTE_CENTS.map((cents) => [
-    cents,
-    safeQuantity(fullCounts[cents]) - (FLOAT_NOTE_CENTS.includes(cents) ? safeQuantity(retainedNoteCounts[cents]) : 0),
-  ]));
-}
-
 export function bankTotalCents(bankNoteCounts = {}) {
   return BANK_NOTE_CENTS.reduce((sum, cents) => sum + cents * safeQuantity(bankNoteCounts[cents]), 0);
 }
 
-export function bankCountDifferences(fullCounts = {}, retainedNoteCounts = {}, bankNoteCounts = {}) {
-  const expected = expectedBankNoteCounts(fullCounts, retainedNoteCounts);
-  return BANK_NOTE_CENTS.filter((cents) => safeQuantity(bankNoteCounts[cents]) !== expected[cents])
-    .map((cents) => ({ cents, expected: expected[cents], actual: safeQuantity(bankNoteCounts[cents]) }));
+export function validateBankNoteCounts(fullCounts = {}, bankNoteCounts = {}) {
+  for (const cents of BANK_NOTE_CENTS) {
+    if (safeQuantity(bankNoteCounts[cents]) > safeQuantity(fullCounts[cents])) {
+      return `Bei ${cents / 100} Euro wurden mehr Bar-an-Bank-Scheine eingetragen als zuvor gezählt.`;
+    }
+  }
+  for (const cents of BANK_ONLY_NOTE_CENTS) {
+    if (safeQuantity(bankNoteCounts[cents]) !== safeQuantity(fullCounts[cents])) {
+      return `Alle ${cents / 100}-Euro-Scheine müssen als Bar an Bank erfasst werden.`;
+    }
+  }
+  return null;
 }
 
 export function closingEquationCents({ countedTotalCents, bankAmountCents, looseChangeCents }) {
