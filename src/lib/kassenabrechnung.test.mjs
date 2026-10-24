@@ -6,6 +6,7 @@ import {
   closingEquationCents,
   parseEuroToCents,
   requiresDifferenceNotification,
+  suggestFloatNotes,
   validateBankNoteCounts,
 } from './kassenabrechnung.mjs';
 
@@ -39,6 +40,28 @@ test('berechnet Peters reale Kasse über Bar an Bank korrekt', () => {
   assert.equal(plan.looseChangeCents, 22);
   assert.equal(bankTotalCents(bank), 110_500);
   assert.equal(closingEquationCents({ countedTotalCents:plan.countedTotalCents, bankAmountCents:bankTotalCents(bank), looseChangeCents:plan.looseChangeCents }), 25_000);
+});
+
+test('schlägt drei Zwanziger und danach möglichst gleich viele Fünfer und Zehner vor', () => {
+  const suggestion = suggestFloatNotes({
+    notesNeededCents: 18_000,
+    fullCounts: { 500: 17, 1_000: 19, 2_000: 13 },
+  });
+  assert.deepEqual(suggestion, {
+    counts: { 500: 8, 1_000: 8, 2_000: 3 },
+    totalCents: 18_000,
+  });
+});
+
+test('passt den Stückelungsvorschlag an den tatsächlich gezählten Bestand an', () => {
+  assert.deepEqual(suggestFloatNotes({
+    notesNeededCents: 18_000,
+    fullCounts: { 500: 20, 1_000: 20, 2_000: 2 },
+  })?.counts, { 500: 10, 1_000: 9, 2_000: 2 });
+  assert.equal(suggestFloatNotes({
+    notesNeededCents: 18_000,
+    fullCounts: { 500: 0, 1_000: 0, 2_000: 3 },
+  }), null);
 });
 
 test('parst EuroControl-Summen centgenau und markiert nur Einzelabweichungen über 5 Euro', () => {
