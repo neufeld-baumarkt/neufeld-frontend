@@ -1,0 +1,145 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  Calculator,
+  Check,
+  CircleAlert,
+  Landmark,
+  LockKeyhole,
+  ShieldAlert,
+  X,
+} from 'lucide-react';
+import { CASH_DENOMINATIONS, TARGET_CENTS, formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
+import {
+  BANK_NOTE_CENTS,
+  FLOAT_NOTE_CENTS,
+  bankCountDifferences,
+  bankTotalCents,
+  calculateClosingPlan,
+  closingEquationCents,
+  parseEuroToCents,
+  requiresDifferenceNotification,
+  validateRetainedNotes,
+} from '../../lib/kassenabrechnung.mjs';
+
+const EMPTY = Object.freeze({});
+
+function QuantityGrid({ denominations, counts, setCounts, submitSelector }) {
+  const refs = useRef([]);
+  const moveNext = (event, index) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const next = refs.current[index + 1]
+      || event.currentTarget.closest('[role="dialog"]')?.querySelector(submitSelector);
+    next?.focus();
+    next?.select?.();
+  };
+  return <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+    {denominations.map((item, index)=><label key={item.cents} className="rounded-xl border bg-[#faf9f7] p-3 text-center">
+      <span className="text-sm font-black">{item.label}</span>
+      <input ref={(node)=>{refs.current[index]=node;}} type="number" min="0" inputMode="numeric"
+        enterKeyHint={index===denominations.length-1?'done':'next'} value={counts[item.cents]??''}
+        onChange={(event)=>setCounts((current)=>({...current,[item.cents]:event.target.value}))}
+        onKeyDown={(event)=>moveNext(event,index)} onFocus={(event)=>event.currentTarget.select()}
+        className="mt-2 min-h-12 w-full rounded-lg border px-2 text-center text-lg font-bold outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15" />
+      <span className="mt-1 block text-xs text-black/45">= {formatEuroFromCents(item.cents*(Number(counts[item.cents])||0))}</span>
+    </label>)}
+  </div>;
+}
+
+function PinForm({ pin, setPin, onSubmit, busy, title, description }) {
+  return <div className="mx-auto max-w-lg text-center">
+    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#800000] text-white"><LockKeyhole size={32}/></div>
+    <h3 className="mt-5 text-2xl font-black">{title}</h3><p className="mt-2 text-black/60">{description}</p>
+    <form className="mt-6 text-left" onSubmit={onSubmit}><label className="text-sm font-bold">Persönlicher Mitarbeiter-PIN
+      <input autoFocus type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin}
+        onChange={(event)=>setPin(event.target.value.replace(/\D/g,'').slice(0,4))}
+        className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+    </label><button disabled={busy||pin.length!==4} className="mt-5 min-h-12 w-full rounded-xl bg-[#800000] font-black text-white disabled:opacity-40">{busy?'PIN wird geprüft …':'PIN bestätigen'}</button></form>
+  </div>;
+}
+
+const denomItems = (centsValues) => centsValues.map((cents)=>CASH_DENOMINATIONS.find((item)=>item.cents===cents));
+
+export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loadContext, onComplete }) {
+  const [stage,setStage]=useState('pin');
+  const [pin,setPin]=useState('');
+  const [employee,setEmployee]=useState(null);
+  const [drawerNumber,setDrawerNumber]=useState(null);
+  const [opening,setOpening]=useState(null);
+  const [contextProofToken,setContextProofToken]=useState('');
+  const [fullCounts,setFullCounts]=useState(EMPTY);
+  const [retainedNotes,setRetainedNotes]=useState(EMPTY);
+  const [bankNotes,setBankNotes]=useState(EMPTY);
+  const [bankCompared,setBankCompared]=useState(false);
+  const [euroTotal,setEuroTotal]=useState('');
+  const [differenceKind,setDifferenceKind]=useState('zero');
+  const [differenceAmount,setDifferenceAmount]=useState('');
+  const [notificationConfirmed,setNotificationConfirmed]=useState(false);
+  const [recountAttempts,setRecountAttempts]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [result,setResult]=useState(null);
+  const plan=useMemo(()=>calculateClosingPlan(fullCounts),[fullCounts]);
+  const bankAmountCents=useMemo(()=>bankTotalCents(bankNotes),[bankNotes]);
+  const bankDifferences=useMemo(()=>bankCountDifferences(fullCounts,retainedNotes,bankNotes),[fullCounts,retainedNotes,bankNotes]);
+  const differenceCents=useMemo(()=>{
+    if(differenceKind==='zero') return 0;
+    const cents=parseEuroToCents(differenceAmount);
+    return cents===null?null:(differenceKind==='minus'?-cents:cents);
+  },[differenceKind,differenceAmount]);
+
+  useEffect(()=>{const close=(event)=>{if(event.key==='Escape'&&stage!=='complete')onClose();};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[onClose,stage]);
+  const fail=(message)=>{setError(message);return false;};
+  const advance=(next)=>{setError('');setStage(next);};
+
+  const identify=async(event,final=false)=>{event.preventDefault();setError('');setBusy(true);try{
+    const identified=await verifyPin(pin,{branch});
+    if(final){
+      if(String(identified.id)!==String(employee.id)) throw new Error('Der Abschluss muss mit demselben Mitarbeiter-PIN bestätigt werden.');
+      const saved=await onComplete({drawerNumber,openingCountId:opening?.id||null,proceededWithoutOpening:!opening,fullCounts,looseChangeCents:plan.looseChangeCents,retainedCoinCents:plan.retainedCoinCents,retainedNoteCounts:retainedNotes,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:parseEuroToCents(euroTotal),differenceCents,notificationConfirmed,recountAttempts,contextProofToken,proofToken:identified.proofToken});
+      setResult(saved||{employee:identified});setStage('complete');
+    } else {setEmployee(identified);setStage('drawer');}
+    setPin('');
+  }catch(failure){setError(failure.message);}finally{setBusy(false);}};
+
+  const chooseDrawer=async(number)=>{setError('');setBusy(true);try{const context=await loadContext({drawerNumber:number,employee});setDrawerNumber(number);setOpening(context?.opening||null);setContextProofToken(context?.contextProofToken||'');setStage(context?.opening?'full-count':'missing-opening');}catch(failure){setError(failure.message);}finally{setBusy(false);}};
+  const checkFullCount=()=>{if(plan.countedTotalCents<=0)return fail('Bitte zuerst die komplette Lade zählen.');if(plan.countedTotalCents<TARGET_CENTS)return fail('Die gezählte Lade enthält weniger als 250,00 €. Bitte prüfe deine Eingaben.');advance('loose-change');};
+  const checkFloat=()=>{const problem=validateRetainedNotes(fullCounts,retainedNotes,plan.notesNeededCents);if(problem)return fail(problem);advance('bank');};
+  const checkBank=()=>{setBankCompared(true);if(bankDifferences.length)return fail('Die erneut gezählten Scheine stimmen noch nicht mit der vollständigen Kassenzählung überein. Bitte prüfe die markierten Stückelungen.');const remainder=closingEquationCents({countedTotalCents:plan.countedTotalCents,bankAmountCents,looseChangeCents:plan.looseChangeCents});if(remainder!==TARGET_CENTS)return fail(`Die Kontrollrechnung ergibt ${formatEuroFromCents(remainder)} statt 250,00 €. Bitte prüfe die Zählung.`);advance('euro-total');};
+  const checkEuroTotal=()=>{const cents=parseEuroToCents(euroTotal);if(cents===null)return fail('Bitte gib die Gesamtsumme aus EuroControl als gültigen Euro-Betrag ein.');if(cents!==bankAmountCents)return fail(`Die EuroControl-Summe stimmt nicht. Erwartet werden ${formatEuroFromCents(bankAmountCents)}.`);advance('euro-submit');};
+  const checkDifference=()=>{if(differenceCents===null)return fail('Bitte gib die Differenz aus dem EuroControl-Protokoll centgenau ein.');if(differenceKind!=='zero'&&differenceCents===0)return fail('Wähle bei 0,00 € bitte „Keine Differenz“.');if(requiresDifferenceNotification(differenceCents)&&!notificationConfirmed)return fail('Bei einer Einzelabweichung über 5,00 € müssen Alex und Peter informiert werden.');setPin('');advance('final-pin');};
+  const restartAfterEuroControlWarning=()=>{
+    setRecountAttempts((current)=>[...current,{fullCounts,retainedNoteCounts:retainedNotes,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:parseEuroToCents(euroTotal),reportedDifferenceCents:differenceCents}]);
+    setFullCounts({});setRetainedNotes({});setBankNotes({});setBankCompared(false);setEuroTotal('');setDifferenceKind('zero');setDifferenceAmount('');setNotificationConfirmed(false);advance('full-count');
+  };
+
+  const stages=['pin','drawer','missing-opening','full-count','loose-change','float','bank','euro-total','euro-submit','difference','final-pin','complete'];
+  const progress=Math.max(0,stages.indexOf(stage));
+  const heading=(title,text)=><><h3 className="text-2xl font-black">{title}</h3><p className="mt-2 text-black/60">{text}</p></>;
+
+  return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-closing-title">
+    <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
+      <header className="flex items-center justify-between gap-3 bg-[#800000] px-4 py-4 text-white sm:px-6"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div><h2 id="cash-closing-title" className="text-xl font-black sm:text-2xl">Kasse abrechnen</h2></div><button type="button" onClick={onClose} aria-label="Modal schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10"><X/></button></header>
+      <div className="h-1 bg-black/10"><div className="h-full bg-amber-400 transition-all" style={{width:`${((progress+1)/stages.length)*100}%`}}/></div>
+      <div className="overflow-y-auto p-4 sm:p-7">
+        <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Filiale: {branch}</span>{employee&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Mitarbeiter: {employee.name}</span>}{drawerNumber&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Lade {drawerNumber}</span>}</div>
+        {error&&<div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"><CircleAlert className="shrink-0" size={20}/>{error}</div>}
+        {stage==='pin'&&<PinForm pin={pin} setPin={setPin} onSubmit={(event)=>identify(event)} busy={busy} title="Wer rechnet seine Kasse ab?" description="Melde dich mit deinem persönlichen PIN an. Die gesamte Abrechnung wird dir und deiner Lade zugeordnet."/>}
+        {stage==='drawer'&&<div className="text-center">{heading('Welche Lade rechnest du ab?','Die App sucht ausschließlich nach deiner passenden Einzählung für genau diese Lade.')}<div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-4">{[1,2].map((number)=><button disabled={busy} key={number} onClick={()=>chooseDrawer(number)} className="aspect-square rounded-full border-4 border-[#800000]/20 bg-white text-2xl font-black text-[#800000] shadow-lg hover:border-[#800000]">Lade<br/><span className="text-6xl">{number}</span></button>)}</div></div>}
+        {stage==='missing-opening'&&<div className="mx-auto max-w-2xl text-center"><ShieldAlert className="mx-auto text-amber-600" size={60}/>{heading('Keine passende Einzählung gefunden',`Für ${employee.name} und Lade ${drawerNumber} liegt heute keine passende Einzählung vor. Du darfst trotzdem abrechnen; dies wird sichtbar im Protokoll festgehalten.`)}<div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center"><button onClick={()=>advance('drawer')} className="min-h-12 rounded-xl border px-6 font-bold">Andere Lade wählen</button><button onClick={()=>advance('full-count')} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Trotzdem abrechnen</button></div></div>}
+        {stage==='full-count'&&<div>{heading('1. Komplette Lade zählen','Zähle jetzt wirklich jede Münze und jeden Schein – von 1 Cent bis 200 Euro. Die App rechnet automatisch.')}<div className="mt-5"><QuantityGrid denominations={CASH_DENOMINATIONS} counts={fullCounts} setCounts={setFullCounts} submitSelector="[data-next-full]"/></div><div className="mt-4 rounded-2xl bg-white p-4 text-right"><span className="text-xs font-black uppercase text-black/45">Gesamtsumme Lade</span><strong className="block text-3xl text-[#800000]">{formatEuroFromCents(plan.countedTotalCents)}</strong></div></div>}
+        {stage==='loose-change'&&<div className="mx-auto max-w-2xl text-center"><Landmark className="mx-auto text-[#800000]" size={58}/>{heading('2. Kleingeld in den Tresor legen','Die App hat dein gezähltes Münzgeld auf den nächsten vollen Fünfer abgerundet. Führe jetzt genau diese Entnahme aus.')}<div className="mt-6 grid gap-3 sm:grid-cols-2"><div className="rounded-2xl bg-white p-5"><span className="text-xs font-black uppercase text-black/45">In der Lade behalten</span><strong className="mt-1 block text-3xl">{formatEuroFromCents(plan.retainedCoinCents)}</strong></div><div className="rounded-2xl bg-amber-100 p-5 text-amber-900"><span className="text-xs font-black uppercase">Jetzt in den Tresor legen</span><strong className="mt-1 block text-3xl">{formatEuroFromCents(plan.looseChangeCents)}</strong></div></div><button onClick={()=>advance('float')} className="mt-6 min-h-12 rounded-xl bg-[#800000] px-7 font-black text-white">Kleingeld entnommen</button></div>}
+        {stage==='float'&&<div>{heading('3. Lade auf 250,00 € hochzählen',`Du startest bei ${formatEuroFromCents(plan.retainedCoinCents)} Münzgeld. Lege jetzt eine sinnvolle Mischung aus 5-, 10- und 20-Euro-Scheinen dazu.`)}<div className="mt-5"><QuantityGrid denominations={denomItems(FLOAT_NOTE_CENTS)} counts={retainedNotes} setCounts={setRetainedNotes} submitSelector="[data-next-float]"/></div><div className="mt-4 rounded-2xl bg-white p-4 text-right"><span className="text-xs font-black uppercase text-black/45">Noch mit Scheinen benötigt</span><strong className="block text-2xl text-[#800000]">{formatEuroFromCents(plan.notesNeededCents)}</strong></div></div>}
+        {stage==='bank'&&<div>{heading('4. Übrige Scheine erneut zählen','Nimm alle übrigen Scheine aus der Lade und zähle sie jetzt noch einmal unabhängig. Diese Summe ist „Bar an Bank“.')}<div className="mt-5"><QuantityGrid denominations={denomItems(BANK_NOTE_CENTS)} counts={bankNotes} setCounts={(updater)=>{setBankNotes(updater);setBankCompared(false);setError('');}} submitSelector="[data-next-bank]"/></div>{bankCompared&&bankDifferences.length>0&&<div className="mt-4 rounded-xl bg-red-50 p-4 text-red-800"><strong>Bitte erneut prüfen:</strong> {bankDifferences.map((item)=>`${formatEuroFromCents(item.cents)}: gezählt ${item.actual}, erwartet ${item.expected}`).join(' · ')}</div>}<div className="mt-4 rounded-2xl bg-white p-4 text-right"><span className="text-xs font-black uppercase text-black/45">Bar an Bank</span><strong className="block text-3xl text-[#800000]">{formatEuroFromCents(bankAmountCents)}</strong></div></div>}
+        {stage==='euro-total'&&<div className="mx-auto max-w-xl text-center"><Calculator className="mx-auto text-[#800000]" size={58}/>{heading('5. Werte in EuroControl eingeben','Übertrage deine Stückelungen in EuroControl. Gib anschließend die dort angezeigte Gesamtsumme hier zur Tippfehlerkontrolle ein.')}<label className="mt-6 block text-left text-sm font-bold">Gesamtsumme in EuroControl<input autoFocus inputMode="decimal" value={euroTotal} onChange={(event)=>setEuroTotal(event.target.value)} placeholder="0,00" className="mt-2 min-h-14 w-full rounded-xl border-2 px-4 text-right text-2xl font-black outline-none focus:border-[#800000]"/></label><button onClick={checkEuroTotal} className="mt-5 min-h-12 w-full rounded-xl bg-[#800000] font-black text-white">Gesamtsummen vergleichen</button></div>}
+        {stage==='euro-submit'&&<div className="mx-auto max-w-2xl text-center"><Check className="mx-auto text-emerald-700" size={60}/>{heading('6. EuroControl-Abrechnung ausführen',`Die Gesamtsumme stimmt: ${formatEuroFromCents(bankAmountCents)}. Klicke jetzt in EuroControl auf „Eingabe übernehmen“. Wenn EuroControl eine auffällige Differenz meldet, kannst du dort abbrechen und die Kasse erneut zählen.`)}<button onClick={()=>advance('difference')} className="mt-6 min-h-12 rounded-xl bg-emerald-700 px-7 font-black text-white">Eingabe übernommen – Ergebnis wird angezeigt</button></div>}
+        {stage==='difference'&&<div className="mx-auto max-w-xl">{heading('7. Differenz aus EuroControl übernehmen','Wähle das Vorzeichen genauso, wie es EuroControl anzeigt, und trage den Betrag ein. Bei einer auffälligen Differenz darfst du die Abrechnung abbrechen und vollständig neu zählen.')}<div className="mt-5 grid grid-cols-3 gap-2">{[['minus','− Minus'],['zero','Keine'],['plus','+ Plus']].map(([value,label])=><button key={value} onClick={()=>{setDifferenceKind(value);setNotificationConfirmed(false);}} className={`min-h-12 rounded-xl border-2 font-black ${differenceKind===value?'border-[#800000] bg-[#800000] text-white':'bg-white'}`}>{label}</button>)}</div>{differenceKind!=='zero'&&<label className="mt-4 block text-sm font-bold">Betrag der Differenz<input autoFocus inputMode="decimal" value={differenceAmount} onChange={(event)=>{setDifferenceAmount(event.target.value);setNotificationConfirmed(false);}} placeholder="0,00" className="mt-2 min-h-14 w-full rounded-xl border-2 px-4 text-right text-2xl font-black outline-none focus:border-[#800000]"/></label>}{requiresDifferenceNotification(differenceCents)&&<label className="mt-5 flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 font-bold text-amber-950"><input type="checkbox" checked={notificationConfirmed} onChange={(event)=>setNotificationConfirmed(event.target.checked)} className="mt-1 h-5 w-5 accent-[#800000]"/><span>Ich bestätige, dass Alex und Peter wegen der Einzelabweichung über 5,00 € informiert wurden.</span></label>}<div className={`mt-5 grid gap-3 ${differenceKind!=='zero'?'sm:grid-cols-2':''}`}>{differenceKind!=='zero'&&<button onClick={restartAfterEuroControlWarning} className="min-h-12 rounded-xl border-2 border-[#800000] bg-white px-4 font-black text-[#800000]">In EuroControl abgebrochen – neu zählen</button>}<button onClick={checkDifference} className="min-h-12 rounded-xl bg-[#800000] px-4 font-black text-white">Differenz übernehmen</button></div>{recountAttempts.length>0&&<p className="mt-3 text-center text-sm font-bold text-black/50">Bisherige Neuzählungen in diesem Vorgang: {recountAttempts.length}</p>}</div>}
+        {stage==='final-pin'&&<PinForm pin={pin} setPin={setPin} onSubmit={(event)=>identify(event,true)} busy={busy} title="Abrechnung verbindlich abschließen" description="Bestätige die vollständige Abrechnung noch einmal mit deinem persönlichen PIN. Danach ist sie unveränderbar."/>}
+        {stage==='complete'&&<div className="mx-auto max-w-2xl text-center"><div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-600 text-white"><Check size={46}/></div>{heading('Kasse ist abgerechnet','Die Abrechnung wurde verbindlich gespeichert und kann später nur noch gelesen werden.')}<div className="mt-6 grid gap-3 rounded-2xl bg-white p-5 text-left sm:grid-cols-2"><div><span className="text-xs font-black uppercase text-black/45">Bar an Bank</span><strong className="block text-2xl">{formatEuroFromCents(bankAmountCents)}</strong></div><div><span className="text-xs font-black uppercase text-black/45">Differenz</span><strong className="block text-2xl">{formatEuroFromCents(differenceCents,{signed:true})}</strong></div><div><span className="text-xs font-black uppercase text-black/45">Einzählung</span><strong className="block">{opening?'Zugeordnet':'Nicht vorhanden'}</strong></div><div><span className="text-xs font-black uppercase text-black/45">Status</span><strong className="block text-emerald-700">Abgeschlossen · Read-only</strong></div></div><button onClick={onClose} className="mt-6 min-h-12 rounded-xl bg-emerald-700 px-7 font-black text-white">Fertig</button></div>}
+      </div>
+      {['full-count','float','bank'].includes(stage)&&<footer className="flex flex-col-reverse gap-3 border-t bg-white px-4 py-4 sm:flex-row sm:justify-between sm:px-7"><button onClick={()=>advance(stage==='full-count'?(opening?'drawer':'missing-opening'):stage==='float'?'loose-change':'float')} className="min-h-12 rounded-xl border px-5 font-bold"><ArrowLeft className="mr-2 inline" size={18}/>Zurück</button><button data-next-full={stage==='full-count'||undefined} data-next-float={stage==='float'||undefined} data-next-bank={stage==='bank'||undefined} onClick={stage==='full-count'?checkFullCount:stage==='float'?checkFloat:checkBank} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">{stage==='bank'?'Erneute Zählung prüfen':'Weiter'}</button></footer>}
+    </div>
+  </div>;
+}
+

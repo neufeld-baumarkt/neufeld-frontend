@@ -1,12 +1,13 @@
 const API_ORIGIN = import.meta.env.VITE_API_URL;
 
-async function request(path, options = {}) {
+async function request(path, options = {}, cashBranch = '') {
   const response = await fetch(`${API_ORIGIN}${path}`, {
     ...options,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       Authorization: `Bearer ${sessionStorage.getItem('token') || ''}`,
+      ...(cashBranch ? { 'X-Cash-Branch': cashBranch } : {}),
       ...(options.headers || {}),
     },
   });
@@ -48,11 +49,11 @@ export const employeePinApi = {
     });
     return payload.employee;
   },
-  async firstUseCandidates() {
-    const payload = await request('/api/filiale-pins/first-use-candidates');
+  async firstUseCandidates({ branch } = {}) {
+    const payload = await request('/api/filiale-pins/first-use-candidates', {}, branch);
     return payload.employees || [];
   },
-  async activate({ employeeId, currentPin, newPin, confirmPin }) {
+  async activate({ employeeId, currentPin, newPin, confirmPin }, { branch } = {}) {
     return request('/api/filiale-pins/activate', {
       method: 'POST',
       body: JSON.stringify({
@@ -61,6 +62,6 @@ export const employeePinApi = {
         new_pin: newPin,
         confirm_pin: confirmPin,
       }),
-    });
+    }, branch);
   },
 };

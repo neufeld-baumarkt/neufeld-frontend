@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
 import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
+import { canUseCashModule } from '../lib/cashModuleAccess.mjs';
 
 const menuItems = [
   { label: 'Reklamationen', path: '/reklamationen', image: '/Icons/reklamation.png', alt: 'Reklamation' },
@@ -27,6 +28,7 @@ function Startseite() {
     console.warn('❗ Benutzer konnte nicht geladen werden:', error);
   }
   const displayName = user?.name || 'Unbekannt';
+  const visibleMenuItems = menuItems.filter((item) => item.path !== '/tageskassenabrechnung' || canUseCashModule(user));
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuGridOpen, setMenuGridOpen] = useState(false);
@@ -128,7 +130,7 @@ function Startseite() {
         onMouseLeave={() => setMenuGridOpen(false)}
       >
         <nav aria-label="Hauptmenü" className="flex flex-col items-stretch gap-1 px-3 py-3 text-left text-black sm:px-4 lg:items-start lg:gap-4 lg:px-6 lg:py-4">
-          {menuItems.map((item) => (
+          {visibleMenuItems.map((item) => (
             <button
               type="button"
               key={item.path}

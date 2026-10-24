@@ -4,14 +4,18 @@ import {
   Calculator,
   Landmark,
   LockKeyhole,
+  MapPin,
   ShieldCheck,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
+import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsModal';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
+import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
+import { canUseCashModule, needsTemporaryCashBranch } from '../lib/cashModuleAccess.mjs';
 
 const processes = [
   {
@@ -26,7 +30,7 @@ const processes = [
     label: 'Kasse abrechnen',
     description: 'Stückelungen erfassen, Einnahmen berechnen und die Übergabe an EuroControl vorbereiten.',
     icon: Calculator,
-    enabled: false,
+    enabled: true,
   },
   {
     id: 'safe-count',
@@ -40,10 +44,14 @@ const processes = [
 export default function Tageskassenabrechnung() {
   const navigate = useNavigate();
   const [openingCountOpen, setOpeningCountOpen] = useState(false);
+  const [closingOpen, setClosingOpen] = useState(false);
+  const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
   }, []);
-  const branch = String(user.filiale || '').trim();
+  const assignedBranch = String(user.filiale || '').trim();
+  const requiresBranchChoice = needsTemporaryCashBranch(user);
+  const [branch, setBranch] = useState(requiresBranchChoice ? '' : assignedBranch);
   const today = new Intl.DateTimeFormat('de-DE', {
     weekday: 'long',
     day: '2-digit',
@@ -51,10 +59,20 @@ export default function Tageskassenabrechnung() {
     year: 'numeric',
   }).format(new Date());
 
+  useEffect(() => {
+    if (!requiresBranchChoice) return;
+    kasseneinzaehlungApi.branches()
+      .then(setBranches)
+      .catch((error) => toast.error(error.message));
+  }, [requiresBranchChoice]);
+
+  if (!canUseCashModule(user)) return <Navigate to="/forbidden" replace />;
+
   const openProcess = (process) => {
     if (!process.enabled) return toast('Dieser Prozess wird erst nach der gemeinsamen fachlichen Festlegung freigeschaltet.', { icon: '🔒' });
-    if (!branch || branch.toLowerCase() === 'alle') return toast.error('Deinem Benutzerkonto ist keine einzelne Filiale zugeordnet.');
-    setOpeningCountOpen(true);
+    if (!branch || branch.toLowerCase() === 'alle') return toast.error('Bitte zuerst eine Filiale für diesen Kassenvorgang auswählen.');
+    if (process.id === 'opening-count') return setOpeningCountOpen(true);
+    if (process.id === 'closing') return setClosingOpen(true);
   };
 
   return (
@@ -128,7 +146,7 @@ export default function Tageskassenabrechnung() {
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-50 sm:p-5">
             <ShieldCheck className="mt-0.5 shrink-0 text-emerald-300" size={24} aria-hidden="true" />
             <p>
-              „Kasse einzählen“ ist freigeschaltet. Jede abgeschlossene Einzählung wird einer Filiale, einer Lade und den bestätigten Mitarbeitern eindeutig zugeordnet.
+              „Kasse einzählen“ und „Kasse abrechnen“ sind für den DEV-Test freigeschaltet. Jeder Vorgang wird eindeutig einer echten Filiale, einer Lade und den bestätigten Mitarbeitern zugeordnet.
             </p>
           </div>
         </section>
@@ -137,12 +155,35 @@ export default function Tageskassenabrechnung() {
         <KasseneinzaehlModal
           branch={branch}
           onClose={() => setOpeningCountOpen(false)}
-          verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, options)}
-          loadFirstUseCandidates={() => employeePinApi.firstUseCandidates()}
-          activatePin={(payload) => employeePinApi.activate(payload)}
-          previousClosingFor={({ drawerNumber }) => kasseneinzaehlungApi.previousClosing(drawerNumber)}
-          onComplete={(payload) => kasseneinzaehlungApi.saveOpeningCount(payload)}
+          verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
+          loadFirstUseCandidates={() => employeePinApi.firstUseCandidates({ branch })}
+          activatePin={(payload) => employeePinApi.activate(payload, { branch })}
+          previousClosingFor={({ drawerNumber }) => kasseneinzaehlungApi.previousClosing(drawerNumber, branch)}
+          onComplete={(payload) => kasseneinzaehlungApi.saveOpeningCount(payload, branch)}
         />
+      )}
+      {closingOpen && (
+        <KassenabrechnungsModal
+          branch={branch}
+          onClose={() => setClosingOpen(false)}
+          verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
+          loadContext={({ drawerNumber, employee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken }, branch)}
+          onComplete={(payload) => kassenabrechnungApi.saveClosing(payload, branch)}
+        />
+      )}
+      {requiresBranchChoice && !branch && (
+        <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-branch-title">
+          <div className="w-full max-w-2xl rounded-t-3xl bg-[#f7f4ef] p-5 text-[#1f1d1d] shadow-2xl sm:rounded-3xl sm:p-7">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#800000] text-white"><MapPin size={32} /></div>
+            <h2 id="cash-branch-title" className="mt-4 text-center text-2xl font-black">Für welche Filiale arbeitest du gerade?</h2>
+            <p className="mx-auto mt-2 max-w-xl text-center text-black/60">Dein Konto ist zentral auf „Alle“ gesetzt. Wähle für diesen Besuch eine echte Filiale. Die Auswahl gilt nur bis du das Modul verlässt.</p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {branches.map((item) => <button type="button" key={item.id || item.name} onClick={() => setBranch(item.name)} className="min-h-16 rounded-2xl border-2 border-[#800000]/15 bg-white px-5 text-lg font-black text-[#800000] shadow-sm hover:border-[#800000]">{item.name}</button>)}
+            </div>
+            {!branches.length && <p className="mt-5 text-center font-bold text-black/45">Aktive Filialen werden geladen …</p>}
+            <button type="button" onClick={() => navigate('/start')} className="mt-6 min-h-12 w-full rounded-xl border px-5 font-bold">Abbrechen und zur Startseite</button>
+          </div>
+        </div>
       )}
     </main>
   );
