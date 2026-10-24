@@ -1,11 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { needsPersonalPinSetup, personalPinError } from './employeePinRules.mjs';
+import { isTrivialPersonalPin, needsPersonalPinSetup, personalPinError } from './employeePinRules.mjs';
 
 test('erkennt ausschließlich 0000 als Standard-PIN', () => {
   assert.equal(needsPersonalPinSetup('0000'), true);
   assert.equal(needsPersonalPinSetup('4711'), false);
+});
+
+test('weist gleiche Ziffern und logische Zahlenfolgen als persönliche PINs ab', () => {
+  for (const pin of ['1111', '1234', '4567', '9876', '3210', '7890', '2109']) {
+    assert.equal(isTrivialPersonalPin(pin), true, pin);
+    assert.match(personalPinError(pin, pin), /gleichen Ziffern|Zahlenfolge/, pin);
+  }
+  for (const pin of ['4711', '1357', '2580']) {
+    assert.equal(isTrivialPersonalPin(pin), false, pin);
+    assert.equal(personalPinError(pin, pin), null, pin);
+  }
 });
 
 test('erzwingt einen neuen bestätigten persönlichen PIN', () => {
