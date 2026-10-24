@@ -8,7 +8,7 @@ const secondaryButton = 'min-h-12 rounded-xl border border-white/20 bg-white/10 
 
 function BranchSelect({ branches, value, onChange }) {
   return <select className={fieldClass} value={value} onChange={(event) => onChange(event.target.value)}>
-    <option value="">Filiale auswählen</option>
+    <option value="">Stammfiliale / Zuordnung auswählen</option>
     {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
   </select>;
 }
@@ -46,7 +46,7 @@ export default function EmployeePinManagement() {
     if (!selected) return;
     const fallback = String(selected.display_name || '').trim().split(/\s+/);
     setDraft({
-      filiale_id: String(selected.filiale_id),
+      filiale_id: selected.filiale_id == null ? 'all' : String(selected.filiale_id),
       first_name: selected.first_name || fallback.shift() || '',
       last_name: selected.last_name || fallback.join(' '),
     });
@@ -92,7 +92,7 @@ export default function EmployeePinManagement() {
 
     {mode === 'create' && <section className="rounded-2xl border border-white/15 bg-white/5 p-4 sm:p-5">
       <h3 className="text-xl font-black">Neuen Mitarbeiter anlegen</h3>
-      <p className="mt-1 text-sm text-white/55">Filiale sowie Vor- und Nachname sind Pflichtfelder. Der Standard-PIN wird automatisch gesetzt.</p>
+      <p className="mt-1 text-sm text-white/55">Stammfiliale beziehungsweise „Alle“ sowie Vor- und Nachname sind Pflichtfelder. Diese Zuordnung schränkt den Einsatz nicht ein: Der persönliche PIN funktioniert in jeder Filiale.</p>
       <div className="mt-4"><EmployeeFields branches={branches} draft={draft} setDraft={setDraft} /></div>
       <button type="button" disabled={busy || !valid} onClick={create} className={`${primaryButton} mt-4 w-full sm:w-auto`}>{busy ? 'Wird angelegt …' : 'Mitarbeiter anlegen'}</button>
     </section>}
@@ -122,7 +122,7 @@ export default function EmployeePinManagement() {
       <div className="mb-3 flex items-center gap-2"><KeyRound size={19} /><h3 className="font-black">Angelegte Mitarbeiter</h3></div>
       <div className="grid gap-2 md:grid-cols-2">
         {employees.map((employee) => <button type="button" key={employee.id} onClick={() => { setMode('edit'); setSelectedId(String(employee.id)); setMessage(''); }} className="rounded-xl border border-white/10 bg-white/5 p-3 text-left hover:bg-white/10">
-          <div className="font-black">{employee.display_name}</div><div className="text-sm text-white/50">{employee.filiale} · {employee.must_change_pin ? 'Standard-PIN 0000' : 'Persönlicher PIN'}</div>
+          <div className="font-black">{employee.display_name}</div><div className="text-sm text-white/50">Zuordnung: {employee.filiale || 'Alle'} · {employee.must_change_pin ? 'Standard-PIN 0000' : 'Persönlicher PIN'}</div>
         </button>)}
         {!employees.length && <div className="text-sm text-white/45">Noch keine Mitarbeiter angelegt.</div>}
       </div>
