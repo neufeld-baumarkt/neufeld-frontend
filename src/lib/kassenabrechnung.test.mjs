@@ -66,8 +66,12 @@ test('passt den Stückelungsvorschlag an den tatsächlich gezählten Bestand an'
 
 test('parst EuroControl-Summen centgenau und markiert nur Einzelabweichungen über 5 Euro', () => {
   assert.equal(parseEuroToCents('420,00'), 42_000);
+  assert.equal(parseEuroToCents('0,98'), 98);
+  assert.equal(parseEuroToCents('0.98'), 98);
   assert.equal(parseEuroToCents('1.234,56'), 123_456);
+  assert.equal(parseEuroToCents('1,234.56'), 123_456);
   assert.equal(parseEuroToCents('12,345'), null);
+  assert.equal(parseEuroToCents('12.345'), null);
   assert.equal(requiresDifferenceNotification(500), false);
   assert.equal(requiresDifferenceNotification(-501), true);
 });

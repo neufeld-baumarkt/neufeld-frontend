@@ -10,9 +10,31 @@ function safeQuantity(value) {
 }
 
 export function parseEuroToCents(value) {
-  const normalized = String(value ?? '').trim().replace(/\s/g, '').replace('.', '').replace(',', '.');
-  if (!/^\d+(?:\.\d{0,2})?$/.test(normalized)) return null;
-  return Math.round(Number(normalized) * 100);
+  const compact = String(value ?? '').trim().replace(/\s/g, '');
+  if (!/^\d+(?:[.,]\d+)*$/.test(compact)) return null;
+  const commaIndex = compact.lastIndexOf(',');
+  const dotIndex = compact.lastIndexOf('.');
+  const separators = compact.match(/[.,]/g) || [];
+
+  if (commaIndex === -1 && dotIndex === -1) return Number(compact) * 100;
+  if (commaIndex === -1 || dotIndex === -1) {
+    if (separators.length !== 1) return null;
+    const separator = commaIndex >= 0 ? ',' : '.';
+    const [euros, cents] = compact.split(separator);
+    if (!/^\d+$/.test(euros) || !/^\d{1,2}$/.test(cents)) return null;
+    return Number(euros) * 100 + Number(cents.padEnd(2, '0'));
+  }
+
+  const decimalIndex = Math.max(commaIndex, dotIndex);
+  const decimalSeparator = compact[decimalIndex];
+  const thousandsSeparator = decimalSeparator === ',' ? '.' : ',';
+  const eurosWithGrouping = compact.slice(0, decimalIndex);
+  const cents = compact.slice(decimalIndex + 1);
+  if (!/^\d{1,2}$/.test(cents) || eurosWithGrouping.includes(decimalSeparator)) return null;
+  const groupingPattern = new RegExp(`^\\d{1,3}(?:\\${thousandsSeparator}\\d{3})*$`);
+  if (!groupingPattern.test(eurosWithGrouping)) return null;
+  const euros = eurosWithGrouping.replaceAll(thousandsSeparator, '');
+  return Number(euros) * 100 + Number(cents.padEnd(2, '0'));
 }
 
 export function calculateClosingPlan(fullCounts = {}) {
