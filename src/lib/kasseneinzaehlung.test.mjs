@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  CASH_DENOMINATIONS,
   countCashCents,
   matchesImmediatePreviousClosing,
   nextDifferenceStep,
   openingDifferenceCents,
 } from './kasseneinzaehlung.mjs';
+
+test('ordnet die Stückelungen in der Zählreihenfolge von 1 Cent bis 200 Euro', () => {
+  assert.deepEqual(
+    CASH_DENOMINATIONS.map(({ cents }) => cents),
+    [1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000],
+  );
+});
 
 test('summiert die Stückelungen centgenau', () => {
   assert.equal(countCashCents({ 5000: 4, 2000: 2, 500: 2 }), 25_000);

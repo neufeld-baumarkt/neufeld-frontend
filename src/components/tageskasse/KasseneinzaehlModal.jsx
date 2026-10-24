@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Banknote,
@@ -76,6 +76,20 @@ function FirstUsePinStep({ employees, employeeId, setEmployeeId, newPin, setNewP
 }
 
 function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
+  const inputRefs = useRef([]);
+
+  const handleEnter = (event, index) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const nextInput = inputRefs.current[index + 1];
+    if (nextInput) {
+      nextInput.focus();
+      nextInput.select();
+      return;
+    }
+    document.querySelector('[data-cash-count-submit]')?.focus();
+  };
+
   return <div>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
@@ -89,14 +103,18 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
       </div>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {CASH_DENOMINATIONS.map((denomination)=><label key={denomination.cents} className="rounded-xl border bg-[#faf9f7] p-3 text-center">
+      {CASH_DENOMINATIONS.map((denomination,index)=><label key={denomination.cents} className="rounded-xl border bg-[#faf9f7] p-3 text-center">
         <span className="text-sm font-black">{denomination.label}</span>
         <input
           inputMode="numeric"
+          enterKeyHint={index===CASH_DENOMINATIONS.length-1?'done':'next'}
           min="0"
           type="number"
+          ref={(element)=>{ inputRefs.current[index] = element; }}
           value={counts[denomination.cents]??''}
           onChange={(event)=>setCounts((current)=>({ ...current, [denomination.cents]: event.target.value }))}
+          onKeyDown={(event)=>handleEnter(event,index)}
+          onFocus={(event)=>event.target.select()}
           className="mt-2 min-h-12 w-full rounded-lg border px-2 text-center text-lg font-bold outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15"
         />
         <span className="mt-1 block text-xs text-black/45">= {formatEuroFromCents(denomination.cents*(Number(counts[denomination.cents])||0))}</span>
@@ -327,7 +345,7 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
         </div>}
       </div>
 
-      {stage==='count'&&<footer className="flex flex-col-reverse gap-3 border-t bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7"><button type="button" disabled={busy} onClick={()=>setStage(drawerNumber?'drawer':'pin')} className="min-h-12 rounded-xl border px-5 font-bold disabled:opacity-50"><ArrowLeft className="mr-2 inline" size={18}/>Zurück</button><button type="button" disabled={busy} onClick={checkCount} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white disabled:opacity-50">{busy?'Einzählung wird gespeichert …':'Zählung prüfen'}</button></footer>}
+      {stage==='count'&&<footer className="flex flex-col-reverse gap-3 border-t bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7"><button type="button" disabled={busy} onClick={()=>setStage(drawerNumber?'drawer':'pin')} className="min-h-12 rounded-xl border px-5 font-bold disabled:opacity-50"><ArrowLeft className="mr-2 inline" size={18}/>Zurück</button><button type="button" data-cash-count-submit disabled={busy} onClick={checkCount} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white disabled:opacity-50">{busy?'Einzählung wird gespeichert …':'Zählung prüfen'}</button></footer>}
     </div>
   </div>;
 }

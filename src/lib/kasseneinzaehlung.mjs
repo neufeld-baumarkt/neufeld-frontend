@@ -1,21 +1,20 @@
 export const TARGET_CENTS = 25_000;
 
 export const CASH_DENOMINATIONS = [
-  { cents: 50_000, label: '500 €' },
-  { cents: 20_000, label: '200 €' },
-  { cents: 10_000, label: '100 €' },
-  { cents: 5_000, label: '50 €' },
-  { cents: 2_000, label: '20 €' },
-  { cents: 1_000, label: '10 €' },
-  { cents: 500, label: '5 €' },
-  { cents: 200, label: '2 €' },
-  { cents: 100, label: '1 €' },
-  { cents: 50, label: '50 ct' },
-  { cents: 20, label: '20 ct' },
-  { cents: 10, label: '10 ct' },
-  { cents: 5, label: '5 ct' },
-  { cents: 2, label: '2 ct' },
   { cents: 1, label: '1 ct' },
+  { cents: 2, label: '2 ct' },
+  { cents: 5, label: '5 ct' },
+  { cents: 10, label: '10 ct' },
+  { cents: 20, label: '20 ct' },
+  { cents: 50, label: '50 ct' },
+  { cents: 100, label: '1 €' },
+  { cents: 200, label: '2 €' },
+  { cents: 500, label: '5 €' },
+  { cents: 1_000, label: '10 €' },
+  { cents: 2_000, label: '20 €' },
+  { cents: 5_000, label: '50 €' },
+  { cents: 10_000, label: '100 €' },
+  { cents: 20_000, label: '200 €' },
 ];
 
 export function countCashCents(counts = {}) {
