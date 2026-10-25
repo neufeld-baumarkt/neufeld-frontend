@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
 import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsModal';
 import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
+import TresorzaehlungsModal from '../components/tageskasse/TresorzaehlungsModal';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
@@ -38,7 +39,7 @@ const processes = [
     label: 'Tresorzählung',
     description: 'Den tatsächlichen Tresorbestand im Vier-Augen-Prinzip zählen und dokumentieren.',
     icon: Landmark,
-    enabled: false,
+    enabled: true,
   },
 ];
 
@@ -46,6 +47,7 @@ export default function Tageskassenabrechnung() {
   const navigate = useNavigate();
   const [openingCountOpen, setOpeningCountOpen] = useState(false);
   const [closingOpen, setClosingOpen] = useState(false);
+  const [safeCountOpen, setSafeCountOpen] = useState(false);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
   const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
@@ -75,6 +77,7 @@ export default function Tageskassenabrechnung() {
     if (!branch || branch.toLowerCase() === 'alle') return toast.error('Bitte zuerst eine Filiale für diesen Kassenvorgang auswählen.');
     if (process.id === 'opening-count') return setOpeningCountOpen(true);
     if (process.id === 'closing') return setClosingOpen(true);
+    if (process.id === 'safe-count') return setSafeCountOpen(true);
   };
 
   return (
@@ -148,7 +151,7 @@ export default function Tageskassenabrechnung() {
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-50 sm:p-5">
             <ShieldCheck className="mt-0.5 shrink-0 text-emerald-300" size={24} aria-hidden="true" />
             <p>
-              „Kasse einzählen“ und „Kasse abrechnen“ sind für den DEV-Test freigeschaltet. Jeder Vorgang wird eindeutig einer echten Filiale, einer Lade und den bestätigten Mitarbeitern zugeordnet.
+              Alle drei Einzelprozesse sind für den DEV-Test freigeschaltet. Kassen- und Tresorvorgänge werden eindeutig einer echten Filiale und den bestätigten Mitarbeitern zugeordnet.
             </p>
           </div>
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}/>}
@@ -173,6 +176,16 @@ export default function Tageskassenabrechnung() {
           loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}
           onComplete={async(payload)=>{const saved=await kassenabrechnungApi.saveClosing(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
+        />
+      )}
+      {safeCountOpen && (
+        <TresorzaehlungsModal
+          branch={branch}
+          onClose={() => setSafeCountOpen(false)}
+          loadEmployees={() => kassenabrechnungApi.employees(branch)}
+          loadContext={(countType) => kassenabrechnungApi.safeContext(countType, branch)}
+          verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
+          onComplete={(payload) => kassenabrechnungApi.saveSafeCount(payload, branch)}
         />
       )}
       {requiresBranchChoice && !branch && (

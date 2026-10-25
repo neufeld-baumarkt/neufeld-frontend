@@ -48,4 +48,17 @@ export const kassenabrechnungApi = {
     }, branch);
     return response.correction;
   },
+  async safeContext(countType, branch) {
+    return request(`/api/tageskasse/safe-counts/context?type=${encodeURIComponent(countType)}`, {}, branch);
+  },
+  async saveSafeCount(payload, branch) {
+    const response = await request('/api/tageskasse/safe-counts', {
+      method:'POST', body:JSON.stringify(payload),
+    }, branch);
+    return response.safeCount;
+  },
+  async listSafeCounts(branch) {
+    const response = await request('/api/tageskasse/safe-counts', {}, branch);
+    return response.counts || [];
+  },
 };
