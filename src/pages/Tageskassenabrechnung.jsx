@@ -19,6 +19,7 @@ import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
 import { canUseCashModule, needsTemporaryCashBranch } from '../lib/cashModuleAccess.mjs';
+import { berlinBusinessDate, canSelectHistoricalBusinessDate, formatBusinessDate, setActiveCashBusinessDate } from '../lib/cashBusinessDate.mjs';
 
 const processes = [
   {
@@ -60,15 +61,20 @@ export default function Tageskassenabrechnung() {
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
   }, []);
+  const currentBusinessDate = useMemo(() => berlinBusinessDate(), []);
+  const [selectedBusinessDate, setSelectedBusinessDate] = useState(currentBusinessDate);
   const assignedBranch = String(user.filiale || '').trim();
   const requiresBranchChoice = needsTemporaryCashBranch(user);
   const [branch, setBranch] = useState(requiresBranchChoice ? '' : assignedBranch);
-  const today = new Intl.DateTimeFormat('de-DE', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(new Date());
+  const canBackdate = canSelectHistoricalBusinessDate(user.role);
+  const displayedBusinessDate = formatBusinessDate(selectedBusinessDate);
+  const historicalMode = selectedBusinessDate !== currentBusinessDate;
+
+  useEffect(() => {
+    setActiveCashBusinessDate(selectedBusinessDate);
+    setArchiveRefreshKey((current) => current + 1);
+    return () => setActiveCashBusinessDate('');
+  }, [selectedBusinessDate]);
 
   useEffect(() => {
     if (!requiresBranchChoice) return;
@@ -128,9 +134,22 @@ export default function Tageskassenabrechnung() {
 
             <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[.06] px-4 py-3 sm:text-right">
               <div className="text-xs font-bold uppercase tracking-wider text-white/40">Geschäftstag</div>
-              <div className="mt-1 font-black capitalize">{today}</div>
+              <div className="mt-1 font-black capitalize">{displayedBusinessDate}</div>
+              {canBackdate&&<label className="mt-3 block text-left text-xs font-bold text-white/65 sm:text-right">
+                Nacherfassungsdatum
+                <input
+                  type="date"
+                  value={selectedBusinessDate}
+                  max={currentBusinessDate}
+                  onChange={(event)=>{setOpeningCountOpen(false);setClosingOpen(false);setSafeCountOpen(false);setDayCloseOpen(false);setActiveOpenings([]);setBusinessDayStatus('open');setSelectedBusinessDate(event.target.value||currentBusinessDate);}}
+                  className="mt-1 block min-h-11 w-full rounded-xl border border-white/20 bg-white px-3 font-bold text-[#242121]"
+                />
+              </label>}
             </div>
           </div>
+          {historicalMode&&<div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-300/15 p-4 font-bold text-amber-100">
+            Nacherfassungsmodus: Alle Vorgänge werden verbindlich dem Geschäftstag {displayedBusinessDate} zugeordnet. Der Modus endet automatisch beim Verlassen dieser Seite.
+          </div>}
 
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             {processes.map((process) => {

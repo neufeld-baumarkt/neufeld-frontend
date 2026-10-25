@@ -1,3 +1,5 @@
+import { activeCashBusinessDate } from './cashBusinessDate.mjs';
+
 const baseUrl = () => import.meta.env.VITE_API_URL;
 const token = () => sessionStorage.getItem('token');
 
@@ -8,6 +10,7 @@ async function request(path, options = {}, branch = '') {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token()}`,
       ...(branch ? { 'X-Cash-Branch': branch } : {}),
+      ...(activeCashBusinessDate() ? { 'X-Cash-Business-Date': activeCashBusinessDate() } : {}),
       ...(options.headers || {}),
     },
   });
