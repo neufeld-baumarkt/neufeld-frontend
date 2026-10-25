@@ -60,6 +60,24 @@ export const kassenabrechnungApi = {
     }, branch);
     return response.safeCount;
   },
+  async dayCloseContext(branch) {
+    const response = await request('/api/tageskasse/day-close/context', {}, branch);
+    return response.context;
+  },
+  async finalizeDay(payload, branch) {
+    const response = await request('/api/tageskasse/day-close/finalize', {
+      method:'POST', body:JSON.stringify(payload),
+    }, branch);
+    return response.report;
+  },
+  async finalizedDays(branch) {
+    const response = await request('/api/tageskasse/business-days', {}, branch);
+    return response.days || [];
+  },
+  async finalizedDay(businessDate, branch) {
+    const response = await request(`/api/tageskasse/business-days/${encodeURIComponent(businessDate)}`, {}, branch);
+    return response.report;
+  },
   async listSafeCounts(branch) {
     const response = await request('/api/tageskasse/safe-counts', {}, branch);
     return response.counts || [];

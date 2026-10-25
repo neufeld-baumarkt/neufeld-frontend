@@ -61,8 +61,9 @@ function PinForm({ pin, setPin, onSubmit, busy, title, description }) {
 
 const denomItems = (centsValues) => centsValues.map((cents)=>CASH_DENOMINATIONS.find((item)=>item.cents===cents));
 
-export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loadEmployees, loadContext, onComplete, presetOpening = null }) {
-  const [stage,setStage]=useState('pin');
+export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loadEmployees, loadContext, onComplete, onStartDayClose, presetOpening = null }) {
+  const [stage,setStage]=useState('purpose');
+  const [isDayFinalClosing,setIsDayFinalClosing]=useState(false);
   const [pin,setPin]=useState('');
   const [employee,setEmployee]=useState(null);
   const [responsibleEmployee,setResponsibleEmployee]=useState(null);
@@ -99,7 +100,9 @@ export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loa
     if(final){
       if(String(identified.id)!==String(employee.id)) throw new Error('Der Abschluss muss mit demselben Mitarbeiter-PIN bestätigt werden.');
       const saved=await onComplete({drawerNumber,responsibleEmployeeId:responsibleEmployee.id,openingCountId:opening?.id||null,proceededWithoutOpening:!opening,fullCounts,looseChangeCents:plan.looseChangeCents,retainedCoinCents:plan.retainedCoinCents,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:bankAmountCents,differenceCents,notificationConfirmed,recountAttempts,contextProofToken,proofToken:identified.proofToken});
-      setResult(saved||{employee:identified});setStage('complete');
+      setResult(saved||{employee:identified});
+      if(isDayFinalClosing&&onStartDayClose){onStartDayClose(saved);return;}
+      setStage('complete');
     } else {
       setEmployee(identified);
       if (presetOpening) {
@@ -126,7 +129,7 @@ export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loa
     setFullCounts({});setBankNotes({});setDifferenceKind('zero');setDifferenceAmount('');setDifferenceReviewed(false);setNotificationConfirmed(false);advance('full-count');
   };
 
-  const stages=['pin','responsible','drawer','missing-opening','full-count','loose-change','float','bank','euro-transfer','euro-submit','difference','review','final-pin','complete'];
+  const stages=['purpose','pin','responsible','drawer','missing-opening','full-count','loose-change','float','bank','euro-transfer','euro-submit','difference','review','final-pin','complete'];
   const progress=Math.max(0,stages.indexOf(stage));
   const heading=(title,text)=><><h3 className="text-2xl font-black">{title}</h3><p className="mt-2 text-black/60">{text}</p></>;
 
@@ -137,6 +140,7 @@ export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loa
       <div className="overflow-y-auto p-4 sm:p-7">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Filiale: {branch}</span>{responsibleEmployee&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Kassierer: {responsibleEmployee.name}</span>}{employee&&responsibleEmployee&&String(employee.id)!==String(responsibleEmployee.id)&&<span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-900 shadow-sm">Abgerechnet von: {employee.name}</span>}{drawerNumber&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Lade {drawerNumber}</span>}</div>
         {error&&<div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"><CircleAlert className="shrink-0" size={20}/>{error}</div>}
+        {stage==='purpose'&&<div className="mx-auto max-w-3xl text-center"><ClipboardList className="mx-auto text-[#800000]" size={60}/>{heading('Welche Abrechnung wird gestartet?','Bei der letzten Kasse führt dich die App nach der normalen Einzelabrechnung automatisch durch den vollständigen Tagesabschluss.')}<div className="mt-7 grid gap-4 sm:grid-cols-2"><button onClick={()=>{setIsDayFinalClosing(false);advance('pin');}} className="min-h-40 rounded-2xl border-2 border-black/10 bg-white p-5 text-left hover:border-[#800000]"><strong className="text-xl">Einzelkasse abrechnen</strong><span className="mt-2 block text-black/55">Diese Kassenschicht abschließen. Der Geschäftstag bleibt geöffnet.</span></button><button onClick={()=>{setIsDayFinalClosing(true);advance('pin');}} className="min-h-40 rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 text-left text-amber-950 hover:border-[#800000]"><strong className="text-xl">Letzte Kasse des Tages</strong><span className="mt-2 block text-amber-950/65">Kasse abrechnen und danach Bar an Bank, SafeBag und Abendzählung abschließen.</span></button></div></div>}
         {stage==='pin'&&<PinForm pin={pin} setPin={setPin} onSubmit={(event)=>identify(event)} busy={busy} title="Wer führt die Abrechnung durch?" description="Melde dich ausschließlich mit deinem eigenen persönlichen PIN an. Der PIN darf niemals weitergegeben oder für eine andere Person eingegeben werden."/>}
         {stage==='responsible'&&<div className="mx-auto max-w-2xl text-center">{heading('Wessen Kasse wird abgerechnet?','Du bist als ausführende Person angemeldet. Wähle jetzt den verantwortlichen Kassierer – dessen PIN wird dafür ausdrücklich nicht benötigt.')}<button onClick={()=>chooseResponsible(employee)} className="mt-6 min-h-16 w-full rounded-2xl bg-[#800000] px-5 text-lg font-black text-white">Meine eigene Kasse · {employee.name}</button><div className="my-5 flex items-center gap-3 text-xs font-black uppercase text-black/35"><span className="h-px flex-1 bg-black/10"/>oder Kasse einer anderen Person<span className="h-px flex-1 bg-black/10"/></div><div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">{employees.filter((candidate)=>String(candidate.id)!==String(employee.id)).map((candidate)=><button key={candidate.id} onClick={()=>chooseResponsible(candidate)} className="min-h-14 rounded-xl border-2 border-black/10 bg-white px-4 font-bold hover:border-[#800000] hover:text-[#800000]">{candidate.name}</button>)}</div><p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-900">Die abwesende Person gibt ihren PIN niemals weiter. Diese Abrechnung wird dem Kassierer und dir als ausführender Person getrennt zugeordnet.</p></div>}
         {stage==='drawer'&&<div className="text-center">{heading('Welche Lade wird abgerechnet?',`Die App sucht ausschließlich nach der passenden Einzählung von ${responsibleEmployee.name} für diese Lade.`)}<div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-4">{[1,2].map((number)=><button disabled={busy} key={number} onClick={()=>chooseDrawer(number)} className="aspect-square rounded-full border-4 border-[#800000]/20 bg-white text-2xl font-black text-[#800000] shadow-lg hover:border-[#800000]">Lade<br/><span className="text-6xl">{number}</span></button>)}</div></div>}

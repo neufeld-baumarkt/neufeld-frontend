@@ -14,6 +14,7 @@ import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
 import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsModal';
 import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
 import TresorzaehlungsModal from '../components/tageskasse/TresorzaehlungsModal';
+import TagesabschlussModal from '../components/tageskasse/TagesabschlussModal';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
@@ -49,8 +50,12 @@ export default function Tageskassenabrechnung() {
   const [closingOpen, setClosingOpen] = useState(false);
   const [closingPreset, setClosingPreset] = useState(null);
   const [safeCountOpen, setSafeCountOpen] = useState(false);
+  const [safeCountMode, setSafeCountMode] = useState({ initialType:'', forceNewClosing:false });
+  const [dayCloseOpen, setDayCloseOpen] = useState(false);
+  const [safeRefreshKey, setSafeRefreshKey] = useState(0);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
   const [activeOpenings, setActiveOpenings] = useState([]);
+  const [businessDayStatus, setBusinessDayStatus] = useState('open');
   const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
@@ -77,9 +82,10 @@ export default function Tageskassenabrechnung() {
   const openProcess = (process) => {
     if (!process.enabled) return toast('Dieser Prozess wird erst nach der gemeinsamen fachlichen Festlegung freigeschaltet.', { icon: '🔒' });
     if (!branch || branch.toLowerCase() === 'alle') return toast.error('Bitte zuerst eine Filiale für diesen Kassenvorgang auswählen.');
+    if (businessDayStatus === 'finalized') return toast.error('Dieser Geschäftstag ist bereits vollständig abgeschlossen und Read-only.');
     if (process.id === 'opening-count') return setOpeningCountOpen(true);
     if (process.id === 'closing') { setClosingPreset(null); return setClosingOpen(true); }
-    if (process.id === 'safe-count') return setSafeCountOpen(true);
+    if (process.id === 'safe-count') { setSafeCountMode({initialType:'',forceNewClosing:false}); return setSafeCountOpen(true); }
   };
 
   return (
@@ -156,7 +162,7 @@ export default function Tageskassenabrechnung() {
               Alle drei Einzelprozesse sind für den DEV-Test freigeschaltet. Kassen- und Tresorvorgänge werden eindeutig einer echten Filiale und den bestätigten Mitarbeitern zugeordnet.
             </p>
           </div>
-          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'))} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}}/>}
+          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
         </section>
       </div>
       {openingCountOpen && (
@@ -180,12 +186,16 @@ export default function Tageskassenabrechnung() {
           loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}
           onComplete={async(payload)=>{const saved=await kassenabrechnungApi.saveClosing(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
+          onStartDayClose={()=>{setClosingOpen(false);setClosingPreset(null);setDayCloseOpen(true);}}
         />
       )}
+      {dayCloseOpen&&<TagesabschlussModal branch={branch} safeRefreshKey={safeRefreshKey} loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)} finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)} onStartSafeCount={({forceNew})=>{setSafeCountMode({initialType:'closing',forceNewClosing:forceNew});setSafeCountOpen(true);}} onComplete={()=>setArchiveRefreshKey((current)=>current+1)} onClose={()=>setDayCloseOpen(false)}/>}
       {safeCountOpen && (
         <TresorzaehlungsModal
           branch={branch}
-          onClose={() => setSafeCountOpen(false)}
+          initialType={safeCountMode.initialType}
+          forceNewClosing={safeCountMode.forceNewClosing}
+          onClose={() => {setSafeCountOpen(false);if(dayCloseOpen)setSafeRefreshKey((current)=>current+1);}}
           loadContext={(countType) => kassenabrechnungApi.safeContext(countType, branch)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           onComplete={(payload) => kassenabrechnungApi.saveSafeCount(payload, branch)}
