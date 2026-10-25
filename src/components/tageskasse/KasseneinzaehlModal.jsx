@@ -123,13 +123,14 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
   </div>;
 }
 
-export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previousClosingFor, onComplete, loadFirstUseCandidates, activatePin }) {
+export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previousClosingFor, onComplete, loadFirstUseCandidates, activatePin, activeOpenings = [] }) {
   const [stage, setStage] = useState('pin');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [employee, setEmployee] = useState(null);
   const [drawerNumber, setDrawerNumber] = useState(null);
+  const [occupiedOpening, setOccupiedOpening] = useState(null);
   const [counts, setCounts] = useState(EMPTY_COUNTS);
   const [attempts, setAttempts] = useState([]);
   const [counter, setCounter] = useState(null);
@@ -211,10 +212,18 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     }
   };
 
-  const chooseDrawer = async (number) => {
+  const continueWithDrawer = async (number) => {
     setDrawerNumber(number);
     setPreviousClosing(await previousClosingFor({ branch, drawerNumber: number }));
     setStage('count');
+  };
+
+  const chooseDrawer = async (number) => {
+    const occupied = activeOpenings.find((opening)=>opening.lifecycleStatus==='active'&&Number(opening.drawerNumber)===Number(number));
+    setDrawerNumber(number);
+    setOccupiedOpening(occupied || null);
+    if (occupied) return setStage('occupied');
+    return continueWithDrawer(number);
   };
 
   const currentAttempt = () => ({ counts: { ...counts }, countedCents, countedBy: counter||employee });
@@ -231,7 +240,7 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     setError('');
     setBusy(true);
     try {
-      const saved = await onComplete({ drawerNumber, carryoverDecision: effectiveCarryoverDecision, attempts: completedAttempts });
+      const saved = await onComplete({ drawerNumber, carryoverDecision: effectiveCarryoverDecision, attempts: completedAttempts, replaceActiveOpeningId:occupiedOpening?.id||null });
       setResult({
         employee,
         counter,
@@ -282,7 +291,7 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     setStage('count');
   };
 
-  const progress = ['pin','first-use-pin','drawer','count','match','second-person-choice','second-pin','adjust','complete'];
+  const progress = ['pin','first-use-pin','drawer','occupied','count','match','second-person-choice','second-pin','adjust','complete'];
   const progressIndex = Math.max(0, progress.indexOf(stage));
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-count-title">
@@ -312,6 +321,8 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
           <div className="text-center"><Banknote className="mx-auto text-[#800000]" size={48}/><h3 className="mt-3 text-2xl font-black">Welche Lade zählst du ein?</h3><p className="mt-2 text-black/60">Die Zuordnung bleibt für die gesamte Kassenschicht bestehen.</p></div>
           <div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-4">{[1,2].map((number)=><button key={number} onClick={()=>chooseDrawer(number)} className="aspect-square rounded-full border-4 border-[#800000]/20 bg-white text-2xl font-black text-[#800000] shadow-lg transition hover:-translate-y-1 hover:border-[#800000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#800000]/20">Lade<br/><span className="text-6xl">{number}</span></button>)}</div>
         </div>}
+
+        {stage==='occupied'&&occupiedOpening&&<div className="mx-auto max-w-2xl text-center"><CircleAlert className="mx-auto text-amber-600" size={60}/><h3 className="mt-4 text-2xl font-black">Lade {drawerNumber} ist noch besetzt</h3><p className="mt-3 text-black/65">Diese Lade wurde heute von <strong>{occupiedOpening.employee.name}</strong> eingezählt und bisher nicht abgerechnet.</p><div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-left text-amber-950"><strong>Wenn du die Lade jetzt übernimmst:</strong><p className="mt-1 text-sm">Die bisherige Kassenschicht wird sichtbar als „Abgelöst · nicht abgerechnet“ beendet. Anschließend zählst du die Lade vollständig neu ein und wirst als neue verantwortliche Person zugeordnet.</p></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-center"><button onClick={()=>{setOccupiedOpening(null);setStage('drawer');}} className="min-h-12 rounded-xl border px-6 font-bold">Andere Lade wählen</button><button onClick={()=>continueWithDrawer(drawerNumber)} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Lade verbindlich ablösen</button></div></div>}
 
         {stage==='count'&&<CashGrid counts={counts} setCounts={setCounts} countedCents={countedCents} title={attempts.length===0?'Lade vollständig zählen':counter?`${counter.name} zählt jetzt nach`:'Bitte vollständig nachzählen'} instruction={attempts.length===0?'Trage nur die Anzahl jeder Münze und jedes Scheins ein. Die App rechnet automatisch.':'Beginne die Zählung erneut bei null. Die vorherige Zählung bleibt im Protokoll erhalten.'}/>}
 

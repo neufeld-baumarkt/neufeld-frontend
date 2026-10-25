@@ -61,7 +61,7 @@ function PinForm({ pin, setPin, onSubmit, busy, title, description }) {
 
 const denomItems = (centsValues) => centsValues.map((cents)=>CASH_DENOMINATIONS.find((item)=>item.cents===cents));
 
-export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loadEmployees, loadContext, onComplete }) {
+export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loadEmployees, loadContext, onComplete, presetOpening = null }) {
   const [stage,setStage]=useState('pin');
   const [pin,setPin]=useState('');
   const [employee,setEmployee]=useState(null);
@@ -101,8 +101,17 @@ export default function KassenabrechnungsModal({ branch, onClose, verifyPin, loa
       const saved=await onComplete({drawerNumber,responsibleEmployeeId:responsibleEmployee.id,openingCountId:opening?.id||null,proceededWithoutOpening:!opening,fullCounts,looseChangeCents:plan.looseChangeCents,retainedCoinCents:plan.retainedCoinCents,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:bankAmountCents,differenceCents,notificationConfirmed,recountAttempts,contextProofToken,proofToken:identified.proofToken});
       setResult(saved||{employee:identified});setStage('complete');
     } else {
-      const candidates=await loadEmployees();
-      setEmployee(identified);setResponsibleEmployee(identified);setEmployees(candidates);setStage('responsible');
+      setEmployee(identified);
+      if (presetOpening) {
+        const responsible=presetOpening.employee;
+        const context=await loadContext({drawerNumber:presetOpening.drawerNumber,employee:identified,responsibleEmployee:responsible});
+        setResponsibleEmployee(responsible);setDrawerNumber(presetOpening.drawerNumber);
+        setOpening(context?.opening||null);setContextProofToken(context?.contextProofToken||'');
+        setStage(context?.opening?'full-count':'missing-opening');
+      } else {
+        const candidates=await loadEmployees();
+        setResponsibleEmployee(identified);setEmployees(candidates);setStage('responsible');
+      }
     }
     setPin('');
   }catch(failure){setError(failure.message);}finally{setBusy(false);}};

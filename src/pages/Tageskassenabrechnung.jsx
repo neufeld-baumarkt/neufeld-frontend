@@ -47,8 +47,10 @@ export default function Tageskassenabrechnung() {
   const navigate = useNavigate();
   const [openingCountOpen, setOpeningCountOpen] = useState(false);
   const [closingOpen, setClosingOpen] = useState(false);
+  const [closingPreset, setClosingPreset] = useState(null);
   const [safeCountOpen, setSafeCountOpen] = useState(false);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
+  const [activeOpenings, setActiveOpenings] = useState([]);
   const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
@@ -76,7 +78,7 @@ export default function Tageskassenabrechnung() {
     if (!process.enabled) return toast('Dieser Prozess wird erst nach der gemeinsamen fachlichen Festlegung freigeschaltet.', { icon: '🔒' });
     if (!branch || branch.toLowerCase() === 'alle') return toast.error('Bitte zuerst eine Filiale für diesen Kassenvorgang auswählen.');
     if (process.id === 'opening-count') return setOpeningCountOpen(true);
-    if (process.id === 'closing') return setClosingOpen(true);
+    if (process.id === 'closing') { setClosingPreset(null); return setClosingOpen(true); }
     if (process.id === 'safe-count') return setSafeCountOpen(true);
   };
 
@@ -154,7 +156,7 @@ export default function Tageskassenabrechnung() {
               Alle drei Einzelprozesse sind für den DEV-Test freigeschaltet. Kassen- und Tresorvorgänge werden eindeutig einer echten Filiale und den bestätigten Mitarbeitern zugeordnet.
             </p>
           </div>
-          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}/>}
+          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'))} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}}/>}
         </section>
       </div>
       {openingCountOpen && (
@@ -165,13 +167,15 @@ export default function Tageskassenabrechnung() {
           loadFirstUseCandidates={() => employeePinApi.firstUseCandidates({ branch })}
           activatePin={(payload) => employeePinApi.activate(payload, { branch })}
           previousClosingFor={({ drawerNumber }) => kasseneinzaehlungApi.previousClosing(drawerNumber, branch)}
-          onComplete={(payload) => kasseneinzaehlungApi.saveOpeningCount(payload, branch)}
+          activeOpenings={activeOpenings}
+          onComplete={async(payload)=>{const saved=await kasseneinzaehlungApi.saveOpeningCount(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
         />
       )}
       {closingOpen && (
         <KassenabrechnungsModal
           branch={branch}
-          onClose={() => setClosingOpen(false)}
+          presetOpening={closingPreset}
+          onClose={() => {setClosingOpen(false);setClosingPreset(null);}}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}

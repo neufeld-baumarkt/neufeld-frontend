@@ -39,6 +39,9 @@ export const kassenabrechnungApi = {
     const suffix = businessDate ? `?businessDate=${encodeURIComponent(businessDate)}` : '';
     return request(`/api/tageskasse/closings${suffix}`, {}, branch);
   },
+  async dayOverview(branch) {
+    return request('/api/tageskasse/day-overview', {}, branch);
+  },
   async closing(closingId, branch) {
     return request(`/api/tageskasse/closings/${encodeURIComponent(closingId)}`, {}, branch);
   },

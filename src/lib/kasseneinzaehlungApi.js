@@ -12,7 +12,12 @@ async function request(path, options = {}, branch = '') {
     },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || 'Der Kassenvorgang konnte nicht verarbeitet werden.');
+  if (!response.ok) {
+    const error = new Error(payload.message || 'Der Kassenvorgang konnte nicht verarbeitet werden.');
+    error.code = payload.code;
+    error.activeOpening = payload.activeOpening;
+    throw error;
+  }
   return payload;
 }
 
@@ -31,11 +36,12 @@ export const kasseneinzaehlungApi = {
     const payload = await request(`/api/tageskasse/previous-closing?drawer=${encodeURIComponent(drawerNumber)}`, {}, branch);
     return payload.closing;
   },
-  async saveOpeningCount({ drawerNumber, carryoverDecision, attempts }, branch) {
+  async saveOpeningCount({ drawerNumber, carryoverDecision, attempts, replaceActiveOpeningId }, branch) {
     const payload = await request('/api/tageskasse/opening-counts', {
       method: 'POST',
       body: JSON.stringify({
         drawerNumber,
+        replaceActiveOpeningId: replaceActiveOpeningId || null,
         carryoverDecision,
         attempts: attempts.map((attempt) => ({ counts: attempt.counts, proofToken: attempt.countedBy.proofToken })),
       }),
