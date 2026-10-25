@@ -182,7 +182,6 @@ export default function Tageskassenabrechnung() {
         <TresorzaehlungsModal
           branch={branch}
           onClose={() => setSafeCountOpen(false)}
-          loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={(countType) => kassenabrechnungApi.safeContext(countType, branch)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           onComplete={(payload) => kassenabrechnungApi.saveSafeCount(payload, branch)}
