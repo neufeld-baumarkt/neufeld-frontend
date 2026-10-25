@@ -1,7 +1,7 @@
 import { CASH_DENOMINATIONS, TARGET_CENTS, countCashCents } from './kasseneinzaehlung.mjs';
 
 export const BANK_NOTE_CENTS = Object.freeze([500, 1_000, 2_000, 5_000, 10_000, 20_000]);
-export const BANK_ONLY_NOTE_CENTS = Object.freeze([5_000, 10_000, 20_000]);
+export const BANK_ONLY_NOTE_CENTS = Object.freeze([10_000, 20_000]);
 export const FLOAT_NOTE_CENTS = Object.freeze([500, 1_000, 2_000]);
 
 function safeQuantity(value) {

@@ -18,13 +18,14 @@ test('ermittelt Kleingeldentnahme und glatten Startwert für das Hochzählen', (
   assert.equal(plan.notesNeededCents, 21_000);
 });
 
-test('prüft Bar-an-Bank-Scheine ohne die in der Lade verbliebenen Scheine zu erfassen', () => {
+test('prüft Bar-an-Bank-Scheine und erlaubt benötigte 50-Euro-Scheine in der Lade', () => {
   const full = { 500: 17, 1000: 19, 2000: 13, 5000: 15, 10000: 0, 20000: 0 };
   const bank = { 500: 7, 1000: 14, 2000: 9, 5000: 15, 10000: 0, 20000: 0 };
   assert.equal(validateBankNoteCounts(full, bank), null);
   assert.equal(bankTotalCents(bank), 110_500);
   assert.match(validateBankNoteCounts(full, { ...bank, 500: 18 }), /mehr Bar-an-Bank/);
-  assert.match(validateBankNoteCounts(full, { ...bank, 5000: 14 }), /Alle 50-Euro/);
+  assert.equal(validateBankNoteCounts(full, { ...bank, 5000: 14 }), null);
+  assert.match(validateBankNoteCounts({ ...full, 10000: 1 }, { ...bank, 5000: 14, 10000: 0 }), /Alle 100-Euro/);
 });
 
 test('lässt den Abschluss ausschließlich bei exakt 250 Euro Restbestand zu', () => {
