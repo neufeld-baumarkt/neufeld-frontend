@@ -127,9 +127,6 @@ export default function Tageskassenabrechnung() {
             <div className="max-w-3xl">
               <div className="text-xs font-bold uppercase tracking-[.24em] text-amber-300/80">{branch && branch.toLowerCase() !== 'alle' ? branch : 'Tageskassenabrechnung'}</div>
               <h1 className="mt-2 text-3xl font-black leading-tight sm:text-5xl">Was möchtest du erledigen?</h1>
-              <p className="mt-3 max-w-2xl text-base leading-relaxed text-white/60 sm:text-lg">
-                Hier werden künftig alle Kassenvorgänge eines Geschäftstages sicher zusammengeführt.
-              </p>
             </div>
 
             <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[.06] px-4 py-3 sm:text-right">
@@ -175,12 +172,6 @@ export default function Tageskassenabrechnung() {
             })}
           </div>
 
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-50 sm:p-5">
-            <ShieldCheck className="mt-0.5 shrink-0 text-emerald-300" size={24} aria-hidden="true" />
-            <p>
-              Alle drei Einzelprozesse sind für den DEV-Test freigeschaltet. Kassen- und Tresorvorgänge werden eindeutig einer echten Filiale und den bestätigten Mitarbeitern zugeordnet.
-            </p>
-          </div>
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
         </section>
       </div>
