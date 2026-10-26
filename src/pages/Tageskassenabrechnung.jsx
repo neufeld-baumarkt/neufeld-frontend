@@ -5,6 +5,7 @@ import {
   Landmark,
   LockKeyhole,
   MapPin,
+  ReceiptText,
   ShieldCheck,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -15,11 +16,13 @@ import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsMo
 import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
 import TresorzaehlungsModal from '../components/tageskasse/TresorzaehlungsModal';
 import TagesabschlussModal from '../components/tageskasse/TagesabschlussModal';
+import EinzahlungsbelegModal from '../components/tageskasse/EinzahlungsbelegModal';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
 import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
 import { canUseCashModule, needsTemporaryCashBranch } from '../lib/cashModuleAccess.mjs';
 import { berlinBusinessDate, canSelectHistoricalBusinessDate, formatBusinessDate, setActiveCashBusinessDate } from '../lib/cashBusinessDate.mjs';
+import { formatEuroCents } from '../lib/einzahlungsbeleg.mjs';
 
 const processes = [
   {
@@ -55,6 +58,10 @@ export default function Tageskassenabrechnung() {
   const [dayCloseOpen, setDayCloseOpen] = useState(false);
   const [safeRefreshKey, setSafeRefreshKey] = useState(0);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
+  const [receiptClosings, setReceiptClosings] = useState([]);
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const [activeOpenings, setActiveOpenings] = useState([]);
   const [businessDayStatus, setBusinessDayStatus] = useState('open');
   const [branches, setBranches] = useState([]);
@@ -82,6 +89,22 @@ export default function Tageskassenabrechnung() {
       .then(setBranches)
       .catch((error) => toast.error(error.message));
   }, [requiresBranchChoice]);
+
+  const loadReceiptClosings = async () => {
+    if (!branch || branch.toLowerCase() === 'alle') return;
+    setReceiptLoading(true);
+    setReceiptError('');
+    try {
+      const payload = await kassenabrechnungApi.openDepositReceipts(branch);
+      setReceiptClosings(payload.closings || []);
+    } catch (error) {
+      setReceiptError(error.message);
+    } finally {
+      setReceiptLoading(false);
+    }
+  };
+
+  useEffect(() => { loadReceiptClosings(); }, [branch, archiveRefreshKey]);
 
   if (!canUseCashModule(user)) return <Navigate to="/forbidden" replace />;
 
@@ -173,6 +196,22 @@ export default function Tageskassenabrechnung() {
           </div>
 
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
+          {branch&&branch.toLowerCase()!=='alle'&&<section className="mt-7 rounded-3xl border border-amber-300/20 bg-white/[.06] p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div><div className="text-xs font-black uppercase tracking-[.2em] text-amber-300/75">Noch nicht archiviert</div><h2 className="mt-1 text-2xl font-black">Einzahlungsbelege fehlen</h2></div>
+              {!!receiptClosings.length&&<button type="button" onClick={()=>setReceiptOpen(true)} className="flex min-h-12 items-center gap-2 rounded-xl bg-amber-400 px-5 font-black text-[#4b1800]"><ReceiptText/>Beleg erfassen</button>}
+            </div>
+            {receiptLoading&&<div className="mt-5 rounded-2xl border border-white/10 p-5 text-white/65">Offene Tagesabschlüsse werden geladen …</div>}
+            {!receiptLoading&&receiptError&&<div className="mt-5 rounded-2xl border border-red-300/30 bg-red-400/10 p-5 text-red-100">{receiptError}</div>}
+            {!receiptLoading&&!receiptError&&!receiptClosings.length&&<div className="mt-5 rounded-2xl border border-dashed border-white/15 p-5 text-center text-white/55">Aktuell fehlt kein Einzahlungsbeleg.</div>}
+            {!receiptLoading&&!receiptError&&!!receiptClosings.length&&<div className="mt-5 grid gap-3 md:grid-cols-2">
+              {receiptClosings.map((closing)=><button type="button" key={closing.id} onClick={()=>setReceiptOpen(true)} className="rounded-2xl border border-amber-300/30 bg-white/[.07] p-5 text-left hover:bg-white/[.11]">
+                <strong className="block text-xl">Geschäftstag {new Date(`${closing.businessDate}T12:00:00`).toLocaleDateString('de-DE')}</strong>
+                <span className="mt-2 block text-lg font-black text-amber-200">{formatEuroCents(closing.expectedDepositCents)} an Bank</span>
+                <span className="mt-3 block text-sm font-bold text-white/55">Einzahlungsbeleg erfassen →</span>
+              </button>)}
+            </div>}
+          </section>}
         </section>
       </div>
       {openingCountOpen && (
@@ -211,6 +250,16 @@ export default function Tageskassenabrechnung() {
           onComplete={(payload) => kassenabrechnungApi.saveSafeCount(payload, branch)}
         />
       )}
+      {receiptOpen&&<EinzahlungsbelegModal
+        branch={branch}
+        closings={receiptClosings}
+        onClose={()=>setReceiptOpen(false)}
+        onConfirm={async(payload)=>{
+          const result=await kassenabrechnungApi.confirmDepositReceipt(payload,branch);
+          await loadReceiptClosings();
+          return result;
+        }}
+      />}
       {requiresBranchChoice && !branch && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-branch-title">
           <div className="w-full max-w-2xl rounded-t-3xl bg-[#f7f4ef] p-5 text-[#1f1d1d] shadow-2xl sm:rounded-3xl sm:p-7">

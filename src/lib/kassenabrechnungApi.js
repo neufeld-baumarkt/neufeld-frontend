@@ -85,4 +85,12 @@ export const kassenabrechnungApi = {
     const response = await request('/api/tageskasse/safe-counts', {}, branch);
     return response.counts || [];
   },
+  async openDepositReceipts(branch) {
+    return request('/api/tageskasse/deposit-receipts/open', {}, branch);
+  },
+  async confirmDepositReceipt(payload, branch) {
+    return request('/api/tageskasse/deposit-receipts/confirm', {
+      method:'POST', body:JSON.stringify(payload),
+    }, branch);
+  },
 };
