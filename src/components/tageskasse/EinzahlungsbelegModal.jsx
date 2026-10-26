@@ -6,6 +6,9 @@ import {
   germanMoneyToCents,
   matchingClosingSets,
   parseDepositReceiptText,
+  prepareReceiptImage,
+  mergeReceiptRecognition,
+  receiptRecognitionScore,
   RECEIPT_NOTE_CENTS,
   receiptBanknoteTotalCents,
   validateReceiptReview,
@@ -55,6 +58,7 @@ export default function EinzahlungsbelegModal({ branch, closings, onClose, onCon
     setPreviewUrl(URL.createObjectURL(file));
     let worker;
     try {
+      const preparedImage = await prepareReceiptImage(file);
       const { createWorker } = await import('tesseract.js');
       worker = await createWorker('deu', 1, {
         logger(message) {
@@ -62,9 +66,18 @@ export default function EinzahlungsbelegModal({ branch, closings, onClose, onCon
         },
       });
       workerRef.current = worker;
-      const result = await worker.recognize(file);
-      const parsed = parseDepositReceiptText(result.data.text);
-      const next = { ...parsed, ocrConfidence: Math.max(0, Math.min(100, result.data.confidence || 0)) };
+      await worker.setParameters({ tessedit_pageseg_mode:'3', preserve_interword_spaces:'1' });
+      const result = await worker.recognize(preparedImage);
+      let parsed = parseDepositReceiptText(result.data.text);
+      let confidence = result.data.confidence || 0;
+      if (receiptRecognitionScore(parsed) < 8) {
+        setOcrProgress(0);
+        await worker.setParameters({ tessedit_pageseg_mode:'6', preserve_interword_spaces:'1' });
+        const fallbackResult = await worker.recognize(file);
+        parsed = mergeReceiptRecognition(parsed, parseDepositReceiptText(fallbackResult.data.text));
+        confidence = Math.max(confidence, fallbackResult.data.confidence || 0);
+      }
+      const next = { ...parsed, ocrConfidence: Math.max(0, Math.min(100, confidence)) };
       setReceipt(next);
       setReceiptTotalInput(centsInput(next.receiptTotalCents));
       const matches = matchingClosingSets(closings, next.receiptTotalCents);
