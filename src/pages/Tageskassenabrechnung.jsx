@@ -16,6 +16,7 @@ import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsMo
 import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
 import TresorzaehlungsModal from '../components/tageskasse/TresorzaehlungsModal';
 import TagesabschlussModal from '../components/tageskasse/TagesabschlussModal';
+import TagesabschlussV2Modal from '../components/tageskasse/TagesabschlussV2Modal';
 import EinzahlungsbelegModal from '../components/tageskasse/EinzahlungsbelegModal';
 import { employeePinApi } from '../lib/employeePinApi';
 import { kasseneinzaehlungApi } from '../lib/kasseneinzaehlungApi';
@@ -56,6 +57,7 @@ export default function Tageskassenabrechnung() {
   const [safeCountOpen, setSafeCountOpen] = useState(false);
   const [safeCountMode, setSafeCountMode] = useState({ initialType:'', forceNewClosing:false });
   const [dayCloseOpen, setDayCloseOpen] = useState(false);
+  const [dayCloseV2Open, setDayCloseV2Open] = useState(false);
   const [safeRefreshKey, setSafeRefreshKey] = useState(0);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
   const [receiptClosings, setReceiptClosings] = useState([]);
@@ -74,6 +76,7 @@ export default function Tageskassenabrechnung() {
   const requiresBranchChoice = needsTemporaryCashBranch(user);
   const [branch, setBranch] = useState(requiresBranchChoice ? '' : assignedBranch);
   const canBackdate = canSelectHistoricalBusinessDate(user.role);
+  const canPreviewDayCloseV2 = ['Admin','Supervisor'].includes(user.role);
   const displayedBusinessDate = formatBusinessDate(selectedBusinessDate);
   const historicalMode = selectedBusinessDate !== currentBusinessDate;
 
@@ -195,6 +198,11 @@ export default function Tageskassenabrechnung() {
             })}
           </div>
 
+          {canPreviewDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+            <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Admin-/Supervisor-Vorschau</div><strong className="mt-1 block text-xl">Modularen Tagesabschluss testen</strong><p className="mt-1 text-sm text-white/60">Reine Fantasiewerte · keine Speicherung · der bisherige Ablauf bleibt unverändert.</p></div>
+            <button type="button" onClick={()=>setDayCloseV2Open(true)} className="mt-4 min-h-12 shrink-0 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 sm:mt-0">Tagesabrechnung V2 starten</button>
+          </div>}
+
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
           {branch&&branch.toLowerCase()!=='alle'&&<section className="mt-7 rounded-3xl border border-amber-300/20 bg-white/[.06] p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -239,6 +247,25 @@ export default function Tageskassenabrechnung() {
         />
       )}
       {dayCloseOpen&&<TagesabschlussModal branch={branch} safeRefreshKey={safeRefreshKey} loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)} finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)} onStartSafeCount={({forceNew})=>{setSafeCountMode({initialType:'closing',forceNewClosing:forceNew});setSafeCountOpen(true);}} onComplete={()=>setArchiveRefreshKey((current)=>current+1)} onClose={()=>setDayCloseOpen(false)}/>}
+      {dayCloseV2Open&&<TagesabschlussV2Modal
+        branch={branch}
+        businessDate={selectedBusinessDate}
+        context={{
+          bankPayoutCents:282500,
+          bankPayoutStatus:'provisional',
+          looseChangeCents:781,
+          closingCount:5,
+          latestSafeCount:{countedTotalCents:250781,countType:'handover',completedAt:new Date().toISOString()},
+          eurocontrolSafeTargetCents:null,
+          processStates:{
+            'bank-preparation':{status:'completed',completedAt:new Date().toISOString(),completedBy:'Max Mustermann'},
+            'bank-booking':{status:'in_progress'},
+          },
+        }}
+        onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
+        onStartLegacy={()=>{setDayCloseV2Open(false);setDayCloseOpen(true);}}
+        onClose={()=>setDayCloseV2Open(false)}
+      />}
       {safeCountOpen && (
         <TresorzaehlungsModal
           branch={branch}
