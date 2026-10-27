@@ -257,10 +257,7 @@ export default function Tageskassenabrechnung() {
           closingCount:5,
           latestSafeCount:{countedTotalCents:250781,countType:'handover',completedAt:new Date().toISOString()},
           eurocontrolSafeTargetCents:null,
-          processStates:{
-            'bank-preparation':{status:'completed',completedAt:new Date().toISOString(),completedBy:'Max Mustermann'},
-            'bank-booking':{status:'in_progress'},
-          },
+          processStates:{},
         }}
         onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
         onStartLegacy={()=>{setDayCloseV2Open(false);setDayCloseOpen(true);}}
