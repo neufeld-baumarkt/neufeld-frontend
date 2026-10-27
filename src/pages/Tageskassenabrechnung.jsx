@@ -77,7 +77,7 @@ export default function Tageskassenabrechnung() {
   const requiresBranchChoice = needsTemporaryCashBranch(user);
   const [branch, setBranch] = useState(requiresBranchChoice ? '' : assignedBranch);
   const canBackdate = canSelectHistoricalBusinessDate(user.role);
-  const canPreviewDayCloseV2 = ['Admin','Supervisor'].includes(user.role);
+  const canUseDayCloseV2 = branch.toLowerCase() === 'vreden' || ['Admin','Supervisor'].includes(user.role);
   const displayedBusinessDate = formatBusinessDate(selectedBusinessDate);
   const historicalMode = selectedBusinessDate !== currentBusinessDate;
   const canStartDayCloseV2 = businessDayStatus === 'open' && activeOpenings.length === 0 && dayClosingCount > 0;
@@ -200,7 +200,7 @@ export default function Tageskassenabrechnung() {
             })}
           </div>
 
-          {canPreviewDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
+          {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
             <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Tagesabrechnung V2</div><strong className="mt-1 block text-xl">Geschäftstag verbindlich abschließen</strong><p className="mt-1 text-sm text-white/60">{canStartDayCloseV2 ? 'Alle begonnenen Kassenschichten sind beendet.' : 'Der Start wird nach der letzten Kassenabrechnung freigegeben.'}</p></div>
             <button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="mt-4 min-h-12 shrink-0 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/35 sm:mt-0">Tagesabrechnung V2 starten</button>
           </div>}
