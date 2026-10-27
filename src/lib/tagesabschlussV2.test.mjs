@@ -7,14 +7,13 @@ test('berechnet Fortschritt nur aus erforderlichen Prozessen', () => {
     processStates: {
       'bank-preparation': { status: 'completed' },
       'bank-booking': { status: 'completed' },
-      'safe-target': { status: 'completed' },
       'safe-movement': { status: 'completed' },
       'final-safe-count': { status: 'open' },
       finalize: { required: false },
     },
   });
 
-  assert.deepEqual(model.progress, { completed: 4, required: 6, percent: 67 });
+  assert.deepEqual(model.progress, { completed: 3, required: 5, percent: 60 });
 });
 
 test('sperrt Folgeprozesse bis ihre fachlichen Voraussetzungen erledigt sind', () => {
@@ -26,8 +25,8 @@ test('sperrt Folgeprozesse bis ihre fachlichen Voraussetzungen erledigt sind', (
 
   assert.equal(model.processes.find((item) => item.id === 'bank-preparation').status, 'completed');
   assert.equal(model.processes.find((item) => item.id === 'bank-booking').status, 'open');
-  assert.equal(model.processes.find((item) => item.id === 'safe-target').status, 'open');
-  assert.equal(model.processes.find((item) => item.id === 'final-safe-count').status, 'open');
+  assert.equal(model.processes.find((item) => item.id === 'safe-movement').status, 'locked');
+  assert.equal(model.processes.find((item) => item.id === 'final-safe-count').status, 'locked');
   assert.equal(model.processes.find((item) => item.id === 'finalize').status, 'locked');
 });
 
@@ -81,6 +80,7 @@ test('prüft Scheine plus Kleingeldausgleich hart gegen den Filialbericht', () =
   assert.equal(result.roundedEurocontrolBankCents, 248500);
   assert.equal(result.skimCents, 500);
   assert.equal(result.safeTransferCents, 1500);
+  assert.equal(result.expectedSafeAfterSkimCents, 250040);
   assert.equal(result.bookingTotalCents, 249000);
   assert.equal(result.finalDenominationTotalCents, 249000);
   assert.equal(result.finalCounts[5], 14);

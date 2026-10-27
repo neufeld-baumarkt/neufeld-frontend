@@ -16,3 +16,15 @@ test('berechnet den Excel-Tresorbestand mit Rollenwerten statt Münzstücken', (
 test('zeigt für Übergabe zwei fachlich feste Rollen', () => {
   assert.deepEqual(countTypeLabels('handover'), { title: 'Schichtübergabe', first: 'Übernahme durch', second: 'Übergabe durch' });
 });
+
+test('bestätigt den erwarteten Endbestand nach Kleingeldausgleich und Abschöpfung', () => {
+  const result = calculateSafeCount({
+    fixedDrawerCents: 50000,
+    littleBerthaCents: 100000,
+    looseMoneyCents: 40,
+    coinRollCounts: {},
+    banknoteCounts: { 20000: 5 },
+  });
+  assert.equal(result.countedTotalCents, 250040);
+  assert.equal(result.countedTotalCents - 250040, 0);
+});

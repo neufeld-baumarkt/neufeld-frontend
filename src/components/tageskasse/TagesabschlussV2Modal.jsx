@@ -13,8 +13,9 @@ import {
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel, calculateBankBooking, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, calculateBankBooking, parseMoneyToCents, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
 import BarAnBankV2Process from './BarAnBankV2Process';
+import TresorabschlussV2Process from './TresorabschlussV2Process';
 
 const dateTime = (value) => value
   ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -89,6 +90,10 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
   const [activeProcess, setActiveProcess] = useState('');
   const [manualBanknoteCounts, setManualBanknoteCounts] = useState({});
   const [localProcessStates, setLocalProcessStates] = useState({});
+  const [safeTargetInput, setSafeTargetInput] = useState('');
+  const [safeTargetCents, setSafeTargetCents] = useState(null);
+  const [safeTargetError, setSafeTargetError] = useState('');
+  const [finalSafeCount, setFinalSafeCount] = useState(null);
   const banknoteCounts = canOpenDepositSafe === false ? (context.individualCashBanknotes || {}) : manualBanknoteCounts;
   const bankCalculation = useMemo(() => calculateBankBooking({
     banknoteCounts,
@@ -102,6 +107,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     ...context,
     bankPayoutCents: bookingCompleted ? bankCalculation.bookingTotalCents : (reportData?.eurocontrolBankCents ?? context.bankPayoutCents),
     bankPayoutStatus: bookingCompleted ? 'final' : 'provisional',
+    eurocontrolSafeTargetCents: safeTargetCents,
+    latestSafeCount: finalSafeCount || context.latestSafeCount,
     processStates: {
       ...context.processStates,
       ...localProcessStates,
@@ -113,7 +120,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
         },
       } : {}),
     },
-  }), [bankCalculation.bookingTotalCents, bookingCompleted, canOpenDepositSafe, context, localProcessStates, reportData]);
+  }), [bankCalculation.bookingTotalCents, bookingCompleted, canOpenDepositSafe, context, finalSafeCount, localProcessStates, reportData, safeTargetCents]);
   const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
   const groups = [...new Set(model.processes.map((process) => process.group))];
   const safe = model.summary.latestSafeCount;
@@ -126,8 +133,12 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     setErrors(result.errors);
     if (!result.valid) return;
     setReportData(result.data);
+    setSafeTargetInput('');
+    setSafeTargetCents(null);
+    setSafeTargetError('');
+    setFinalSafeCount(null);
     setLocalProcessStates((current) => {
-      const { 'bank-booking': _booking, ...rest } = current;
+      const { 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
     });
     setStage('safe-access');
@@ -135,15 +146,19 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
 
   const chooseSafeAccess = (value) => {
     setCanOpenDepositSafe(value);
+    setSafeTargetInput('');
+    setSafeTargetCents(null);
+    setSafeTargetError('');
+    setFinalSafeCount(null);
     setLocalProcessStates((current) => {
-      const { 'bank-preparation': _preparation, 'bank-booking': _booking, ...rest } = current;
+      const { 'bank-preparation': _preparation, 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
     });
     setStage('dashboard');
   };
 
   const startProcess = (process) => {
-    if (process.id === 'bank-preparation' || process.id === 'bank-booking') {
+    if (['bank-preparation', 'bank-booking', 'safe-movement', 'final-safe-count'].includes(process.id)) {
       setActiveProcess(process.id);
       setStage('process');
       return;
@@ -166,7 +181,38 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
   };
 
   const finishBooking = () => {
-    setLocalProcessStates((current) => ({ ...current, 'bank-booking': { status: 'completed' } }));
+    const parsed = parseMoneyToCents(safeTargetInput);
+    if (!Number.isInteger(parsed)) {
+      setSafeTargetError('Bitte Tresor-SOLL eingeben.');
+      return;
+    }
+    if (parsed !== bankCalculation.expectedSafeAfterSkimCents) {
+      setSafeTargetError(`Bitte prüfen: Die App erwartet ${formatEuroFromCents(bankCalculation.expectedSafeAfterSkimCents)}.`);
+      return;
+    }
+    setSafeTargetError('');
+    setSafeTargetCents(parsed);
+    setLocalProcessStates((current) => {
+      const { 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
+      return { ...rest, 'bank-booking': { status: 'completed', completedAt: new Date().toISOString() } };
+    });
+    setStage('dashboard');
+    setActiveProcess('');
+  };
+
+  const finishMovement = () => {
+    setLocalProcessStates((current) => {
+      const { 'final-safe-count': _count, ...rest } = current;
+      return { ...rest, 'safe-movement': { status: 'completed', completedAt: new Date().toISOString() } };
+    });
+    setStage('dashboard');
+    setActiveProcess('');
+  };
+
+  const finishSafeCount = (result) => {
+    const completedAt = new Date().toISOString();
+    setFinalSafeCount({ ...result, completedAt, countType: 'closing' });
+    setLocalProcessStates((current) => ({ ...current, 'final-safe-count': { status: 'completed', completedAt } }));
     setStage('dashboard');
     setActiveProcess('');
   };
@@ -205,14 +251,28 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
           <button type="button" onClick={()=>setStage('report')} className="mt-5 min-h-11 rounded-xl px-5 font-bold text-black/60">← Tageswerte ändern</button>
         </div>}
 
-        {stage==='process'&&<BarAnBankV2Process
+        {stage==='process'&&(activeProcess==='bank-preparation'||activeProcess==='bank-booking')&&<BarAnBankV2Process
           mode={activeProcess}
           canOpenDepositSafe={canOpenDepositSafe}
           counts={banknoteCounts}
           calculation={bankCalculation}
+          safeTargetValue={safeTargetInput}
+          safeTargetError={safeTargetError}
+          onSafeTargetChange={(event)=>{setSafeTargetInput(event.target.value);setSafeTargetError('');}}
           onCountsChange={updateBanknoteCount}
           onSavePreparation={finishPreparation}
           onConfirmBooking={finishBooking}
+          onBack={()=>{setStage('dashboard');setActiveProcess('');}}
+        />}
+
+        {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<TresorabschlussV2Process
+          mode={activeProcess}
+          transferCents={bankCalculation.safeTransferCents}
+          safeTargetCents={safeTargetCents}
+          fixedDrawerCents={context.fixedDrawerCents ?? 50000}
+          littleBerthaCents={context.littleBerthaCents ?? 100000}
+          onConfirmMovement={finishMovement}
+          onSaveCount={finishSafeCount}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
         />}
 

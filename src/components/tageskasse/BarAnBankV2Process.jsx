@@ -14,7 +14,7 @@ function DenominationTable({ counts, editable = false, onChange }) {
   </div>;
 }
 
-export default function BarAnBankV2Process({ mode, canOpenDepositSafe, counts, calculation, onCountsChange, onSavePreparation, onConfirmBooking, onBack }) {
+export default function BarAnBankV2Process({ mode, canOpenDepositSafe, counts, calculation, safeTargetValue, safeTargetError, onSafeTargetChange, onCountsChange, onSavePreparation, onConfirmBooking, onBack }) {
   const preparation = mode === 'bank-preparation';
   const editable = preparation && canOpenDepositSafe;
   const shownCounts = preparation ? counts : calculation.finalCounts;
@@ -46,8 +46,21 @@ export default function BarAnBankV2Process({ mode, canOpenDepositSafe, counts, c
       <div className="rounded-xl bg-emerald-50 p-4 text-center text-emerald-950"><span className="text-xs font-black uppercase opacity-55">Buchungssumme</span><strong className="block text-xl">{formatEuroFromCents(calculation.bookingTotalCents)}</strong></div>
     </div>}
 
+    {!preparation&&calculation.valid&&<label className="mt-5 block text-sm font-black">
+      Tresor-SOLL laut EuroControl
+      <input
+        value={safeTargetValue}
+        onChange={onSafeTargetChange}
+        inputMode="decimal"
+        autoComplete="off"
+        placeholder="0,00"
+        className={`mt-2 min-h-14 w-full rounded-xl border-2 bg-white px-4 text-right text-xl font-black outline-none focus:border-[#800000] ${safeTargetError ? 'border-red-500' : 'border-black/10'}`}
+      />
+      {safeTargetError&&<span className="mt-2 block rounded-xl bg-red-50 p-3 text-sm font-bold text-red-800">{safeTargetError}</span>}
+    </label>}
+
     {preparation&&<button type="button" onClick={onSavePreparation} className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">{editable ? 'Scheine gezählt' : 'Zur Übersicht'}</button>}
-    {!preparation&&calculation.valid&&<button type="button" onClick={onConfirmBooking} className="mt-6 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#800000] px-5 text-lg font-black text-white"><CheckCircle2/>In EuroControl gebucht</button>}
+    {!preparation&&calculation.valid&&<button type="button" onClick={onConfirmBooking} className="mt-6 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#800000] px-5 text-lg font-black text-white"><CheckCircle2/>Buchung und Tresor-SOLL speichern</button>}
     {!preparation&&!calculation.valid&&<button type="button" onClick={onBack} className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">Zurück und Angaben prüfen</button>}
   </div>;
 }
