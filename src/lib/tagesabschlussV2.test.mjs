@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDayCloseV2ViewModel, parseMoneyToCents, validateDailyReport } from './tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, calculateBankBooking, parseMoneyToCents, sumBanknoteCounts, validateDailyReport } from './tagesabschlussV2.mjs';
 
 test('berechnet Fortschritt nur aus erforderlichen Prozessen', () => {
   const model = buildDayCloseV2ViewModel({
@@ -62,5 +62,41 @@ test('liefert Kennzahlen aus dem gespeicherten Tageskontext', () => {
   assert.equal(model.summary.looseChangeCents, 781);
   assert.equal(model.summary.eurocontrolSafeTargetCents, 250081);
   assert.equal(model.summary.latestSafeCount.countType, 'handover');
+});
+
+test('summiert die Scheine aller Einzelkassen', () => {
+  assert.equal(sumBanknoteCounts({ 5: 11, 10: 26, 20: 28, 50: 30, 100: 1, 200: 0 }), 247500);
+});
+
+test('prüft Scheine plus Kleingeldausgleich hart gegen den Filialbericht', () => {
+  const result = calculateBankBooking({
+    banknoteCounts: { 5: 11, 10: 26, 20: 28, 50: 30, 100: 1, 200: 0 },
+    eurocontrolBankCents: 248959,
+    looseChangeCents: 1459,
+    latestSafeCountCents: 250081,
+    safeStandardCents: 250000,
+  });
+  assert.equal(result.banknoteTotalCents, 247500);
+  assert.equal(result.changeTransferCents, 1000);
+  assert.equal(result.roundedEurocontrolBankCents, 248500);
+  assert.equal(result.skimCents, 500);
+  assert.equal(result.safeTransferCents, 1500);
+  assert.equal(result.bookingTotalCents, 249000);
+  assert.equal(result.finalDenominationTotalCents, 249000);
+  assert.equal(result.finalCounts[5], 14);
+  assert.equal(result.valid, true);
+});
+
+test('blockiert die Buchung bei unpassender Scheinsumme', () => {
+  const result = calculateBankBooking({
+    banknoteCounts: { 5: 10, 10: 26, 20: 28, 50: 30, 100: 1, 200: 0 },
+    eurocontrolBankCents: 248959,
+    looseChangeCents: 1459,
+    latestSafeCountCents: 250081,
+    safeStandardCents: 250000,
+  });
+  assert.equal(result.banknoteTotalCents, 247000);
+  assert.equal(result.expectedBanknoteTotalCents, 247500);
+  assert.equal(result.valid, false);
 });
 

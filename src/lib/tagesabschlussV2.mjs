@@ -18,7 +18,7 @@ export const DAY_CLOSE_V2_PROCESSES = Object.freeze([
     group: 'Am PC',
     title: 'Bar an Bank buchen',
     description: 'Stückelungen in EuroControl eingeben und die Buchung abschließen.',
-    dependencies: [],
+    dependencies: ['bank-preparation'],
   },
   {
     id: 'safe-target',
@@ -122,6 +122,73 @@ export function validateDailyReport(values = {}) {
     valid: Object.keys(errors).length === 0,
     errors,
     data: { dailyRevenueCents, customerCount, averageReceiptCents, eurocontrolBankCents },
+  };
+}
+
+export const BANKNOTE_DENOMINATIONS = Object.freeze([5, 10, 20, 50, 100, 200]);
+
+export function normalizeBanknoteCounts(counts = {}) {
+  return Object.fromEntries(BANKNOTE_DENOMINATIONS.map((denomination) => {
+    const count = Number(counts[denomination] ?? counts[String(denomination)] ?? 0);
+    return [denomination, Number.isInteger(count) && count >= 0 ? count : 0];
+  }));
+}
+
+export function sumBanknoteCounts(counts = {}) {
+  const normalized = normalizeBanknoteCounts(counts);
+  return BANKNOTE_DENOMINATIONS.reduce((sum, denomination) => sum + (normalized[denomination] * denomination * 100), 0);
+}
+
+export function calculateBankBooking({
+  banknoteCounts,
+  eurocontrolBankCents,
+  looseChangeCents,
+  latestSafeCountCents,
+  safeStandardCents,
+} = {}) {
+  const counts = normalizeBanknoteCounts(banknoteCounts);
+  const banknoteTotalCents = sumBanknoteCounts(counts);
+  const roundedEurocontrolBankCents = Number.isInteger(eurocontrolBankCents)
+    ? Math.floor(eurocontrolBankCents / 500) * 500
+    : null;
+  const changeTransferCents = Number.isInteger(looseChangeCents)
+    ? Math.floor(Math.max(0, looseChangeCents) / 500) * 500
+    : null;
+  const expectedBanknoteTotalCents = Number.isInteger(roundedEurocontrolBankCents) && Number.isInteger(changeTransferCents)
+    ? roundedEurocontrolBankCents - changeTransferCents
+    : null;
+  const controlMatches = Number.isInteger(expectedBanknoteTotalCents)
+    && expectedBanknoteTotalCents >= 0
+    && banknoteTotalCents === expectedBanknoteTotalCents;
+  const projectedSafeCents = Number.isInteger(latestSafeCountCents) && Number.isInteger(looseChangeCents) && Number.isInteger(changeTransferCents)
+    ? latestSafeCountCents + looseChangeCents - changeTransferCents
+    : null;
+  const skimCents = Number.isInteger(projectedSafeCents) && Number.isInteger(safeStandardCents)
+    ? Math.max(0, Math.floor((projectedSafeCents - safeStandardCents) / 500) * 500)
+    : null;
+  const safeTransferCents = Number.isInteger(changeTransferCents) && Number.isInteger(skimCents)
+    ? changeTransferCents + skimCents
+    : null;
+  const finalCounts = { ...counts };
+  if (Number.isInteger(safeTransferCents)) finalCounts[5] += safeTransferCents / 500;
+  const bookingTotalCents = Number.isInteger(roundedEurocontrolBankCents) && Number.isInteger(skimCents)
+    ? roundedEurocontrolBankCents + skimCents
+    : null;
+  const finalDenominationTotalCents = sumBanknoteCounts(finalCounts);
+
+  return {
+    counts,
+    finalCounts,
+    banknoteTotalCents,
+    roundedEurocontrolBankCents,
+    changeTransferCents,
+    expectedBanknoteTotalCents,
+    projectedSafeCents,
+    skimCents,
+    safeTransferCents,
+    bookingTotalCents,
+    finalDenominationTotalCents,
+    valid: controlMatches && Number.isInteger(skimCents) && finalDenominationTotalCents === bookingTotalCents,
   };
 }
 

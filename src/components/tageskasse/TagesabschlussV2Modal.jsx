@@ -13,7 +13,8 @@ import {
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, calculateBankBooking, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import BarAnBankV2Process from './BarAnBankV2Process';
 
 const dateTime = (value) => value
   ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -85,11 +86,25 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
   const [reportData, setReportData] = useState(null);
   const [errors, setErrors] = useState({});
   const [canOpenDepositSafe, setCanOpenDepositSafe] = useState(null);
+  const [activeProcess, setActiveProcess] = useState('');
+  const [manualBanknoteCounts, setManualBanknoteCounts] = useState({});
+  const [localProcessStates, setLocalProcessStates] = useState({});
+  const banknoteCounts = canOpenDepositSafe === false ? (context.individualCashBanknotes || {}) : manualBanknoteCounts;
+  const bankCalculation = useMemo(() => calculateBankBooking({
+    banknoteCounts,
+    eurocontrolBankCents: reportData?.eurocontrolBankCents,
+    looseChangeCents: context.looseChangeCents,
+    latestSafeCountCents: context.latestSafeCount?.countedTotalCents,
+    safeStandardCents: context.safeStandardCents,
+  }), [banknoteCounts, context.latestSafeCount?.countedTotalCents, context.looseChangeCents, context.safeStandardCents, reportData?.eurocontrolBankCents]);
+  const bookingCompleted = localProcessStates['bank-booking']?.status === 'completed';
   const enrichedContext = useMemo(() => ({
     ...context,
-    bankPayoutCents: reportData?.eurocontrolBankCents ?? context.bankPayoutCents,
+    bankPayoutCents: bookingCompleted ? bankCalculation.bookingTotalCents : (reportData?.eurocontrolBankCents ?? context.bankPayoutCents),
+    bankPayoutStatus: bookingCompleted ? 'final' : 'provisional',
     processStates: {
       ...context.processStates,
+      ...localProcessStates,
       ...(reportData ? { 'daily-report': { status: 'completed' } } : {}),
       ...(canOpenDepositSafe === false ? {
         'bank-preparation': {
@@ -98,7 +113,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
         },
       } : {}),
     },
-  }), [context, reportData, canOpenDepositSafe]);
+  }), [bankCalculation.bookingTotalCents, bookingCompleted, canOpenDepositSafe, context, localProcessStates, reportData]);
   const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
   const groups = [...new Set(model.processes.map((process) => process.group))];
   const safe = model.summary.latestSafeCount;
@@ -111,12 +126,49 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     setErrors(result.errors);
     if (!result.valid) return;
     setReportData(result.data);
+    setLocalProcessStates((current) => {
+      const { 'bank-booking': _booking, ...rest } = current;
+      return rest;
+    });
     setStage('safe-access');
   };
 
   const chooseSafeAccess = (value) => {
     setCanOpenDepositSafe(value);
+    setLocalProcessStates((current) => {
+      const { 'bank-preparation': _preparation, 'bank-booking': _booking, ...rest } = current;
+      return rest;
+    });
     setStage('dashboard');
+  };
+
+  const startProcess = (process) => {
+    if (process.id === 'bank-preparation' || process.id === 'bank-booking') {
+      setActiveProcess(process.id);
+      setStage('process');
+      return;
+    }
+    onStartProcess?.(process);
+  };
+
+  const updateBanknoteCount = (denomination, value) => {
+    const digits = String(value).replace(/\D/g, '');
+    setManualBanknoteCounts((current) => ({ ...current, [denomination]: digits ? Number(digits) : 0 }));
+  };
+
+  const finishPreparation = () => {
+    if (canOpenDepositSafe) setLocalProcessStates((current) => {
+      const { 'bank-booking': _booking, ...rest } = current;
+      return { ...rest, 'bank-preparation': { status: 'completed' } };
+    });
+    setStage('dashboard');
+    setActiveProcess('');
+  };
+
+  const finishBooking = () => {
+    setLocalProcessStates((current) => ({ ...current, 'bank-booking': { status: 'completed' } }));
+    setStage('dashboard');
+    setActiveProcess('');
   };
 
   return <div className="fixed inset-0 z-[115] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="day-close-v2-title">
@@ -153,6 +205,17 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
           <button type="button" onClick={()=>setStage('report')} className="mt-5 min-h-11 rounded-xl px-5 font-bold text-black/60">← Tageswerte ändern</button>
         </div>}
 
+        {stage==='process'&&<BarAnBankV2Process
+          mode={activeProcess}
+          canOpenDepositSafe={canOpenDepositSafe}
+          counts={banknoteCounts}
+          calculation={bankCalculation}
+          onCountsChange={updateBanknoteCount}
+          onSavePreparation={finishPreparation}
+          onConfirmBooking={finishBooking}
+          onBack={()=>{setStage('dashboard');setActiveProcess('');}}
+        />}
+
         {stage==='dashboard'&&<>
         <div className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 p-4 ${canOpenDepositSafe ? 'border-emerald-300 bg-emerald-50 text-emerald-950' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
           <div className="flex items-center gap-3"><Users/><div><strong className="block">Einwurftresor: {canOpenDepositSafe ? 'kann geöffnet werden' : 'kann nicht geöffnet werden'}</strong><span className="text-sm">{canOpenDepositSafe ? 'Spätere Stückelung durch physische Zählung.' : 'Spätere Stückelung aus den Einzelkassen.'}</span></div></div>
@@ -168,7 +231,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
         </div>
 
         <div className="mt-7 space-y-6">
-          {groups.map((group)=><section key={group}><div className="mb-3 flex items-center gap-2"><Clock3 size={18} className="text-[#800000]"/><h3 className="text-lg font-black">{group}</h3></div><div className="grid gap-3 md:grid-cols-2">{model.processes.filter((process)=>process.group===group).map((process)=><ProcessCard key={process.id} process={process} onStart={onStartProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>)}
+          {groups.map((group)=><section key={group}><div className="mb-3 flex items-center gap-2"><Clock3 size={18} className="text-[#800000]"/><h3 className="text-lg font-black">{group}</h3></div><div className="grid gap-3 md:grid-cols-2">{model.processes.filter((process)=>process.group===group).map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>)}
         </div>
 
         <div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>

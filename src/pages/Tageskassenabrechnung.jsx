@@ -253,9 +253,11 @@ export default function Tageskassenabrechnung() {
         context={{
           bankPayoutCents:282500,
           bankPayoutStatus:'provisional',
-          looseChangeCents:781,
+          looseChangeCents:1459,
           closingCount:5,
-          latestSafeCount:{countedTotalCents:250781,countType:'handover',completedAt:new Date().toISOString()},
+          latestSafeCount:{countedTotalCents:250081,countType:'handover',completedAt:new Date().toISOString()},
+          safeStandardCents:250000,
+          individualCashBanknotes:{5:11,10:26,20:28,50:30,100:1,200:0},
           eurocontrolSafeTargetCents:null,
           processStates:{},
         }}
