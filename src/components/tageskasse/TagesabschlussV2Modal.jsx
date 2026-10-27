@@ -3,6 +3,7 @@ import {
   Banknote,
   Check,
   CheckCircle2,
+  ChevronDown,
   CircleHelp,
   Clock3,
   Landmark,
@@ -63,14 +64,14 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   const inProgress = process.status === 'in_progress';
   const locked = process.status === 'locked';
   const action = completed ? 'Ansehen' : inProgress ? 'Fortsetzen' : locked ? 'Noch nicht möglich' : 'Starten';
-  return <div className={`rounded-2xl border-2 p-4 ${completed ? 'border-emerald-300 bg-emerald-50 text-emerald-950' : inProgress ? 'border-amber-300 bg-amber-50 text-amber-950' : locked ? 'border-black/10 bg-black/[.035] text-black/45' : 'border-black/10 bg-white'}`}>
+  return <div className={`rounded-2xl border-2 p-3 ${completed ? 'border-emerald-300 bg-emerald-50 text-emerald-950' : inProgress ? 'border-amber-300 bg-amber-50 text-amber-950' : locked ? 'border-black/10 bg-black/[.035] text-black/45' : 'border-black/10 bg-white'}`}>
     <div className="flex items-start gap-3">
       <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${completed ? 'bg-emerald-600 text-white' : inProgress ? 'bg-amber-400 text-amber-950' : locked ? 'bg-black/10' : 'bg-[#800000] text-white'}`}>
         {completed ? <CheckCircle2 size={23}/> : locked ? <LockKeyhole size={22}/> : <Icon size={22}/>} 
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
-          <div><span className="text-xs font-black uppercase tracking-wide opacity-50">{process.group}</span><h4 className="text-lg font-black">{process.title}</h4></div>
+          <div><span className="text-xs font-black uppercase tracking-wide opacity-50">{process.group}</span><h4 className="font-black sm:text-lg">{process.title}</h4></div>
           <button type="button" onClick={onToggleInfo} className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-black/5" aria-label={`Information zu ${process.title}`} aria-expanded={infoOpen}><CircleHelp size={21}/></button>
         </div>
         {infoOpen&&<div className="mt-2 rounded-xl bg-black/[.055] p-3 text-sm font-bold">{process.description}</div>}
@@ -78,7 +79,7 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
         {locked&&<div className="mt-2 text-sm font-bold">Vorherige Pflichtschritte fehlen noch.</div>}
       </div>
     </div>
-    <button type="button" disabled={locked} onClick={()=>onStart?.(process)} className={`mt-4 min-h-11 w-full rounded-xl px-4 font-black ${completed ? 'border-2 border-emerald-700 bg-white text-emerald-800' : inProgress ? 'bg-amber-400 text-amber-950' : 'bg-[#800000] text-white'} disabled:bg-black/10 disabled:text-black/35`}>{action}</button>
+    <button type="button" disabled={locked} onClick={()=>onStart?.(process)} className={`mt-3 min-h-11 w-full rounded-xl px-4 font-black sm:ml-14 sm:w-auto ${completed ? 'border-2 border-emerald-700 bg-white text-emerald-800' : inProgress ? 'bg-amber-400 text-amber-950' : 'bg-[#800000] text-white'} disabled:bg-black/10 disabled:text-black/35`}>{action}</button>
   </div>;
 }
 
@@ -99,6 +100,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [safeTargetError, setSafeTargetError] = useState('');
   const [finalSafeCount, setFinalSafeCount] = useState(null);
   const [persistedFinalSafeCount, setPersistedFinalSafeCount] = useState(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [completedOpen, setCompletedOpen] = useState(false);
   const context = useMemo(() => dayCloseContext ? mapDayCloseContextToV2(dayCloseContext) : (initialContext || {}), [dayCloseContext, initialContext]);
   useEffect(() => {
     if (!loadContext) return;
@@ -145,7 +148,10 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     },
   }), [bankCalculation.bookingTotalCents, bookingCompleted, canOpenDepositSafe, context, finalSafeCount, localProcessStates, reportData, safeTargetCents]);
   const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
-  const groups = [...new Set(model.processes.map((process) => process.group))];
+  const openProcesses = model.processes.filter((process) => process.status !== 'completed');
+  const completedProcesses = model.processes.filter((process) => process.status === 'completed');
+  const recommendedProcess = openProcesses.find((process) => process.status === 'in_progress')
+    || openProcesses.find((process) => process.status === 'open');
   const safe = model.summary.latestSafeCount;
   const bankFinal = model.summary.bankPayoutStatus === 'final';
 
@@ -361,16 +367,23 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           <button type="button" onClick={()=>setStage('safe-access')} className="min-h-11 rounded-xl border-2 border-current px-4 font-black">Ändern</button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <SummaryCard label="Gesamt Bar an Bank" tone={bankFinal ? 'green' : 'amber'}><MoneyValue cents={model.summary.bankPayoutCents}/><span className="mt-1 block text-sm font-bold opacity-60">{bankFinal ? 'Verbindlich' : 'Vorläufig'}</span></SummaryCard>
-          <SummaryCard label="Entnommenes Kleingeld"><MoneyValue cents={model.summary.looseChangeCents}/><span className="mt-1 block text-sm opacity-55">Aus {model.summary.closingCount} Kassen</span></SummaryCard>
-          <SummaryCard label="Tresor IST · zuletzt gezählt"><MoneyValue cents={safe?.countedTotalCents} empty="Noch nicht gezählt"/><span className="mt-1 block text-sm opacity-55">{safe ? `${typeLabel(safe.countType)} · ${dateTime(safe.completedAt)}` : 'Keine Zählung vorhanden'}</span></SummaryCard>
-          <SummaryCard label="Tresor SOLL"><MoneyValue cents={model.summary.eurocontrolSafeTargetCents}/><span className="mt-1 block text-sm opacity-55">{Number.isInteger(model.summary.eurocontrolSafeTargetCents) ? 'Aus EuroControl' : 'Noch nicht übertragen'}</span></SummaryCard>
-          <SummaryCard label="Fortschritt" tone={model.progress.percent === 100 ? 'green' : 'neutral'}><strong className="mt-1 block text-2xl sm:text-3xl">{model.progress.completed} von {model.progress.required}</strong><span className="mt-1 block text-sm font-bold opacity-60">{model.progress.percent} % abgeschlossen</span><div className="mt-3 h-2 overflow-hidden rounded-full bg-black/10" role="progressbar" aria-label="Fortschritt der Tagesabrechnung" aria-valuenow={model.progress.percent} aria-valuemin="0" aria-valuemax="100"><div className="h-full bg-emerald-600" style={{width:`${model.progress.percent}%`}}/></div></SummaryCard>
+        <div className="sticky top-0 z-10 rounded-2xl border-2 border-black/10 bg-[#f7f4ef]/95 p-3 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><span className="text-xs font-black uppercase text-black/45">Fortschritt</span><strong className="ml-2">{model.progress.completed} von {model.progress.required} erledigt · {model.progress.percent} %</strong></div><button type="button" onClick={()=>setSummaryOpen((current)=>!current)} aria-expanded={summaryOpen} className="flex min-h-11 items-center gap-2 rounded-xl border-2 border-black/10 bg-white px-4 font-black">Tagesübersicht <ChevronDown className={`transition ${summaryOpen?'rotate-180':''}`} size={18}/></button></div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10" role="progressbar" aria-label="Fortschritt der Tagesabrechnung" aria-valuenow={model.progress.percent} aria-valuemin="0" aria-valuemax="100"><div className="h-full bg-emerald-600" style={{width:`${model.progress.percent}%`}}/></div>
         </div>
 
-        <div className="mt-7 space-y-6">
-          {groups.map((group)=><section key={group}><div className="mb-3 flex items-center gap-2"><Clock3 size={18} className="text-[#800000]"/><h3 className="text-lg font-black">{group}</h3></div><div className="grid gap-3 md:grid-cols-2">{model.processes.filter((process)=>process.group===group).map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>)}
+        {summaryOpen&&<div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCard label="Gesamt Bar an Bank" tone={bankFinal ? 'green' : 'amber'}><MoneyValue cents={model.summary.bankPayoutCents}/><span className="mt-1 block text-sm font-bold opacity-60">{bankFinal ? 'Verbindlich' : 'Vorläufig'}</span></SummaryCard>
+          <SummaryCard label="Entnommenes Kleingeld"><MoneyValue cents={model.summary.looseChangeCents}/><span className="mt-1 block text-sm opacity-55">Aus {model.summary.closingCount} Kassen</span></SummaryCard>
+          <SummaryCard label="Tresor IST"><MoneyValue cents={safe?.countedTotalCents} empty="Noch nicht gezählt"/><span className="mt-1 block text-sm opacity-55">{safe ? `${typeLabel(safe.countType)} · ${dateTime(safe.completedAt)}` : 'Keine Zählung vorhanden'}</span></SummaryCard>
+          <SummaryCard label="Tresor SOLL"><MoneyValue cents={model.summary.eurocontrolSafeTargetCents}/><span className="mt-1 block text-sm opacity-55">{Number.isInteger(model.summary.eurocontrolSafeTargetCents) ? 'Aus EuroControl' : 'Noch nicht übertragen'}</span></SummaryCard>
+        </div>
+        }
+
+        <div className="mt-6">
+          {recommendedProcess&&<section><div className="mb-3 flex items-center gap-2"><Clock3 size={18} className="text-[#800000]"/><h3 className="text-lg font-black">Als Nächstes sinnvoll</h3></div><ProcessCard process={recommendedProcess} onStart={startProcess} infoOpen={openInfo===recommendedProcess.id} onToggleInfo={()=>setOpenInfo((current)=>current===recommendedProcess.id?'':recommendedProcess.id)}/></section>}
+          {openProcesses.filter((process)=>process.id!==recommendedProcess?.id).length>0&&<section className="mt-6"><h3 className="mb-3 text-sm font-black uppercase tracking-wide text-black/45">Weitere offene Schritte</h3><div className="grid gap-3 md:grid-cols-2">{openProcesses.filter((process)=>process.id!==recommendedProcess?.id).map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>}
+          {completedProcesses.length>0&&<section className="mt-6"><button type="button" onClick={()=>setCompletedOpen((current)=>!current)} className="flex min-h-11 w-full items-center justify-between rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 font-black text-emerald-900"><span>Erledigt · {completedProcesses.length}</span><ChevronDown className={`transition ${completedOpen?'rotate-180':''}`} size={18}/></button>{completedOpen&&<div className="mt-3 grid gap-3 md:grid-cols-2">{completedProcesses.map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div>}</section>}
         </div>
 
         <div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>

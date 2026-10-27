@@ -239,6 +239,7 @@ export default function Tageskassenabrechnung() {
       {closingOpen && (
         <KassenabrechnungsModal
           branch={branch}
+          businessDate={selectedBusinessDate}
           presetOpening={closingPreset}
           onClose={() => {setClosingOpen(false);setClosingPreset(null);}}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
