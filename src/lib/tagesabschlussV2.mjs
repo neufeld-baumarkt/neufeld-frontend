@@ -1,5 +1,12 @@
 export const DAY_CLOSE_V2_PROCESSES = Object.freeze([
   {
+    id: 'daily-report',
+    group: 'Am PC',
+    title: 'Tageswerte erfassen',
+    description: 'Filialbericht prüfen, die vier Tageswerte in der App speichern und die drei vorgesehenen Werte an die Signal-Gruppe senden.',
+    dependencies: [],
+  },
+  {
     id: 'bank-preparation',
     group: 'Vorbereitung',
     title: 'Bar an Bank vorbereiten',
@@ -11,35 +18,35 @@ export const DAY_CLOSE_V2_PROCESSES = Object.freeze([
     group: 'Am PC',
     title: 'Bar an Bank buchen',
     description: 'Stückelungen in EuroControl eingeben und die Buchung abschließen.',
-    dependencies: ['bank-preparation'],
+    dependencies: [],
   },
   {
     id: 'safe-target',
     group: 'Am PC',
     title: 'Tresor-SOLL übernehmen',
     description: 'Den neuen Tresorbestand aus dem EuroControl-Tresorbericht übertragen.',
-    dependencies: ['bank-booking'],
+    dependencies: [],
   },
   {
     id: 'safe-movement',
     group: 'Am Tresor',
     title: 'Tresorbewegung durchführen',
     description: 'Den von der App angezeigten Gesamtbetrag zu Bar an Bank legen.',
-    dependencies: ['safe-target'],
+    dependencies: [],
   },
   {
     id: 'final-safe-count',
     group: 'Am Tresor',
     title: 'Tresor abschließend zählen',
     description: 'Den endgültigen Bestand zählen und mit dem EuroControl-SOLL vergleichen.',
-    dependencies: ['safe-movement'],
+    dependencies: [],
   },
   {
     id: 'finalize',
     group: 'Abschluss',
     title: 'Tagesabrechnung abschließen',
     description: 'Alle Ergebnisse zusammenführen, mit zwei PINs bestätigen und sperren.',
-    dependencies: ['final-safe-count'],
+    dependencies: ['daily-report', 'bank-preparation', 'bank-booking', 'safe-target', 'safe-movement', 'final-safe-count'],
   },
 ]);
 
@@ -87,6 +94,34 @@ export function buildDayCloseV2ViewModel(context = {}) {
         ? context.eurocontrolSafeTargetCents
         : null,
     },
+  };
+}
+
+export function parseMoneyToCents(value) {
+  const input = String(value ?? '').trim().replace(/\s/g, '').replace(/€/g, '');
+  if (!input) return null;
+  const normalized = input.includes(',')
+    ? input.replace(/\./g, '').replace(',', '.')
+    : input;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  const cents = Math.round(Number(normalized) * 100);
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+export function validateDailyReport(values = {}) {
+  const dailyRevenueCents = parseMoneyToCents(values.dailyRevenue);
+  const averageReceiptCents = parseMoneyToCents(values.averageReceipt);
+  const eurocontrolBankCents = parseMoneyToCents(values.eurocontrolBank);
+  const customerCount = Number(String(values.customerCount ?? '').trim());
+  const errors = {};
+  if (!Number.isInteger(dailyRevenueCents) || dailyRevenueCents < 0) errors.dailyRevenue = 'Bitte Tagesumsatz eingeben.';
+  if (!Number.isInteger(customerCount) || customerCount < 1) errors.customerCount = 'Bitte Kundenanzahl eingeben.';
+  if (!Number.isInteger(averageReceiptCents) || averageReceiptCents < 0) errors.averageReceipt = 'Bitte Durchschnittsbon eingeben.';
+  if (!Number.isInteger(eurocontrolBankCents) || eurocontrolBankCents < 0) errors.eurocontrolBank = 'Bitte Bar an Bank eingeben.';
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    data: { dailyRevenueCents, customerCount, averageReceiptCents, eurocontrolBankCents },
   };
 }
 

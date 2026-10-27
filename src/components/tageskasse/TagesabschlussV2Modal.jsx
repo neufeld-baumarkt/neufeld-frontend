@@ -9,10 +9,11 @@ import {
   LockKeyhole,
   Monitor,
   ShieldCheck,
+  Users,
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel } from '../../lib/tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
 
 const dateTime = (value) => value
   ? new Intl.DateTimeFormat('de-DE', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -43,6 +44,15 @@ function SummaryCard({ label, children, tone = 'neutral' }) {
   </div>;
 }
 
+const emptyReport = { dailyRevenue: '', customerCount: '', averageReceipt: '', eurocontrolBank: '' };
+
+function Field({ label, name, value, error, onChange, integer = false }) {
+  return <label className="block text-sm font-black">{label}
+    <input name={name} value={value} onChange={onChange} inputMode={integer ? 'numeric' : 'decimal'} autoComplete="off" className={`mt-2 min-h-14 w-full rounded-xl border-2 bg-white px-4 text-xl font-black outline-none focus:border-[#800000] ${error ? 'border-red-500' : 'border-black/10'}`} />
+    {error&&<span className="mt-1 block text-sm font-bold text-red-700">{error}</span>}
+  </label>;
+}
+
 function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   const Icon = groupIcons[process.group] || Check;
   const completed = process.status === 'completed';
@@ -70,10 +80,38 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
 
 export default function TagesabschlussV2Modal({ branch, businessDate, context, onStartProcess, onStartLegacy, onClose }) {
   const [openInfo, setOpenInfo] = useState('');
-  const model = useMemo(() => buildDayCloseV2ViewModel(context), [context]);
+  const [stage, setStage] = useState('report');
+  const [report, setReport] = useState(emptyReport);
+  const [reportData, setReportData] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [canOpenDepositSafe, setCanOpenDepositSafe] = useState(null);
+  const enrichedContext = useMemo(() => ({
+    ...context,
+    bankPayoutCents: reportData?.eurocontrolBankCents ?? context.bankPayoutCents,
+    processStates: {
+      ...context.processStates,
+      ...(reportData ? { 'daily-report': { status: 'completed' } } : {}),
+    },
+  }), [context, reportData]);
+  const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
   const groups = [...new Set(model.processes.map((process) => process.group))];
   const safe = model.summary.latestSafeCount;
   const bankFinal = model.summary.bankPayoutStatus === 'final';
+
+  const updateReport = (event) => setReport((current) => ({ ...current, [event.target.name]: event.target.value }));
+  const submitReport = (event) => {
+    event.preventDefault();
+    const result = validateDailyReport(report);
+    setErrors(result.errors);
+    if (!result.valid) return;
+    setReportData(result.data);
+    setStage('safe-access');
+  };
+
+  const chooseSafeAccess = (value) => {
+    setCanOpenDepositSafe(value);
+    setStage('dashboard');
+  };
 
   return <div className="fixed inset-0 z-[115] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="day-close-v2-title">
     <section className="flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
@@ -84,6 +122,36 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
 
       <div className="overflow-y-auto p-4 sm:p-6">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5">Filiale: {branch}</span><span className="rounded-full bg-white px-3 py-1.5">Geschäftstag: {businessDate}</span></div>
+
+        {stage==='report'&&<form onSubmit={submitReport} className="mx-auto max-w-3xl">
+          <div className="text-center"><Monitor className="mx-auto text-[#800000]" size={48}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Tageswerte erfassen</h3><p className="mt-2 text-black/60">Öffne den Filialbericht in EuroControl.</p></div>
+          <div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <strong className="block text-lg">In die Signal-Gruppe senden:</strong>
+            <span className="mt-1 block">{branch} · Tagesumsatz · Kundenanzahl · Durchschnittsbon</span>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <Field label="Tagesumsatz" name="dailyRevenue" value={report.dailyRevenue} error={errors.dailyRevenue} onChange={updateReport}/>
+            <Field label="Kundenanzahl" name="customerCount" value={report.customerCount} error={errors.customerCount} onChange={updateReport} integer/>
+            <Field label="Durchschnittsbon" name="averageReceipt" value={report.averageReceipt} error={errors.averageReceipt} onChange={updateReport}/>
+            <Field label="Bar an Bank laut Filialbericht" name="eurocontrolBank" value={report.eurocontrolBank} error={errors.eurocontrolBank} onChange={updateReport}/>
+          </div>
+          <button type="submit" className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">Werte speichern</button>
+        </form>}
+
+        {stage==='safe-access'&&<div className="mx-auto max-w-3xl text-center">
+          <Landmark className="mx-auto text-[#800000]" size={54}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Könnt ihr den Einwurftresor öffnen?</h3><p className="mt-2 text-black/60">Die Antwort bestimmt nur, welche Stückelung die App später bereitstellt.</p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <button type="button" onClick={()=>chooseSafeAccess(true)} className="min-h-36 rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-5 text-left text-emerald-950"><strong className="text-2xl">Ja</strong><span className="mt-2 block">Das Geld wird physisch gezählt.</span></button>
+            <button type="button" onClick={()=>chooseSafeAccess(false)} className="min-h-36 rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 text-left text-amber-950"><strong className="text-2xl">Nein</strong><span className="mt-2 block">Die App stellt die Stückelung aus den Kassen bereit.</span></button>
+          </div>
+          <button type="button" onClick={()=>setStage('report')} className="mt-5 min-h-11 rounded-xl px-5 font-bold text-black/60">← Tageswerte ändern</button>
+        </div>}
+
+        {stage==='dashboard'&&<>
+        <div className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 p-4 ${canOpenDepositSafe ? 'border-emerald-300 bg-emerald-50 text-emerald-950' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
+          <div className="flex items-center gap-3"><Users/><div><strong className="block">Einwurftresor: {canOpenDepositSafe ? 'kann geöffnet werden' : 'kann nicht geöffnet werden'}</strong><span className="text-sm">{canOpenDepositSafe ? 'Spätere Stückelung durch physische Zählung.' : 'Spätere Stückelung aus den Einzelkassen.'}</span></div></div>
+          <button type="button" onClick={()=>setStage('safe-access')} className="min-h-11 rounded-xl border-2 border-current px-4 font-black">Ändern</button>
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <SummaryCard label="Gesamt Bar an Bank" tone={bankFinal ? 'green' : 'amber'}><MoneyValue cents={model.summary.bankPayoutCents}/><span className="mt-1 block text-sm font-bold opacity-60">{bankFinal ? 'Verbindlich' : 'Vorläufig'}</span></SummaryCard>
@@ -98,6 +166,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
         </div>
 
         <div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>
+        </>}
       </div>
     </section>
   </div>;
