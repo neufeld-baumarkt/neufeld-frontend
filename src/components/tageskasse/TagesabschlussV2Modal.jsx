@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Banknote,
   Check,
@@ -8,13 +8,15 @@ import {
   Landmark,
   LockKeyhole,
   Monitor,
+  RefreshCw,
   ShieldCheck,
   Users,
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel, calculateBankBooking, parseMoneyToCents, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
 import BarAnBankV2Process from './BarAnBankV2Process';
+import TagesabschlussV2Finalize from './TagesabschlussV2Finalize';
 import TresorabschlussV2Process from './TresorabschlussV2Process';
 
 const dateTime = (value) => value
@@ -80,9 +82,11 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   </div>;
 }
 
-export default function TagesabschlussV2Modal({ branch, businessDate, context, onStartProcess, onStartLegacy, onClose }) {
+export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onStartLegacy, onClose }) {
   const [openInfo, setOpenInfo] = useState('');
-  const [stage, setStage] = useState('report');
+  const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
+  const [dayCloseContext, setDayCloseContext] = useState(null);
+  const [contextError, setContextError] = useState('');
   const [report, setReport] = useState(emptyReport);
   const [reportData, setReportData] = useState(null);
   const [errors, setErrors] = useState({});
@@ -94,6 +98,25 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
   const [safeTargetCents, setSafeTargetCents] = useState(null);
   const [safeTargetError, setSafeTargetError] = useState('');
   const [finalSafeCount, setFinalSafeCount] = useState(null);
+  const [persistedFinalSafeCount, setPersistedFinalSafeCount] = useState(null);
+  const context = useMemo(() => dayCloseContext ? mapDayCloseContextToV2(dayCloseContext) : (initialContext || {}), [dayCloseContext, initialContext]);
+  useEffect(() => {
+    if (!loadContext) return;
+    let active = true;
+    setContextError('');
+    loadContext().then((loaded) => {
+      if (!active) return;
+      if (loaded?.activeOpenings?.length) throw new Error('Es sind noch aktive Kassenschichten vorhanden.');
+      if (!loaded?.closings?.length) throw new Error('Es wurde noch keine Kasse abgerechnet.');
+      setDayCloseContext(loaded);
+      setStage('report');
+    }).catch((failure) => {
+      if (!active) return;
+      setContextError(failure.message);
+      setStage('load-error');
+    });
+    return () => { active = false; };
+  }, [loadContext]);
   const banknoteCounts = canOpenDepositSafe === false ? (context.individualCashBanknotes || {}) : manualBanknoteCounts;
   const bankCalculation = useMemo(() => calculateBankBooking({
     banknoteCounts,
@@ -137,6 +160,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     setSafeTargetCents(null);
     setSafeTargetError('');
     setFinalSafeCount(null);
+    setPersistedFinalSafeCount(null);
     setLocalProcessStates((current) => {
       const { 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -150,6 +174,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     setSafeTargetCents(null);
     setSafeTargetError('');
     setFinalSafeCount(null);
+    setPersistedFinalSafeCount(null);
     setLocalProcessStates((current) => {
       const { 'bank-preparation': _preparation, 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -158,7 +183,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
   };
 
   const startProcess = (process) => {
-    if (['bank-preparation', 'bank-booking', 'safe-movement', 'final-safe-count'].includes(process.id)) {
+    if (['bank-preparation', 'bank-booking', 'safe-movement', 'final-safe-count', 'finalize'].includes(process.id)) {
       setActiveProcess(process.id);
       setStage('process');
       return;
@@ -217,6 +242,48 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     setActiveProcess('');
   };
 
+  const finalizeV2 = async ({ firstPin, secondPin }) => {
+    if (!verifyPin || !saveSafeCount || !finalizeDay || !dayCloseContext) {
+      throw new Error('Der verbindliche Abschluss ist in dieser Vorschau nicht verbunden.');
+    }
+    const first = await verifyPin(firstPin);
+    const second = await verifyPin(secondPin, { excludeEmployeeId: first.id });
+    let savedSafeCount = persistedFinalSafeCount;
+    if (!savedSafeCount) {
+      savedSafeCount = await saveSafeCount({
+        countType: 'closing',
+        mode: 'full_count',
+        repeatClosingConfirmed: Boolean(dayCloseContext.finalSafeCount),
+        looseMoneyCents: finalSafeCount.looseMoneyCents,
+        coinRollCounts: finalSafeCount.rollCounts,
+        banknoteCounts: finalSafeCount.noteCounts,
+        eurocontrolTotalCents: safeTargetCents,
+        counterProofToken: first.proofToken,
+        recorderProofToken: second.proofToken,
+      });
+      setPersistedFinalSafeCount(savedSafeCount);
+    }
+    const report = await finalizeDay({
+      safeCountId: savedSafeCount.id,
+      eurocontrolCashTotalCents: reportData.eurocontrolBankCents,
+      looseChangePayoutConfirmed: true,
+      additionalSafeSkimConfirmed: true,
+      bankPayoutConfirmed: true,
+      safeBagConfirmed: true,
+      workflowVersion: 'v2',
+      dailyMetrics: {
+        dailyRevenueCents: reportData.dailyRevenueCents,
+        customerCount: reportData.customerCount,
+        averageReceiptCents: reportData.averageReceiptCents,
+      },
+      approvalProofTokens: [first.proofToken, second.proofToken],
+    });
+    const approvals = [{ id: first.id, name: first.name }, { id: second.id, name: second.name }];
+    setLocalProcessStates((current) => ({ ...current, finalize: { status: 'completed', completedAt: new Date().toISOString() } }));
+    onComplete?.(report);
+    return { report, approvals };
+  };
+
   return <div className="fixed inset-0 z-[115] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="day-close-v2-title">
     <section className="flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
       <header className="flex items-center justify-between bg-[#800000] px-5 py-4 text-white">
@@ -226,6 +293,9 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
 
       <div className="overflow-y-auto p-4 sm:p-6">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5">Filiale: {branch}</span><span className="rounded-full bg-white px-3 py-1.5">Geschäftstag: {businessDate}</span></div>
+
+        {stage==='loading'&&<div className="py-16 text-center"><RefreshCw className="mx-auto animate-spin text-[#800000]" size={52}/><p className="mt-4 font-bold">Geschäftstag wird geladen …</p></div>}
+        {stage==='load-error'&&<div className="mx-auto max-w-2xl rounded-2xl border-2 border-red-300 bg-red-50 p-5 text-center font-bold text-red-800">{contextError}</div>}
 
         {stage==='report'&&<form onSubmit={submitReport} className="mx-auto max-w-3xl">
           <div className="text-center"><Monitor className="mx-auto text-[#800000]" size={48}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Tageswerte erfassen</h3><p className="mt-2 text-black/60">Öffne den Filialbericht in EuroControl.</p></div>
@@ -273,6 +343,15 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
           littleBerthaCents={context.littleBerthaCents ?? 100000}
           onConfirmMovement={finishMovement}
           onSaveCount={finishSafeCount}
+          onBack={()=>{setStage('dashboard');setActiveProcess('');}}
+        />}
+
+        {stage==='process'&&activeProcess==='finalize'&&<TagesabschlussV2Finalize
+          reportData={reportData}
+          calculation={bankCalculation}
+          safeCount={finalSafeCount}
+          closingCount={context.closingCount}
+          onFinalize={finalizeV2}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
         />}
 

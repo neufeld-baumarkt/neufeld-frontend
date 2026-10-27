@@ -65,6 +65,7 @@ export default function Tageskassenabrechnung() {
   const [receiptError, setReceiptError] = useState('');
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [activeOpenings, setActiveOpenings] = useState([]);
+  const [dayClosingCount, setDayClosingCount] = useState(0);
   const [businessDayStatus, setBusinessDayStatus] = useState('open');
   const [branches, setBranches] = useState([]);
   const user = useMemo(() => {
@@ -79,6 +80,7 @@ export default function Tageskassenabrechnung() {
   const canPreviewDayCloseV2 = ['Admin','Supervisor'].includes(user.role);
   const displayedBusinessDate = formatBusinessDate(selectedBusinessDate);
   const historicalMode = selectedBusinessDate !== currentBusinessDate;
+  const canStartDayCloseV2 = businessDayStatus === 'open' && activeOpenings.length === 0 && dayClosingCount > 0;
 
   useEffect(() => {
     setActiveCashBusinessDate(selectedBusinessDate);
@@ -164,7 +166,7 @@ export default function Tageskassenabrechnung() {
                   type="date"
                   value={selectedBusinessDate}
                   max={currentBusinessDate}
-                  onChange={(event)=>{setOpeningCountOpen(false);setClosingOpen(false);setSafeCountOpen(false);setDayCloseOpen(false);setActiveOpenings([]);setBusinessDayStatus('open');setSelectedBusinessDate(event.target.value||currentBusinessDate);}}
+                  onChange={(event)=>{setOpeningCountOpen(false);setClosingOpen(false);setSafeCountOpen(false);setDayCloseOpen(false);setActiveOpenings([]);setDayClosingCount(0);setBusinessDayStatus('open');setSelectedBusinessDate(event.target.value||currentBusinessDate);}}
                   className="mt-1 block min-h-11 w-full rounded-xl border border-white/20 bg-white px-3 font-bold text-[#242121]"
                 />
               </label>}
@@ -199,11 +201,11 @@ export default function Tageskassenabrechnung() {
           </div>
 
           {canPreviewDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
-            <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Admin-/Supervisor-Vorschau</div><strong className="mt-1 block text-xl">Modularen Tagesabschluss testen</strong><p className="mt-1 text-sm text-white/60">Reine Fantasiewerte · keine Speicherung · der bisherige Ablauf bleibt unverändert.</p></div>
-            <button type="button" onClick={()=>setDayCloseV2Open(true)} className="mt-4 min-h-12 shrink-0 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 sm:mt-0">Tagesabrechnung V2 starten</button>
+            <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Tagesabrechnung V2</div><strong className="mt-1 block text-xl">Geschäftstag verbindlich abschließen</strong><p className="mt-1 text-sm text-white/60">{canStartDayCloseV2 ? 'Alle begonnenen Kassenschichten sind beendet.' : 'Der Start wird nach der letzten Kassenabrechnung freigegeben.'}</p></div>
+            <button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="mt-4 min-h-12 shrink-0 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/35 sm:mt-0">Tagesabrechnung V2 starten</button>
           </div>}
 
-          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
+          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
           {branch&&branch.toLowerCase()!=='alle'&&<section className="mt-7 rounded-3xl border border-amber-300/20 bg-white/[.06] p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div><div className="text-xs font-black uppercase tracking-[.2em] text-amber-300/75">Noch nicht archiviert</div><h2 className="mt-1 text-2xl font-black">Einzahlungsbelege fehlen</h2></div>
@@ -250,17 +252,11 @@ export default function Tageskassenabrechnung() {
       {dayCloseV2Open&&<TagesabschlussV2Modal
         branch={branch}
         businessDate={selectedBusinessDate}
-        context={{
-          bankPayoutCents:282500,
-          bankPayoutStatus:'provisional',
-          looseChangeCents:1459,
-          closingCount:5,
-          latestSafeCount:{countedTotalCents:250081,countType:'handover',completedAt:new Date().toISOString()},
-          safeStandardCents:250000,
-          individualCashBanknotes:{5:11,10:26,20:28,50:30,100:1,200:0},
-          eurocontrolSafeTargetCents:null,
-          processStates:{},
-        }}
+        loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)}
+        verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}
+        saveSafeCount={(payload)=>kassenabrechnungApi.saveSafeCount(payload,branch)}
+        finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)}
+        onComplete={async()=>{setArchiveRefreshKey((current)=>current+1);await loadReceiptClosings();}}
         onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
         onStartLegacy={()=>{setDayCloseV2Open(false);setDayCloseOpen(true);}}
         onClose={()=>setDayCloseV2Open(false)}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDayCloseV2ViewModel, calculateBankBooking, parseMoneyToCents, sumBanknoteCounts, validateDailyReport } from './tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, sumBanknoteCounts, validateDailyReport } from './tagesabschlussV2.mjs';
 
 test('berechnet Fortschritt nur aus erforderlichen Prozessen', () => {
   const model = buildDayCloseV2ViewModel({
@@ -65,6 +65,23 @@ test('liefert Kennzahlen aus dem gespeicherten Tageskontext', () => {
 
 test('summiert die Scheine aller Einzelkassen', () => {
   assert.equal(sumBanknoteCounts({ 5: 11, 10: 26, 20: 28, 50: 30, 100: 1, 200: 0 }), 247500);
+});
+
+test('übernimmt den echten Geschäftstag in den modularen V2-Kontext', () => {
+  const context = mapDayCloseContextToV2({
+    closings: [
+      { bankNoteCounts: { 500: 3, 1000: 2 }, looseChangeCents: 459 },
+      { bankNoteCounts: { 500: 4, 2000: 1 }, looseChangeCents: 1000 },
+    ],
+    baseSafeCount: { countedTotalCents: 250081, fixedDrawerCents: 50000, littleBerthaCents: 100000 },
+    totals: { cashRevenueCents: 248959, looseChangeTotalCents: 1459, standardBalanceCents: 250000 },
+  });
+  assert.equal(context.bankPayoutCents, 248959);
+  assert.equal(context.looseChangeCents, 1459);
+  assert.equal(context.closingCount, 2);
+  assert.deepEqual(context.individualCashBanknotes, { 5: 7, 10: 2, 20: 1, 50: 0, 100: 0, 200: 0 });
+  assert.equal(context.fixedDrawerCents, 50000);
+  assert.equal(context.littleBerthaCents, 100000);
 });
 
 test('prüft Scheine plus Kleingeldausgleich hart gegen den Filialbericht', () => {

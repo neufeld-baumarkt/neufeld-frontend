@@ -120,6 +120,31 @@ export function validateDailyReport(values = {}) {
 
 export const BANKNOTE_DENOMINATIONS = Object.freeze([5, 10, 20, 50, 100, 200]);
 
+export function mapDayCloseContextToV2(dayContext = {}) {
+  const totals = dayContext.totals || {};
+  const individualCashBanknotes = Object.fromEntries(BANKNOTE_DENOMINATIONS.map((denomination) => {
+    const cents = denomination * 100;
+    const count = (dayContext.closings || []).reduce((sum, closing) => (
+      sum + Number(closing?.bankNoteCounts?.[cents] ?? closing?.bankNoteCounts?.[String(cents)] ?? 0)
+    ), 0);
+    return [denomination, count];
+  }));
+  const baseSafe = dayContext.baseSafeCount || null;
+  return {
+    bankPayoutCents: Number.isInteger(totals.cashRevenueCents) ? totals.cashRevenueCents : null,
+    bankPayoutStatus: 'provisional',
+    looseChangeCents: Number(totals.looseChangeTotalCents || 0),
+    closingCount: (dayContext.closings || []).length,
+    latestSafeCount: baseSafe,
+    safeStandardCents: Number.isInteger(totals.standardBalanceCents) ? totals.standardBalanceCents : null,
+    fixedDrawerCents: Number(baseSafe?.fixedDrawerCents || 0),
+    littleBerthaCents: Number(baseSafe?.littleBerthaCents || 0),
+    individualCashBanknotes,
+    eurocontrolSafeTargetCents: null,
+    processStates: {},
+  };
+}
+
 export function normalizeBanknoteCounts(counts = {}) {
   return Object.fromEntries(BANKNOTE_DENOMINATIONS.map((denomination) => {
     const count = Number(counts[denomination] ?? counts[String(denomination)] ?? 0);
