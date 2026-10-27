@@ -91,8 +91,14 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
     processStates: {
       ...context.processStates,
       ...(reportData ? { 'daily-report': { status: 'completed' } } : {}),
+      ...(canOpenDepositSafe === false ? {
+        'bank-preparation': {
+          status: 'completed',
+          description: 'Die App stellt die Stückelung automatisch aus den Einzelkassen bereit.',
+        },
+      } : {}),
     },
-  }), [context, reportData]);
+  }), [context, reportData, canOpenDepositSafe]);
   const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
   const groups = [...new Set(model.processes.map((process) => process.group))];
   const safe = model.summary.latestSafeCount;
