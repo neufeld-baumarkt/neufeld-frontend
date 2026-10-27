@@ -139,7 +139,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context, o
         </form>}
 
         {stage==='safe-access'&&<div className="mx-auto max-w-3xl text-center">
-          <Landmark className="mx-auto text-[#800000]" size={54}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Könnt ihr den Einwurftresor öffnen?</h3><p className="mt-2 text-black/60">Die Antwort bestimmt nur, welche Stückelung die App später bereitstellt.</p>
+          <Landmark className="mx-auto text-[#800000]" size={54}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Könnt ihr den Einwurftresor öffnen?</h3>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <button type="button" onClick={()=>chooseSafeAccess(true)} className="min-h-36 rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-5 text-left text-emerald-950"><strong className="text-2xl">Ja</strong><span className="mt-2 block">Das Geld wird physisch gezählt.</span></button>
             <button type="button" onClick={()=>chooseSafeAccess(false)} className="min-h-36 rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 text-left text-amber-950"><strong className="text-2xl">Nein</strong><span className="mt-2 block">Die App stellt die Stückelung aus den Kassen bereit.</span></button>
