@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
 import { buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import { DAY_CLOSE_DEMO_BANKNOTES, DAY_CLOSE_DEMO_REPORT, DAY_CLOSE_DEMO_SAFE_COUNT, DAY_CLOSE_DEMO_SAFE_TARGET } from '../../lib/tagesabschlussDemo.mjs';
 import BarAnBankV2Process from './BarAnBankV2Process';
 import TagesabschlussV2Finalize from './TagesabschlussV2Finalize';
 import TresorabschlussV2Process from './TresorabschlussV2Process';
@@ -83,17 +84,17 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   </div>;
 }
 
-export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onStartLegacy, onClose }) {
+export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, demoMode = false, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onStartLegacy, onClose }) {
   const [openInfo, setOpenInfo] = useState('');
   const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
   const [dayCloseContext, setDayCloseContext] = useState(null);
   const [contextError, setContextError] = useState('');
-  const [report, setReport] = useState(emptyReport);
+  const [report, setReport] = useState(demoMode ? { ...DAY_CLOSE_DEMO_REPORT } : emptyReport);
   const [reportData, setReportData] = useState(null);
   const [errors, setErrors] = useState({});
   const [canOpenDepositSafe, setCanOpenDepositSafe] = useState(null);
   const [activeProcess, setActiveProcess] = useState('');
-  const [manualBanknoteCounts, setManualBanknoteCounts] = useState({});
+  const [manualBanknoteCounts, setManualBanknoteCounts] = useState(demoMode ? { ...DAY_CLOSE_DEMO_BANKNOTES } : {});
   const [localProcessStates, setLocalProcessStates] = useState({});
   const [safeTargetInput, setSafeTargetInput] = useState('');
   const [safeTargetCents, setSafeTargetCents] = useState(null);
@@ -162,7 +163,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setErrors(result.errors);
     if (!result.valid) return;
     setReportData(result.data);
-    setSafeTargetInput('');
+    setSafeTargetInput(demoMode ? DAY_CLOSE_DEMO_SAFE_TARGET : '');
     setSafeTargetCents(null);
     setSafeTargetError('');
     setFinalSafeCount(null);
@@ -176,7 +177,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
 
   const chooseSafeAccess = (value) => {
     setCanOpenDepositSafe(value);
-    setSafeTargetInput('');
+    setSafeTargetInput(demoMode ? DAY_CLOSE_DEMO_SAFE_TARGET : '');
     setSafeTargetCents(null);
     setSafeTargetError('');
     setFinalSafeCount(null);
@@ -249,6 +250,11 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   };
 
   const finalizeV2 = async ({ firstPin, secondPin }) => {
+    if (demoMode) {
+      const approvals = [{ id: 'demo-1', name: 'Demo Mitarbeiter 1' }, { id: 'demo-2', name: 'Demo Mitarbeiter 2' }];
+      setLocalProcessStates((current) => ({ ...current, finalize: { status: 'completed', completedAt: new Date().toISOString() } }));
+      return { report: { demo: true }, approvals };
+    }
     if (!verifyPin || !saveSafeCount || !finalizeDay || !dayCloseContext) {
       throw new Error('Der verbindliche Abschluss ist in dieser Vorschau nicht verbunden.');
     }
@@ -293,12 +299,13 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   return <div className="fixed inset-0 z-[115] flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="day-close-v2-title">
     <section className="flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
       <header className="flex items-center justify-between bg-[#800000] px-5 py-4 text-white">
-        <div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung · DEV</div><h2 id="day-close-v2-title" className="text-2xl font-black">Tagesabrechnung</h2></div>
+        <div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung · {demoMode ? 'DEMO' : 'DEV'}</div><h2 id="day-close-v2-title" className="text-2xl font-black">Tagesabrechnung</h2></div>
         <button type="button" onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10" aria-label="Schließen"><X/></button>
       </header>
 
       <div className="overflow-y-auto p-4 sm:p-6">
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5">Filiale: {branch}</span><span className="rounded-full bg-white px-3 py-1.5">Geschäftstag: {businessDate}</span></div>
+        {demoMode&&<div className="mb-5 rounded-2xl border-2 border-amber-400 bg-amber-100 p-4 text-center font-black text-amber-950">DEMO · Fantasiewerte · Es werden keine Daten gespeichert.</div>}
 
         {stage==='loading'&&<div className="py-16 text-center"><RefreshCw className="mx-auto animate-spin text-[#800000]" size={52}/><p className="mt-4 font-bold">Geschäftstag wird geladen …</p></div>}
         {stage==='load-error'&&<div className="mx-auto max-w-2xl rounded-2xl border-2 border-red-300 bg-red-50 p-5 text-center font-bold text-red-800">{contextError}</div>}
@@ -347,6 +354,9 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           safeTargetCents={safeTargetCents}
           fixedDrawerCents={context.fixedDrawerCents ?? 50000}
           littleBerthaCents={context.littleBerthaCents ?? 100000}
+          initialLooseMoney={demoMode ? DAY_CLOSE_DEMO_SAFE_COUNT.looseMoney : ''}
+          initialRollCounts={demoMode ? DAY_CLOSE_DEMO_SAFE_COUNT.rollCounts : {}}
+          initialNoteCounts={demoMode ? DAY_CLOSE_DEMO_SAFE_COUNT.noteCounts : {}}
           onConfirmMovement={finishMovement}
           onSaveCount={finishSafeCount}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
@@ -357,6 +367,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           calculation={bankCalculation}
           safeCount={finalSafeCount}
           closingCount={context.closingCount}
+          demoMode={demoMode}
           onFinalize={finalizeV2}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
         />}
@@ -386,7 +397,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           {completedProcesses.length>0&&<section className="mt-6"><button type="button" onClick={()=>setCompletedOpen((current)=>!current)} className="flex min-h-11 w-full items-center justify-between rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 font-black text-emerald-900"><span>Erledigt · {completedProcesses.length}</span><ChevronDown className={`transition ${completedOpen?'rotate-180':''}`} size={18}/></button>{completedOpen&&<div className="mt-3 grid gap-3 md:grid-cols-2">{completedProcesses.map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div>}</section>}
         </div>
 
-        <div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>
+        {!demoMode&&<div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>}
         </>}
       </div>
     </section>

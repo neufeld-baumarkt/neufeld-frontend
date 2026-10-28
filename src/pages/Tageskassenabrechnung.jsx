@@ -24,6 +24,7 @@ import { kassenabrechnungApi } from '../lib/kassenabrechnungApi';
 import { canUseCashModule, needsTemporaryCashBranch } from '../lib/cashModuleAccess.mjs';
 import { berlinBusinessDate, canSelectHistoricalBusinessDate, formatBusinessDate, setActiveCashBusinessDate } from '../lib/cashBusinessDate.mjs';
 import { formatEuroCents } from '../lib/einzahlungsbeleg.mjs';
+import { DAY_CLOSE_DEMO_CONTEXT } from '../lib/tagesabschlussDemo.mjs';
 
 const processes = [
   {
@@ -58,6 +59,7 @@ export default function Tageskassenabrechnung() {
   const [safeCountMode, setSafeCountMode] = useState({ initialType:'', forceNewClosing:false });
   const [dayCloseOpen, setDayCloseOpen] = useState(false);
   const [dayCloseV2Open, setDayCloseV2Open] = useState(false);
+  const [dayCloseDemoOpen, setDayCloseDemoOpen] = useState(false);
   const [safeRefreshKey, setSafeRefreshKey] = useState(0);
   const [archiveRefreshKey, setArchiveRefreshKey] = useState(0);
   const [receiptClosings, setReceiptClosings] = useState([]);
@@ -202,7 +204,7 @@ export default function Tageskassenabrechnung() {
 
           {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
             <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Tagesabrechnung V2</div><strong className="mt-1 block text-xl">Geschäftstag verbindlich abschließen</strong><p className="mt-1 text-sm text-white/60">{canStartDayCloseV2 ? 'Alle begonnenen Kassenschichten sind beendet.' : 'Der Start wird nach der letzten Kassenabrechnung freigegeben.'}</p></div>
-            <button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="mt-4 min-h-12 shrink-0 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/35 sm:mt-0">Tagesabrechnung V2 starten</button>
+            <div className="mt-4 flex shrink-0 flex-col gap-2 sm:mt-0"><button type="button" onClick={()=>setDayCloseDemoOpen(true)} className="min-h-12 rounded-xl border-2 border-amber-300 bg-amber-300/15 px-5 font-black text-amber-100 hover:bg-amber-300/25">Demo V2.1 starten</button><button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="min-h-12 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/35">Tagesabrechnung V2 starten</button></div>
           </div>}
 
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
@@ -261,6 +263,13 @@ export default function Tageskassenabrechnung() {
         onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
         onStartLegacy={()=>{setDayCloseV2Open(false);setDayCloseOpen(true);}}
         onClose={()=>setDayCloseV2Open(false)}
+      />}
+      {dayCloseDemoOpen&&<TagesabschlussV2Modal
+        demoMode
+        branch={branch}
+        businessDate="DEMO"
+        context={DAY_CLOSE_DEMO_CONTEXT}
+        onClose={()=>setDayCloseDemoOpen(false)}
       />}
       {safeCountOpen && (
         <TresorzaehlungsModal

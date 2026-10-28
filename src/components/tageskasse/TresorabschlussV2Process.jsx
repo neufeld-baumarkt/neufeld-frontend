@@ -18,11 +18,11 @@ function CountInput({ label, value, result, onChange, onEnter }) {
   </label>;
 }
 
-export default function TresorabschlussV2Process({ mode, transferCents, safeTargetCents, fixedDrawerCents, littleBerthaCents, onConfirmMovement, onSaveCount, onBack }) {
-  const [looseMoney, setLooseMoney] = useState('');
+export default function TresorabschlussV2Process({ mode, transferCents, safeTargetCents, fixedDrawerCents, littleBerthaCents, initialLooseMoney = '', initialRollCounts = {}, initialNoteCounts = {}, onConfirmMovement, onSaveCount, onBack }) {
+  const [looseMoney, setLooseMoney] = useState(initialLooseMoney);
   const [looseError, setLooseError] = useState('');
-  const [rollCounts, setRollCounts] = useState({});
-  const [noteCounts, setNoteCounts] = useState({});
+  const [rollCounts, setRollCounts] = useState(initialRollCounts);
+  const [noteCounts, setNoteCounts] = useState(initialNoteCounts);
   const inputRefs = useRef([]);
   const looseMoneyCents = parseMoneyToCents(looseMoney);
   const result = useMemo(() => calculateSafeCount({
