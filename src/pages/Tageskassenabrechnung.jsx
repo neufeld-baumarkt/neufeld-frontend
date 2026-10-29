@@ -172,13 +172,14 @@ export default function Tageskassenabrechnung() {
                   className="mt-1 block min-h-11 w-full rounded-xl border border-white/20 bg-white px-3 font-bold text-[#242121]"
                 />
               </label>}
+              {branch&&branch.toLowerCase()!=='alle'&&<button type="button" onClick={()=>setDayCloseDemoOpen(true)} className="mt-3 min-h-11 w-full rounded-xl border border-amber-300/60 bg-amber-300/10 px-4 font-black text-amber-100 hover:bg-amber-300/20">Demo starten</button>}
             </div>
           </div>
           {historicalMode&&<div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-300/15 p-4 font-bold text-amber-100">
             Nacherfassungsmodus: Alle Vorgänge werden verbindlich dem Geschäftstag {displayedBusinessDate} zugeordnet. Der Modus endet automatisch beim Verlassen dieser Seite.
           </div>}
 
-          <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {processes.map((process) => {
               const Icon = process.icon;
               return (
@@ -186,26 +187,21 @@ export default function Tageskassenabrechnung() {
                   type="button"
                   onClick={() => openProcess(process)}
                   key={process.label}
-                  className={`relative min-h-56 overflow-hidden rounded-2xl border p-5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:p-6 ${process.enabled ? 'border-amber-300/30 bg-white/[.09] hover:-translate-y-1 hover:bg-white/[.13]' : 'border-white/10 bg-white/[.07] text-white/60'}`}
+                  className={`relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${process.enabled ? 'border-amber-300/30 bg-white/[.09] hover:-translate-y-1 hover:bg-white/[.13]' : 'border-white/10 bg-white/[.07] text-white/60'}`}
                 >
-                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20">
-                    <Icon size={30} strokeWidth={2.25} aria-hidden="true" />
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20">
+                    <Icon size={26} strokeWidth={2.25} aria-hidden="true" />
                   </span>
-                  <h2 className="mt-5 text-2xl font-black">{process.label}</h2>
-                  <p className="mt-2 leading-relaxed text-white/60">{process.description}</p>
-                  <div className={`mt-5 flex items-center gap-2 text-sm font-bold ${process.enabled ? 'text-amber-200' : 'text-amber-200/70'}`}>
+                  <h2 className="mt-4 text-xl font-black">{process.label}</h2>
+                  <div className={`mt-3 flex items-center gap-2 text-sm font-bold ${process.enabled ? 'text-amber-200' : 'text-amber-200/70'}`}>
                     {process.enabled ? <ShieldCheck size={17} aria-hidden="true" /> : <LockKeyhole size={17} aria-hidden="true" />}
                     {process.enabled ? 'Jetzt starten' : 'Wird im nächsten Schritt freigeschaltet'}
                   </div>
                 </button>
               );
             })}
+            {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="relative min-h-40 overflow-hidden rounded-2xl border border-amber-300/30 bg-white/[.09] p-4 text-left transition hover:-translate-y-1 hover:bg-white/[.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[.04] disabled:text-white/40 disabled:hover:translate-y-0"><span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20"><ReceiptText size={26} strokeWidth={2.25} aria-hidden="true"/></span><h2 className="mt-4 text-xl font-black">Tagesabrechnung</h2><div className={`mt-3 flex items-center gap-2 text-sm font-bold ${canStartDayCloseV2?'text-amber-200':'text-white/35'}`}>{canStartDayCloseV2?<ShieldCheck size={17}/>:<LockKeyhole size={17}/>}<span>{canStartDayCloseV2?'Jetzt starten':'Noch nicht verfügbar'}</span></div></button>}
           </div>
-
-          {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<div className="mt-6 rounded-2xl border-2 border-emerald-300/35 bg-emerald-400/10 p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
-            <div><div className="text-xs font-black uppercase tracking-[.18em] text-emerald-200">Tagesabrechnung V2</div><strong className="mt-1 block text-xl">Geschäftstag verbindlich abschließen</strong><p className="mt-1 text-sm text-white/60">{canStartDayCloseV2 ? 'Alle begonnenen Kassenschichten sind beendet.' : 'Der Start wird nach der letzten Kassenabrechnung freigegeben.'}</p></div>
-            <div className="mt-4 flex shrink-0 flex-col gap-2 sm:mt-0"><button type="button" onClick={()=>setDayCloseDemoOpen(true)} className="min-h-12 rounded-xl border-2 border-amber-300 bg-amber-300/15 px-5 font-black text-amber-100 hover:bg-amber-300/25">Demo V2.1 starten</button><button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="min-h-12 rounded-xl bg-emerald-600 px-5 font-black text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/35">Tagesabrechnung V2 starten</button></div>
-          </div>}
 
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}} onStartDayClose={()=>setDayCloseOpen(true)}/>}
           {branch&&branch.toLowerCase()!=='alle'&&<section className="mt-7 rounded-3xl border border-amber-300/20 bg-white/[.06] p-4 sm:p-6">
