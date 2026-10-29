@@ -5,12 +5,12 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
-  Clock3,
   Landmark,
   LockKeyhole,
   Monitor,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   Users,
   X,
 } from 'lucide-react';
@@ -84,6 +84,14 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   </div>;
 }
 
+function DemoCoach({ tip, onDismiss, onStop }) {
+  if (!tip) return null;
+  return <aside className="fixed bottom-4 left-4 right-4 z-[170] mx-auto max-w-xl rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 text-amber-950 shadow-2xl sm:bottom-6 sm:left-auto sm:right-6" role="status">
+    <div className="flex items-start gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-400 text-amber-950"><Sparkles className="animate-pulse" size={23}/></span><div className="min-w-0 flex-1"><span className="text-xs font-black uppercase tracking-[.18em] opacity-55">Demo-Tipp</span><strong className="mt-1 block text-lg">{tip.title}</strong><p className="mt-1 text-sm font-bold opacity-75">{tip.text}</p></div></div>
+    <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={onStop} className="min-h-10 rounded-xl px-3 text-sm font-bold opacity-60">Tour beenden</button><button type="button" onClick={onDismiss} className="min-h-10 rounded-xl bg-amber-400 px-4 text-sm font-black">Verstanden</button></div>
+  </aside>;
+}
+
 export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, demoMode = false, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onStartLegacy, onClose }) {
   const [openInfo, setOpenInfo] = useState('');
   const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
@@ -103,6 +111,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [persistedFinalSafeCount, setPersistedFinalSafeCount] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const [coachEnabled, setCoachEnabled] = useState(demoMode);
+  const [dismissedCoachKey, setDismissedCoachKey] = useState('');
   const context = useMemo(() => dayCloseContext ? mapDayCloseContextToV2(dayCloseContext) : (initialContext || {}), [dayCloseContext, initialContext]);
   useEffect(() => {
     if (!loadContext) return;
@@ -151,10 +161,21 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const model = useMemo(() => buildDayCloseV2ViewModel(enrichedContext), [enrichedContext]);
   const openProcesses = model.processes.filter((process) => process.status !== 'completed');
   const completedProcesses = model.processes.filter((process) => process.status === 'completed');
-  const recommendedProcess = openProcesses.find((process) => process.status === 'in_progress')
-    || openProcesses.find((process) => process.status === 'open');
   const safe = model.summary.latestSafeCount;
   const bankFinal = model.summary.bankPayoutStatus === 'final';
+  const coachKey = stage === 'process' ? `process-${activeProcess}` : stage;
+  const coachTips = {
+    report: { title: 'Mit dem Filialbericht beginnen', text: 'Trage die vier Werte ein. Die Demowerte sind schon vorbereitet und dürfen verändert werden.' },
+    'safe-access': { title: 'Einwurftresor auswählen', text: 'Deine Antwort entscheidet nur, ob ihr die Scheine selbst zählt oder die App die Stückelung vorbereitet.' },
+    dashboard: { title: 'Einzelprozesse frei auswählen', text: 'Alle verfügbaren Schritte sind gleichwertig. Nur Schritte mit fehlenden Pflichtwerten bleiben vorübergehend gesperrt.' },
+    'process-bank-preparation': { title: 'Scheine für Bar an Bank', text: 'Zähle die Scheine oder nutze die bereitgestellte Stückelung. Danach geht es zurück zur Übersicht.' },
+    'process-bank-booking': { title: 'In EuroControl buchen', text: 'Übertrage die angezeigte Stückelung und danach das Tresor-SOLL aus EuroControl.' },
+    'process-safe-movement': { title: 'Jetzt zum Tresor', text: 'Nimm genau den angezeigten Gesamtbetrag heraus und lege ihn zu Bar an Bank.' },
+    'process-final-safe-count': { title: 'Tresor abschließend zählen', text: 'Erfasse jetzt den endgültigen Bestand. Die Demo hat passende Übungswerte vorbereitet.' },
+    'process-finalize': { title: 'Alles gemeinsam abschließen', text: 'In der Demo genügen zwei unterschiedliche vierstellige Demo-Codes. Es wird nichts gespeichert.' },
+  };
+  const coachTip = demoMode && coachEnabled && dismissedCoachKey !== coachKey ? coachTips[coachKey] : null;
+  const coachRing = coachTip ? 'ring-4 ring-amber-400 ring-offset-4 ring-offset-[#f7f4ef]' : '';
 
   const updateReport = (event) => setReport((current) => ({ ...current, [event.target.name]: event.target.value }));
   const submitReport = (event) => {
@@ -310,7 +331,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
         {stage==='loading'&&<div className="py-16 text-center"><RefreshCw className="mx-auto animate-spin text-[#800000]" size={52}/><p className="mt-4 font-bold">Geschäftstag wird geladen …</p></div>}
         {stage==='load-error'&&<div className="mx-auto max-w-2xl rounded-2xl border-2 border-red-300 bg-red-50 p-5 text-center font-bold text-red-800">{contextError}</div>}
 
-        {stage==='report'&&<form onSubmit={submitReport} className="mx-auto max-w-3xl">
+        {stage==='report'&&<form onSubmit={submitReport} className={`mx-auto max-w-3xl rounded-2xl ${coachRing}`}>
           <div className="text-center"><Monitor className="mx-auto text-[#800000]" size={48}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Tageswerte erfassen</h3><p className="mt-2 text-black/60">Öffne den Filialbericht in EuroControl.</p></div>
           <div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 text-amber-950">
             <strong className="block text-lg">In die Signal-Gruppe senden:</strong>
@@ -325,7 +346,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           <button type="submit" className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">Werte speichern</button>
         </form>}
 
-        {stage==='safe-access'&&<div className="mx-auto max-w-3xl text-center">
+        {stage==='safe-access'&&<div className={`mx-auto max-w-3xl rounded-2xl text-center ${coachRing}`}>
           <Landmark className="mx-auto text-[#800000]" size={54}/><h3 className="mt-3 text-2xl font-black sm:text-3xl">Könnt ihr den Einwurftresor öffnen?</h3>
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <button type="button" onClick={()=>chooseSafeAccess(true)} className="min-h-36 rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-5 text-left text-emerald-950"><strong className="text-2xl">Ja</strong><span className="mt-2 block">Das Geld wird physisch gezählt.</span></button>
@@ -334,7 +355,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           <button type="button" onClick={()=>setStage('report')} className="mt-5 min-h-11 rounded-xl px-5 font-bold text-black/60">← Tageswerte ändern</button>
         </div>}
 
-        {stage==='process'&&(activeProcess==='bank-preparation'||activeProcess==='bank-booking')&&<BarAnBankV2Process
+        {stage==='process'&&(activeProcess==='bank-preparation'||activeProcess==='bank-booking')&&<div className={`rounded-2xl ${coachRing}`}><BarAnBankV2Process
           mode={activeProcess}
           canOpenDepositSafe={canOpenDepositSafe}
           counts={banknoteCounts}
@@ -346,9 +367,9 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           onSavePreparation={finishPreparation}
           onConfirmBooking={finishBooking}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
-        />}
+        /></div>}
 
-        {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<TresorabschlussV2Process
+        {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<div className={`rounded-2xl ${coachRing}`}><TresorabschlussV2Process
           mode={activeProcess}
           transferCents={bankCalculation.safeTransferCents}
           safeTargetCents={safeTargetCents}
@@ -360,9 +381,9 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           onConfirmMovement={finishMovement}
           onSaveCount={finishSafeCount}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
-        />}
+        /></div>}
 
-        {stage==='process'&&activeProcess==='finalize'&&<TagesabschlussV2Finalize
+        {stage==='process'&&activeProcess==='finalize'&&<div className={`rounded-2xl ${coachRing}`}><TagesabschlussV2Finalize
           reportData={reportData}
           calculation={bankCalculation}
           safeCount={finalSafeCount}
@@ -370,7 +391,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           demoMode={demoMode}
           onFinalize={finalizeV2}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
-        />}
+        /></div>}
 
         {stage==='dashboard'&&<>
         <div className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border-2 p-4 ${canOpenDepositSafe ? 'border-emerald-300 bg-emerald-50 text-emerald-950' : 'border-amber-300 bg-amber-50 text-amber-950'}`}>
@@ -392,14 +413,14 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
         }
 
         <div className="mt-6">
-          {recommendedProcess&&<section><div className="mb-3 flex items-center gap-2"><Clock3 size={18} className="text-[#800000]"/><h3 className="text-lg font-black">Als Nächstes sinnvoll</h3></div><ProcessCard process={recommendedProcess} onStart={startProcess} infoOpen={openInfo===recommendedProcess.id} onToggleInfo={()=>setOpenInfo((current)=>current===recommendedProcess.id?'':recommendedProcess.id)}/></section>}
-          {openProcesses.filter((process)=>process.id!==recommendedProcess?.id).length>0&&<section className="mt-6"><h3 className="mb-3 text-sm font-black uppercase tracking-wide text-black/45">Weitere offene Schritte</h3><div className="grid gap-3 md:grid-cols-2">{openProcesses.filter((process)=>process.id!==recommendedProcess?.id).map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>}
+          {openProcesses.length>0&&<section className={`rounded-2xl ${stage==='dashboard' ? coachRing : ''}`}><h3 className="mb-3 text-lg font-black">Einzelprozesse</h3><div className="grid gap-3 md:grid-cols-2">{openProcesses.map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div></section>}
           {completedProcesses.length>0&&<section className="mt-6"><button type="button" onClick={()=>setCompletedOpen((current)=>!current)} className="flex min-h-11 w-full items-center justify-between rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 font-black text-emerald-900"><span>Erledigt · {completedProcesses.length}</span><ChevronDown className={`transition ${completedOpen?'rotate-180':''}`} size={18}/></button>{completedOpen&&<div className="mt-3 grid gap-3 md:grid-cols-2">{completedProcesses.map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div>}</section>}
         </div>
 
         {!demoMode&&<div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>}
         </>}
       </div>
+      <DemoCoach tip={coachTip} onDismiss={()=>setDismissedCoachKey(coachKey)} onStop={()=>setCoachEnabled(false)}/>
     </section>
   </div>;
 }
