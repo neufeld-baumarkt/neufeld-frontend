@@ -5,14 +5,14 @@ import { COIN_ROLLS, SAFE_NOTES, calculateSafeCount } from '../../lib/tresorzaeh
 import { parseMoneyToCents } from '../../lib/tagesabschlussV2.mjs';
 
 function CountInput({ label, value, result, onChange, onEnter }) {
-  return <label className="rounded-2xl border-2 border-black/10 bg-white p-3 text-center font-black">
+  return <label className="block w-full min-w-0 rounded-2xl border-2 border-black/10 bg-white p-3 text-center font-black">
     <span>{label}</span>
     <input
       inputMode="numeric"
       value={value || ''}
       onChange={(event)=>onChange(event.target.value)}
       onKeyDown={(event)=>{if(event.key==='Enter'){event.preventDefault();onEnter?.();}}}
-      className="mt-2 min-h-12 w-full rounded-xl border-2 border-black/10 px-3 text-center text-lg font-black outline-none focus:border-[#800000]"
+      className="mt-2 min-h-12 w-full min-w-0 rounded-xl border-2 border-black/10 px-3 text-center text-lg font-black outline-none focus:border-[#800000]"
     />
     <span className="mt-1 block text-sm font-normal text-black/50">{formatEuroFromCents(result)}</span>
   </label>;
@@ -70,12 +70,12 @@ export default function TresorabschlussV2Process({ mode, transferCents, safeTarg
 
     <h4 className="mb-3 mt-6 text-xl font-black">Münzrollen</h4>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {COIN_ROLLS.map((item,itemIndex)=>{const index=itemIndex+1;return <div key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={rollCounts[item.cents]} result={(rollCounts[item.cents]||0)*item.rollValueCents} onChange={(value)=>updateCount(setRollCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
+      {COIN_ROLLS.map((item,itemIndex)=>{const index=itemIndex+1;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={rollCounts[item.cents]} result={(rollCounts[item.cents]||0)*item.rollValueCents} onChange={(value)=>updateCount(setRollCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
     </div>
 
     <h4 className="mb-3 mt-6 text-xl font-black">Scheine</h4>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {SAFE_NOTES.map((item,itemIndex)=>{const index=COIN_ROLLS.length+1+itemIndex;return <div key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={noteCounts[item.cents]} result={(noteCounts[item.cents]||0)*item.cents} onChange={(value)=>updateCount(setNoteCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
+      {SAFE_NOTES.map((item,itemIndex)=>{const index=COIN_ROLLS.length+1+itemIndex;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={noteCounts[item.cents]} result={(noteCounts[item.cents]||0)*item.cents} onChange={(value)=>updateCount(setNoteCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
     </div>
 
     <div className={`mt-6 rounded-2xl border-2 p-5 ${differenceCents === 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-950' : 'border-amber-400 bg-amber-50 text-amber-950'}`}>
