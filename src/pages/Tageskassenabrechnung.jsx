@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  ArrowRight,
   Banknote,
   Calculator,
   Landmark,
@@ -187,20 +188,13 @@ export default function Tageskassenabrechnung() {
                   type="button"
                   onClick={() => openProcess(process)}
                   key={process.label}
-                  className={`relative min-h-40 overflow-hidden rounded-2xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${process.enabled ? 'border-amber-300/30 bg-white/[.09] hover:-translate-y-1 hover:bg-white/[.13]' : 'border-white/10 bg-white/[.07] text-white/60'}`}
+                  className={`relative min-h-24 overflow-hidden rounded-xl border p-3 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${process.enabled ? 'border-amber-300/30 bg-white/[.09] hover:-translate-y-1 hover:bg-white/[.13]' : 'border-white/10 bg-white/[.07] text-white/60'}`}
                 >
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20">
-                    <Icon size={26} strokeWidth={2.25} aria-hidden="true" />
-                  </span>
-                  <h2 className="mt-4 text-xl font-black">{process.label}</h2>
-                  <div className={`mt-3 flex items-center gap-2 text-sm font-bold ${process.enabled ? 'text-amber-200' : 'text-amber-200/70'}`}>
-                    {process.enabled ? <ShieldCheck size={17} aria-hidden="true" /> : <LockKeyhole size={17} aria-hidden="true" />}
-                    {process.enabled ? 'Jetzt starten' : 'Wird im nächsten Schritt freigeschaltet'}
-                  </div>
+                  <div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20"><Icon size={24} strokeWidth={2.25} aria-hidden="true" /></span><div className="min-w-0 flex-1"><h2 className="text-lg font-black">{process.label}</h2><div className={`mt-1 flex items-center gap-2 text-sm font-bold ${process.enabled ? 'text-amber-200' : 'text-amber-200/70'}`}>{process.enabled ? <ShieldCheck size={16} aria-hidden="true" /> : <LockKeyhole size={16} aria-hidden="true" />}<span>{process.enabled ? 'Jetzt starten' : 'Noch nicht verfügbar'}</span></div></div><ArrowRight className="shrink-0 text-amber-200" size={21}/></div>
                 </button>
               );
             })}
-            {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="relative min-h-40 overflow-hidden rounded-2xl border border-amber-300/30 bg-white/[.09] p-4 text-left transition hover:-translate-y-1 hover:bg-white/[.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[.04] disabled:text-white/40 disabled:hover:translate-y-0"><span className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20"><ReceiptText size={26} strokeWidth={2.25} aria-hidden="true"/></span><h2 className="mt-4 text-xl font-black">Tagesabrechnung</h2><div className={`mt-3 flex items-center gap-2 text-sm font-bold ${canStartDayCloseV2?'text-amber-200':'text-white/35'}`}>{canStartDayCloseV2?<ShieldCheck size={17}/>:<LockKeyhole size={17}/>}<span>{canStartDayCloseV2?'Jetzt starten':'Noch nicht verfügbar'}</span></div></button>}
+            {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="relative min-h-24 overflow-hidden rounded-xl border border-amber-300/30 bg-white/[.09] p-3 text-left transition hover:-translate-y-1 hover:bg-white/[.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[.04] disabled:text-white/40 disabled:hover:translate-y-0"><div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20"><ReceiptText size={24} strokeWidth={2.25} aria-hidden="true"/></span><div className="min-w-0 flex-1"><h2 className="text-lg font-black">Tagesabrechnung</h2><div className={`mt-1 flex items-center gap-2 text-sm font-bold ${canStartDayCloseV2?'text-amber-200':'text-white/35'}`}>{canStartDayCloseV2?<ShieldCheck size={16}/>:<LockKeyhole size={16}/>}<span>{canStartDayCloseV2?'Jetzt starten':'Noch nicht verfügbar'}</span></div></div><ArrowRight className={`shrink-0 ${canStartDayCloseV2?'text-amber-200':'text-white/25'}`} size={21}/></div></button>}
           </div>
 
           {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}}/>}
