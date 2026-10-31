@@ -130,6 +130,7 @@ export function mapDayCloseContextToV2(dayContext = {}) {
     return [denomination, count];
   }));
   const baseSafe = dayContext.baseSafeCount || null;
+  const safeSettings = dayContext.safeSettings || {};
   return {
     bankPayoutCents: Number.isInteger(totals.cashRevenueCents) ? totals.cashRevenueCents : null,
     bankPayoutStatus: 'provisional',
@@ -137,11 +138,11 @@ export function mapDayCloseContextToV2(dayContext = {}) {
     closingCount: (dayContext.closings || []).length,
     latestSafeCount: baseSafe,
     safeStandardCents: Number.isInteger(totals.standardBalanceCents) ? totals.standardBalanceCents : null,
-    fixedDrawerCents: Number(baseSafe?.fixedDrawerCents || 0),
-    littleBerthaCents: Number(baseSafe?.littleBerthaCents || 0),
+    fixedDrawerCents: Number(baseSafe?.fixedDrawerCents ?? safeSettings.fixedDrawerCents ?? 0),
+    littleBerthaCents: Number(baseSafe?.littleBerthaCents ?? safeSettings.littleBerthaCents ?? 0),
     individualCashBanknotes,
     eurocontrolSafeTargetCents: null,
-    processStates: {},
+    processStates: dayContext.processStates || {},
   };
 }
 

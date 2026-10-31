@@ -18,11 +18,12 @@ import {
   countCashCents,
   formatEuroFromCents,
   matchesImmediatePreviousClosing,
+  nextDifferenceStep,
   openingDifferenceCents,
-  recountDestination,
-  takeoverDestination,
 } from '../../lib/kasseneinzaehlung.mjs';
 import { needsPersonalPinSetup, personalPinError } from '../../lib/employeePinRules.mjs';
+import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
+import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
 
 const EMPTY_COUNTS = Object.freeze({});
 
@@ -79,16 +80,13 @@ function FirstUsePinStep({ employees, employeeId, setEmployeeId, newPin, setNewP
 function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
   const inputRefs = useRef([]);
 
-  const handleEnter = (event, index) => {
+  const moveToNextField = (event, index) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
-    const nextInput = inputRefs.current[index + 1];
-    if (nextInput) {
-      nextInput.focus();
-      nextInput.select();
-      return;
-    }
-    document.querySelector('[data-cash-count-submit]')?.focus();
+    const nextTarget = inputRefs.current[index + 1]
+      || event.currentTarget.closest('[role="dialog"]')?.querySelector('[data-cash-count-submit]');
+    nextTarget?.focus();
+    nextTarget?.select?.();
   };
 
   return <div>
@@ -104,18 +102,18 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
       </div>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-      {CASH_DENOMINATIONS.map((denomination,index)=><label key={denomination.cents} className="rounded-xl border bg-[#faf9f7] p-3 text-center">
+      {CASH_DENOMINATIONS.map((denomination, index)=><label key={denomination.cents} className="rounded-xl border bg-[#faf9f7] p-3 text-center">
         <span className="text-sm font-black">{denomination.label}</span>
         <input
           inputMode="numeric"
-          enterKeyHint={index===CASH_DENOMINATIONS.length-1?'done':'next'}
           min="0"
           type="number"
-          ref={(element)=>{ inputRefs.current[index] = element; }}
+          enterKeyHint={index === CASH_DENOMINATIONS.length - 1 ? 'done' : 'next'}
+          ref={(element) => { inputRefs.current[index] = element; }}
           value={counts[denomination.cents]??''}
           onChange={(event)=>setCounts((current)=>({ ...current, [denomination.cents]: event.target.value }))}
-          onKeyDown={(event)=>handleEnter(event,index)}
-          onFocus={(event)=>event.target.select()}
+          onKeyDown={(event)=>moveToNextField(event, index)}
+          onFocus={(event)=>event.currentTarget.select()}
           className="mt-2 min-h-12 w-full rounded-lg border px-2 text-center text-lg font-bold outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15"
         />
         <span className="mt-1 block text-xs text-black/45">= {formatEuroFromCents(denomination.cents*(Number(counts[denomination.cents])||0))}</span>
@@ -124,26 +122,35 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
   </div>;
 }
 
-export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previousClosingFor, onComplete, loadFirstUseCandidates, activatePin, activeOpenings = [] }) {
-  const [stage, setStage] = useState('pin');
+export default function KasseneinzaehlModal({ branch, businessDate, initialDraft, saveDraft, closeDraft, onClose, verifyPin, previousClosingFor, loadFirstUseCandidates, activatePin, onComplete }) {
+  const restored = initialDraft?.state || {};
+  const [stage, setStage] = useState(initialDraft ? 'resume' : 'pin');
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [employee, setEmployee] = useState(null);
-  const [drawerNumber, setDrawerNumber] = useState(null);
-  const [occupiedOpening, setOccupiedOpening] = useState(null);
-  const [counts, setCounts] = useState(EMPTY_COUNTS);
-  const [attempts, setAttempts] = useState([]);
-  const [counter, setCounter] = useState(null);
-  const [previousClosing, setPreviousClosing] = useState(null);
+  const [employee, setEmployee] = useState(restored.employee || null);
+  const [drawerNumber, setDrawerNumber] = useState(restored.drawerNumber || null);
+  const [counts, setCounts] = useState(restored.counts || EMPTY_COUNTS);
+  const [attempts, setAttempts] = useState(restored.attempts || []);
+  const [counter, setCounter] = useState(restored.counter || null);
+  const [previousClosing, setPreviousClosing] = useState(restored.previousClosing || null);
   const [result, setResult] = useState(null);
   const [firstUseEmployees, setFirstUseEmployees] = useState([]);
   const [firstUseEmployeeId, setFirstUseEmployeeId] = useState('');
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [firstUseSecondPerson, setFirstUseSecondPerson] = useState(false);
+  const [resumeTargetStage, setResumeTargetStage] = useState('');
+  const [resumeNeedsCounter, setResumeNeedsCounter] = useState(false);
   const countedCents = useMemo(()=>countCashCents(counts), [counts]);
   const differenceCents = openingDifferenceCents(countedCents);
+  const draftState = useMemo(()=>({
+    employee: employee ? { id: employee.id, name: employee.name } : null,
+    counter: counter ? { id: counter.id, name: counter.name } : null,
+    drawerNumber, counts, attempts: attempts.map((attempt)=>({ ...attempt, countedBy: attempt.countedBy ? { id: attempt.countedBy.id, name: attempt.countedBy.name } : null })), previousClosing,
+  }), [attempts, counter, counts, drawerNumber, employee, previousClosing]);
+  const autosaveEnabled = Boolean(employee && !['resume','pin','first-use-pin','second-pin','complete'].includes(stage));
+  const draftSave = useWorkflowDraftAutosave({ enabled: autosaveEnabled, initialDraft, stage, state: draftState, saveDraft });
 
   useEffect(()=>{
     const closeOnEscape = (event) => { if (event.key === 'Escape') onClose(); };
@@ -170,11 +177,26 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
       }
       const identified = await verifyPin(pin, { branch, excludeEmployeeId: secondPerson ? employee?.id : null });
       if (secondPerson) {
+        if (resumeNeedsCounter && String(identified.id)!==String(restored.counter?.id)) throw new Error('Diese Einzählung kann nur von der zuvor beteiligten zweiten Person fortgesetzt werden.');
         setCounter(identified);
         setPin('');
-        setCounts({});
-        setStage('count');
+        if (resumeNeedsCounter) {
+          setResumeNeedsCounter(false);
+          setStage(resumeTargetStage || 'count');
+          setResumeTargetStage('');
+        } else {
+          setCounts({});
+          setStage('count');
+        }
       } else {
+        if (resumeTargetStage) {
+          if (String(identified.id)!==String(restored.employee?.id)) throw new Error('Diese Einzählung kann nur von der Person fortgesetzt werden, die sie begonnen hat.');
+          setEmployee(identified);
+          setPin('');
+          if (restored.counter?.id) { setResumeNeedsCounter(true); setStage('second-pin'); }
+          else { setStage(resumeTargetStage); setResumeTargetStage(''); }
+          return;
+        }
         setEmployee(identified);
         setPin('');
         setStage('drawer');
@@ -213,52 +235,64 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     }
   };
 
-  const continueWithDrawer = async (number) => {
+  const chooseDrawer = async (number) => {
     setDrawerNumber(number);
-    setPreviousClosing(await previousClosingFor({ branch, drawerNumber: number }));
+    setPreviousClosing(await previousClosingFor({ branch, businessDate, drawerNumber: number }));
     setStage('count');
   };
 
-  const chooseDrawer = async (number) => {
-    const occupied = activeOpenings.find((opening)=>opening.lifecycleStatus==='active'&&Number(opening.drawerNumber)===Number(number));
-    setDrawerNumber(number);
-    setOccupiedOpening(occupied || null);
-    if (occupied) return setStage('occupied');
-    return continueWithDrawer(number);
-  };
-
-  const currentAttempt = () => ({ counts: { ...counts }, countedCents, countedBy: counter||employee });
-
-  const finish = async (openingCents, carryoverDecision = 'none', completedAttempts = attempts) => {
-    setError('');
-    setBusy(true);
+  const finish = async (openingCents, carryoverDecision = 'none') => {
+    setBusy(true); setError('');
+    const completedAttempts = [...attempts, { countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     try {
-      const saved = await onComplete({ drawerNumber, carryoverDecision, attempts: completedAttempts, replaceActiveOpeningId:occupiedOpening?.id||null });
+      await draftSave.flush();
+      const saved = await onComplete({
+        branch, businessDate, drawerNumber, carryoverDecision,
+        previousClosingId: previousClosing?.id || null,
+        employeeProofToken: employee.proofToken,
+        attempts: completedAttempts.map((attempt)=>({ denominationCounts: attempt.denominationCounts, proofToken: attempt.countedBy.proofToken })),
+      });
+      await closeDraft?.('completed', draftSave.revisionRef.current);
       setResult({
-        employee,
-        counter,
-        drawerNumber,
-        openingCents,
-        openingDifferenceCents: openingDifferenceCents(openingCents),
-        carryoverDecision,
+      employee,
+      counter,
+      drawerNumber,
+      openingCents,
+      openingDifferenceCents: openingDifferenceCents(openingCents),
+      carryoverDecision,
         attempts: completedAttempts,
-        saved,
+        opening: saved?.opening,
       });
       setStage('complete');
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (failure) { setError(failure.message); }
+    finally { setBusy(false); }
   };
 
   const checkCount = () => {
     setError('');
     if (countedCents <= 0) return setError('Bitte zuerst die Stückelungen der Lade eintragen.');
-    const updated = [...attempts, currentAttempt()];
-    if (countedCents === TARGET_CENTS) return finish(countedCents, 'none', updated);
+    if (countedCents === TARGET_CENTS) return finish(countedCents);
+
+    if (attempts.length === 0 && matchesImmediatePreviousClosing({
+      branch, drawerNumber, openingDifference: differenceCents, previousClosing,
+    })) {
+      setStage('match');
+      return;
+    }
+
+    const updated = [...attempts, { countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     setAttempts(updated);
-    setStage('difference-choice');
+    const next = nextDifferenceStep(updated.length-1);
+    if (next === 'same-person-recount') {
+      setCounts({});
+      setStage('count');
+      return;
+    }
+    if (next === 'recommend-other-person') {
+      setStage('second-person-choice');
+      return;
+    }
+    setStage('adjust');
   };
 
   const startAnotherCount = () => {
@@ -266,33 +300,20 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
     setStage('count');
   };
 
-  const chooseAnotherCount = () => {
-    if (recountDestination(attempts.length) === 'recommend-other-person') {
-      setStage('second-person-choice');
-      return;
-    }
-    startAnotherCount();
+  const discardDraft = async () => {
+    setBusy(true); setError('');
+    try {
+      await closeDraft?.('discarded', Number(initialDraft.revision));
+      setEmployee(null); setCounter(null); setDrawerNumber(null); setCounts({}); setAttempts([]); setPreviousClosing(null); setStage('pin');
+    } catch (failure) { setError(failure.message); }
+    finally { setBusy(false); }
   };
 
-  const acceptWithoutAnotherCount = () => {
-    const latestAttempt = attempts.at(-1);
-    if (!latestAttempt) return;
-    const latestDifference = openingDifferenceCents(latestAttempt.countedCents);
-    const matchingPreviousDifference = matchesImmediatePreviousClosing({
-      branch, drawerNumber, openingDifference: latestDifference, previousClosing,
-    });
-    if (takeoverDestination(matchingPreviousDifference) === 'match') {
-      setStage('match');
-      return;
-    }
-    setStage('adjust');
-  };
-
-  const progress = ['pin','first-use-pin','drawer','occupied','count','difference-choice','match','second-person-choice','second-pin','adjust','complete'];
+  const progress = ['resume','pin','first-use-pin','drawer','count','match','second-person-choice','second-pin','adjust','complete'];
   const progressIndex = Math.max(0, progress.indexOf(stage));
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-count-title">
-    <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-[#242121] shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
+    <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
       <header className="flex items-center justify-between gap-3 bg-[#800000] px-4 py-4 text-white sm:px-6">
         <div>
           <div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div>
@@ -303,14 +324,18 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
       <div className="h-1 bg-black/10"><div className="h-full bg-amber-400 transition-all" style={{ width: `${Math.min(100, ((progressIndex+1)/progress.length)*100)}%` }}/></div>
 
       <div className="overflow-y-auto p-4 sm:p-7">
+        {stage!=='resume'&&stage!=='complete'&&<WorkflowDraftStatus status={draftSave.status} lastSavedAt={draftSave.lastSavedAt}/>}
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold">
           <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Filiale: {branch||'nicht zugeordnet'}</span>
+          <span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Geschäftstag: {businessDate}</span>
           {employee&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Mitarbeiter: {employee.name}</span>}
           {drawerNumber&&<span className="rounded-full bg-white px-3 py-1.5 shadow-sm">Lade {drawerNumber}</span>}
         </div>
         {error&&<div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"><CircleAlert className="mt-0.5 shrink-0" size={20}/>{error}</div>}
 
-        {stage==='pin'&&<PinStep title="Wer beginnt diese Kassenschicht?" description="Mit deinem persönlichen PIN beginnt die Einzählung und wird dir eindeutig zugeordnet." pin={pin} setPin={setPin} onSubmit={authenticate} busy={busy}/>}
+        {stage==='resume'&&<WorkflowDraftResume title="Kasse einzählen" description={restored.drawerNumber?`Lade ${restored.drawerNumber}`:''} savedAt={initialDraft.savedAt} busy={busy} onDiscard={discardDraft} onContinue={()=>{setResumeTargetStage(initialDraft.stage);setEmployee(restored.employee);setCounter(restored.counter);setPin('');setStage('pin');}}/>}
+
+        {stage==='pin'&&<PinStep title={resumeTargetStage?'Einzählung erneut bestätigen':'Wer beginnt diese Kassenschicht?'} description={resumeTargetStage?'Bitte bestätige deine Identität, bevor der gespeicherte Stand geöffnet wird.':'Mit deinem persönlichen PIN beginnt die Einzählung und wird dir eindeutig zugeordnet.'} pin={pin} setPin={setPin} onSubmit={authenticate} busy={busy}/>}
 
         {stage==='first-use-pin'&&<FirstUsePinStep employees={firstUseEmployees} employeeId={firstUseEmployeeId} setEmployeeId={setFirstUseEmployeeId} newPin={newPin} setNewPin={setNewPin} confirmPin={confirmPin} setConfirmPin={setConfirmPin} onSubmit={completeFirstUse} busy={busy}/>}
 
@@ -319,28 +344,15 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
           <div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-4">{[1,2].map((number)=><button key={number} onClick={()=>chooseDrawer(number)} className="aspect-square rounded-full border-4 border-[#800000]/20 bg-white text-2xl font-black text-[#800000] shadow-lg transition hover:-translate-y-1 hover:border-[#800000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#800000]/20">Lade<br/><span className="text-6xl">{number}</span></button>)}</div>
         </div>}
 
-        {stage==='occupied'&&occupiedOpening&&<div className="mx-auto max-w-2xl text-center"><CircleAlert className="mx-auto text-amber-600" size={60}/><h3 className="mt-4 text-2xl font-black">Lade {drawerNumber} ist noch besetzt</h3><p className="mt-3 text-black/65">Diese Lade wurde heute von <strong>{occupiedOpening.employee.name}</strong> eingezählt und bisher nicht abgerechnet.</p><div className="mt-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-left text-amber-950"><strong>Wenn du die Lade jetzt übernimmst:</strong><p className="mt-1 text-sm">Die bisherige Kassenschicht wird sichtbar als „Abgelöst · nicht abgerechnet“ beendet. Anschließend zählst du die Lade vollständig neu ein und wirst als neue verantwortliche Person zugeordnet.</p></div><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-center"><button onClick={()=>{setOccupiedOpening(null);setStage('drawer');}} className="min-h-12 rounded-xl border px-6 font-bold">Andere Lade wählen</button><button onClick={()=>continueWithDrawer(drawerNumber)} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Lade verbindlich ablösen</button></div></div>}
-
         {stage==='count'&&<CashGrid counts={counts} setCounts={setCounts} countedCents={countedCents} title={attempts.length===0?'Lade vollständig zählen':counter?`${counter.name} zählt jetzt nach`:'Bitte vollständig nachzählen'} instruction={attempts.length===0?'Trage nur die Anzahl jeder Münze und jedes Scheins ein. Die App rechnet automatisch.':'Beginne die Zählung erneut bei null. Die vorherige Zählung bleibt im Protokoll erhalten.'}/>}
-
-        {stage==='difference-choice'&&<div className="mx-auto max-w-2xl text-center">
-          <CircleAlert className="mx-auto text-amber-600" size={56}/>
-          <h3 className="mt-4 text-2xl font-black">Differenz festgestellt</h3>
-          <p className="mt-3 text-black/65">Die Lade weicht um <strong>{formatEuroFromCents(differenceCents,{signed:true})}</strong> von 250,00 € ab.</p>
-          {attempts.length>=2&&<p className="mt-3 rounded-xl bg-amber-50 p-4 font-bold text-amber-950">Wenn erneut gezählt wird, sollte möglichst eine zweite Person übernehmen.</p>}
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button onClick={chooseAnotherCount} className="min-h-24 rounded-2xl border-2 border-[#800000] bg-white p-4 font-black text-[#800000]"><RotateCcw className="mx-auto mb-2"/>Noch einmal zählen</button>
-            <button onClick={acceptWithoutAnotherCount} className="min-h-24 rounded-2xl bg-[#800000] p-4 font-black text-white"><Check className="mx-auto mb-2"/>Ohne weitere Zählung übernehmen</button>
-          </div>
-        </div>}
 
         {stage==='match'&&<div className="mx-auto max-w-2xl text-center">
           <ShieldCheck className="mx-auto text-emerald-700" size={56}/>
           <h3 className="mt-4 text-2xl font-black">Passende Vorgängerdifferenz gefunden</h3>
-          <p className="mt-3 text-black/65">Die aktuell gezählte Abweichung von <strong>{formatEuroFromCents(differenceCents,{signed:true})}</strong> passt exakt zur letzten Abrechnung von Lade {drawerNumber} ({formatEuroFromCents(previousClosing.differenceCents,{signed:true})}).</p>
+          <p className="mt-3 text-black/65">Deine Anfangsabweichung von <strong>{formatEuroFromCents(differenceCents,{signed:true})}</strong> passt exakt zur letzten Abrechnung von Lade {drawerNumber} ({formatEuroFromCents(previousClosing.differenceCents,{signed:true})}).</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button disabled={busy} onClick={()=>finish(countedCents,'keep-in-drawer',attempts)} className="min-h-28 rounded-2xl bg-emerald-700 p-4 text-left font-black text-white disabled:opacity-50"><Check className="mb-2"/>{busy?'Einzählung wird gespeichert …':'Differenz in der Lade belassen'}<span className="mt-1 block text-sm font-normal text-white/75">Startbestand wird {formatEuroFromCents(countedCents)} und gleicht später die Filialdifferenz aus.</span></button>
-            <button disabled={busy} onClick={()=>setStage('adjust')} className="min-h-28 rounded-2xl border-2 border-[#800000] bg-white p-4 text-left font-black text-[#800000] disabled:opacity-50"><RotateCcw className="mb-2"/>Auf 250,00 € ausgleichen<span className="mt-1 block text-sm font-normal text-black/55">Auffüllen beziehungsweise abschöpfen und die Lade übernehmen.</span></button>
+            <button onClick={()=>finish(countedCents,'keep-in-drawer')} className="min-h-28 rounded-2xl bg-emerald-700 p-4 text-left font-black text-white"><Check className="mb-2"/>Differenz in der Lade belassen<span className="mt-1 block text-sm font-normal text-white/75">Startbestand wird {formatEuroFromCents(countedCents)} und gleicht später die Filialdifferenz aus.</span></button>
+            <button onClick={()=>{setAttempts(current=>[...current,{countedCents,countedBy:counter||employee,denominationCounts:{...counts}}]);setStage('adjust');}} className="min-h-28 rounded-2xl border-2 border-[#800000] bg-white p-4 text-left font-black text-[#800000]"><RotateCcw className="mb-2"/>Auf 250,00 € ausgleichen<span className="mt-1 block text-sm font-normal text-black/55">Auffüllen beziehungsweise abschöpfen und anschließend kontrollieren.</span></button>
           </div>
         </div>}
 
@@ -352,8 +364,8 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
         {stage==='second-pin'&&<PinStep title="Zweite Person bestätigen" description="Die nachzählende Person bestätigt sich mit ihrem eigenen PIN." pin={pin} setPin={setPin} onSubmit={(event)=>authenticate(event,true)} busy={busy}/>}
 
         {stage==='adjust'&&<div className="mx-auto max-w-2xl text-center">
-          <RotateCcw className="mx-auto text-[#800000]" size={56}/><h3 className="mt-4 text-2xl font-black">Lade auf 250,00 € ausgleichen</h3><p className="mt-3 text-black/65">{differenceCents>0?`Bitte ${formatEuroFromCents(differenceCents)} abschöpfen.`:`Bitte ${formatEuroFromCents(Math.abs(differenceCents))} auffüllen.`}</p>
-          <button disabled={busy} onClick={()=>finish(TARGET_CENTS,'normalize-to-target',attempts)} className="mt-6 min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white disabled:opacity-50">{busy?'Einzählung wird gespeichert …':'Ausgleich durchgeführt – Lade übernehmen'}</button>
+          <RotateCcw className="mx-auto text-[#800000]" size={56}/><h3 className="mt-4 text-2xl font-black">Lade auf 250,00 € ausgleichen</h3><p className="mt-3 text-black/65">{differenceCents>0?`Bitte ${formatEuroFromCents(differenceCents)} abschöpfen.`:`Bitte ${formatEuroFromCents(Math.abs(differenceCents))} auffüllen.`} Danach muss eine abschließende Kontrollzählung exakt 250,00 € ergeben.</p>
+          <button onClick={startAnotherCount} className="mt-6 min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Ausgleich durchgeführt – Kontrollzählung starten</button>
         </div>}
 
         {stage==='complete'&&<div className="mx-auto max-w-2xl text-center">
@@ -364,7 +376,7 @@ export default function KasseneinzaehlModal({ branch, onClose, verifyPin, previo
         </div>}
       </div>
 
-      {stage==='count'&&<footer className="flex flex-col-reverse gap-3 border-t bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7"><button type="button" disabled={busy} onClick={()=>setStage(drawerNumber?'drawer':'pin')} className="min-h-12 rounded-xl border px-5 font-bold disabled:opacity-50"><ArrowLeft className="mr-2 inline" size={18}/>Zurück</button><button type="button" data-cash-count-submit disabled={busy} onClick={checkCount} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white disabled:opacity-50">{busy?'Einzählung wird gespeichert …':'Zählung prüfen'}</button></footer>}
+      {stage==='count'&&<footer className="flex flex-col-reverse gap-3 border-t bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7"><button type="button" onClick={()=>setStage(drawerNumber?'drawer':'pin')} className="min-h-12 rounded-xl border px-5 font-bold"><ArrowLeft className="mr-2 inline" size={18}/>Zurück</button><button type="button" data-cash-count-submit onClick={checkCount} className="min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Zählung prüfen</button></footer>}
     </div>
   </div>;
 }

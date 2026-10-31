@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { saveAuthSession } from '../lib/auth';
+import { destinationAfterLogin, userFromLoginResponse } from '../lib/authFlow.mjs';
 
 export default function Login() {
   const [name, setName] = useState('');
@@ -20,23 +22,14 @@ export default function Login() {
 
       const data = await res.json();
 
-      if (!res.ok || !data.token || !data.role) {
-        setResult({ message: '❌ Login fehlgeschlagen – ungültige Zugangsdaten oder keine Rolle zugewiesen.' });
+      const userData = userFromLoginResponse(data);
+      if (!res.ok || !userData) {
+        setResult({ message: `❌ ${data.message || 'Login fehlgeschlagen – ungültige Zugangsdaten oder keine Rolle zugewiesen.'}` });
         return;
       }
 
-      const userData = {
-        name: data.name,
-        role: data.role,
-        filiale: data.filiale
-      };
-
-      sessionStorage.setItem('token', data.token);
-      sessionStorage.setItem('user', JSON.stringify(userData));
-
-      console.log('Login erfolgreich:', userData);
-
-      navigate('/start');
+      saveAuthSession(data.token, userData);
+      navigate(destinationAfterLogin(userData));
     } catch (err) {
       console.error('Login-Fehler:', err);
       setResult({ message: '❌ Server nicht erreichbar oder ungültige Antwort' });
@@ -61,6 +54,7 @@ export default function Login() {
             <label className="block text-sm font-medium">Benutzername</label>
             <input
               type="text"
+              autoComplete="username"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded"
@@ -73,6 +67,7 @@ export default function Login() {
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 pr-11 border border-gray-300 rounded"

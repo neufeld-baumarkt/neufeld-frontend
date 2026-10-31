@@ -35,12 +35,10 @@ export function matchesImmediatePreviousClosing({ branch, drawerNumber, openingD
   return Number(previousClosing.differenceCents) === -Number(openingDifference);
 }
 
-export function recountDestination(completedAttempts) {
-  return Number(completedAttempts) >= 2 ? 'recommend-other-person' : 'count';
-}
-
-export function takeoverDestination(matchesPreviousDifference) {
-  return matchesPreviousDifference ? 'match' : 'adjust';
+export function nextDifferenceStep(completedAttempts) {
+  if (completedAttempts <= 0) return 'same-person-recount';
+  if (completedAttempts === 1) return 'recommend-other-person';
+  return 'adjust-to-target';
 }
 
 export function formatEuroFromCents(cents, { signed = false } = {}) {
