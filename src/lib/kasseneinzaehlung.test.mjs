@@ -4,15 +4,14 @@ import {
   CASH_DENOMINATIONS,
   countCashCents,
   matchesImmediatePreviousClosing,
+  nextDifferenceStep,
   openingDifferenceCents,
-  recountDestination,
-  takeoverDestination,
 } from './kasseneinzaehlung.mjs';
 
-test('ordnet die Stückelungen in der Zählreihenfolge von 1 Cent bis 200 Euro', () => {
+test('ordnet die Zählfelder von 1 Cent bis 200 Euro', () => {
   assert.deepEqual(
     CASH_DENOMINATIONS.map(({ cents }) => cents),
-    [1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000],
+    [1, 2, 5, 10, 20, 50, 100, 200, 500, 1_000, 2_000, 5_000, 10_000, 20_000]
   );
 });
 
@@ -50,13 +49,8 @@ test('ordnet weder Null-, Teil- noch bereits erledigte Differenzen zu', () => {
   }
 });
 
-test('lässt nach der ersten Abweichung direkt erneut zählen und empfiehlt danach eine zweite Person', () => {
-  assert.equal(recountDestination(1), 'count');
-  assert.equal(recountDestination(2), 'recommend-other-person');
-  assert.equal(recountDestination(5), 'recommend-other-person');
-});
-
-test('führt eine Übernahme nur bei passender Vorgängerdifferenz zur Beibehaltungswahl', () => {
-  assert.equal(takeoverDestination(true), 'match');
-  assert.equal(takeoverDestination(false), 'adjust');
+test('führt nach erster und zweiter Abweichung durch die vereinbarte Eskalation', () => {
+  assert.equal(nextDifferenceStep(0), 'same-person-recount');
+  assert.equal(nextDifferenceStep(1), 'recommend-other-person');
+  assert.equal(nextDifferenceStep(2), 'adjust-to-target');
 });
