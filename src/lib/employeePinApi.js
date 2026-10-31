@@ -53,6 +53,10 @@ export const employeePinApi = {
     const payload = await request('/api/filiale-pins/first-use-candidates', {}, branch);
     return payload.employees || [];
   },
+  async cashCandidates(branch) {
+    const payload = await request(`/api/filiale-pins/cash-candidates?branch=${encodeURIComponent(branch)}`);
+    return payload.employees || [];
+  },
   async activate({ employeeId, currentPin, newPin, confirmPin }, { branch } = {}) {
     return request('/api/filiale-pins/activate', {
       method: 'POST',

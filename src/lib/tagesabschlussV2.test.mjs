@@ -84,6 +84,19 @@ test('übernimmt den echten Geschäftstag in den modularen V2-Kontext', () => {
   assert.equal(context.littleBerthaCents, 100000);
 });
 
+test('verwendet Tresor-Grundwerte auch ohne vorhandene Tageszählung', () => {
+  const context = mapDayCloseContextToV2({
+    closings: [],
+    baseSafeCount: null,
+    safeSettings: { fixedDrawerCents: 50000, littleBerthaCents: 100000 },
+    totals: { cashRevenueCents: 0, looseChangeTotalCents: 0, standardBalanceCents: 150000 },
+    processStates: { 'daily-report': { status: 'completed' } },
+  });
+  assert.equal(context.fixedDrawerCents, 50000);
+  assert.equal(context.littleBerthaCents, 100000);
+  assert.equal(context.processStates['daily-report'].status, 'completed');
+});
+
 test('prüft Scheine plus Kleingeldausgleich hart gegen den Filialbericht', () => {
   const result = calculateBankBooking({
     banknoteCounts: { 5: 11, 10: 26, 20: 28, 50: 30, 100: 1, 200: 0 },

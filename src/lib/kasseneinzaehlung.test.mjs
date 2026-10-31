@@ -4,6 +4,7 @@ import {
   CASH_DENOMINATIONS,
   countCashCents,
   matchesImmediatePreviousClosing,
+  nextDifferenceStep,
   openingDifferenceCents,
   recountDestination,
   takeoverDestination,
@@ -54,6 +55,12 @@ test('lässt nach der ersten Abweichung direkt erneut zählen und empfiehlt dana
   assert.equal(recountDestination(1), 'count');
   assert.equal(recountDestination(2), 'recommend-other-person');
   assert.equal(recountDestination(5), 'recommend-other-person');
+});
+
+test('führt neue Einzählungen durch die vereinbarte dreistufige Abweichungsbehandlung', () => {
+  assert.equal(nextDifferenceStep(0), 'same-person-recount');
+  assert.equal(nextDifferenceStep(1), 'recommend-other-person');
+  assert.equal(nextDifferenceStep(2), 'adjust-to-target');
 });
 
 test('führt eine Übernahme nur bei passender Vorgängerdifferenz zur Beibehaltungswahl', () => {
