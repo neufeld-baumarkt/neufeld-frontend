@@ -152,7 +152,7 @@ export default function Tageskassenabrechnung() {
   };
 
   return (
-    <main className="min-h-screen min-h-dvh bg-[#353232] text-white">
+    <main className="tageskasse-input-contrast min-h-screen min-h-dvh bg-[#353232] text-white">
       <header className="bg-[#800000] shadow-xl">
         <div className="mx-auto flex min-h-16 max-w-[1500px] items-center justify-between gap-4 px-3 sm:px-6 lg:px-10">
           <button

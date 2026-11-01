@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.tageskasse-input-contrast :is(
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  select,
+  textarea
+) {
+  background-color: #fff;
+  color: #000;
+  caret-color: #800000;
+  color-scheme: light;
+}
+
+.tageskasse-input-contrast :is(input, textarea)::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+.tageskasse-input-contrast option {
+  background-color: #fff;
+  color: #000;
+}
