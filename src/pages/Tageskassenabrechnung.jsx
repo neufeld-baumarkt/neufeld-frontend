@@ -16,7 +16,6 @@ import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
 import KassenabrechnungsModal from '../components/tageskasse/KassenabrechnungsModal';
 import KassenabrechnungsArchiv from '../components/tageskasse/KassenabrechnungsArchiv';
 import TresorzaehlungsModal from '../components/tageskasse/TresorzaehlungsModal';
-import TagesabschlussModal from '../components/tageskasse/TagesabschlussModal';
 import TagesabschlussV2Modal from '../components/tageskasse/TagesabschlussV2Modal';
 import EinzahlungsbelegModal from '../components/tageskasse/EinzahlungsbelegModal';
 import { employeePinApi } from '../lib/employeePinApi';
@@ -58,7 +57,6 @@ export default function Tageskassenabrechnung() {
   const [closingPreset, setClosingPreset] = useState(null);
   const [safeCountOpen, setSafeCountOpen] = useState(false);
   const [safeCountMode, setSafeCountMode] = useState({ initialType:'', forceNewClosing:false });
-  const [dayCloseOpen, setDayCloseOpen] = useState(false);
   const [dayCloseV2Open, setDayCloseV2Open] = useState(false);
   const [dayCloseDemoOpen, setDayCloseDemoOpen] = useState(false);
   const [safeRefreshKey, setSafeRefreshKey] = useState(0);
@@ -241,7 +239,6 @@ export default function Tageskassenabrechnung() {
           onStartDayClose={()=>{setClosingOpen(false);setClosingPreset(null);setDayCloseOpen(true);}}
         />
       )}
-      {dayCloseOpen&&<TagesabschlussModal branch={branch} safeRefreshKey={safeRefreshKey} loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)} finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)} onStartSafeCount={({forceNew})=>{setSafeCountMode({initialType:'closing',forceNewClosing:forceNew});setSafeCountOpen(true);}} onComplete={()=>setArchiveRefreshKey((current)=>current+1)} onClose={()=>setDayCloseOpen(false)}/>}
       {dayCloseV2Open&&<TagesabschlussV2Modal
         branch={branch}
         businessDate={selectedBusinessDate}
@@ -251,7 +248,6 @@ export default function Tageskassenabrechnung() {
         finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)}
         onComplete={async()=>{setArchiveRefreshKey((current)=>current+1);await loadReceiptClosings();}}
         onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
-        onStartLegacy={()=>{setDayCloseV2Open(false);setDayCloseOpen(true);}}
         onClose={()=>setDayCloseV2Open(false)}
       />}
       {dayCloseDemoOpen&&<TagesabschlussV2Modal
@@ -266,7 +262,7 @@ export default function Tageskassenabrechnung() {
           branch={branch}
           initialType={safeCountMode.initialType}
           forceNewClosing={safeCountMode.forceNewClosing}
-          onClose={() => {setSafeCountOpen(false);if(dayCloseOpen)setSafeRefreshKey((current)=>current+1);}}
+          onClose={() => {setSafeCountOpen(false);setSafeRefreshKey((current)=>current+1);}}
           loadContext={(countType) => kassenabrechnungApi.safeContext(countType, branch)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           onComplete={(payload) => kassenabrechnungApi.saveSafeCount(payload, branch)}

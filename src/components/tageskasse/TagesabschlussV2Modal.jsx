@@ -92,7 +92,7 @@ function DemoCoach({ tip, onDismiss, onStop }) {
   </aside>;
 }
 
-export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, demoMode = false, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onStartLegacy, onClose }) {
+export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, demoMode = false, loadContext, verifyPin, saveSafeCount, finalizeDay, onComplete, onStartProcess, onClose }) {
   const [openInfo, setOpenInfo] = useState('');
   const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
   const [dayCloseContext, setDayCloseContext] = useState(null);
@@ -417,7 +417,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           {completedProcesses.length>0&&<section className="mt-6"><button type="button" onClick={()=>setCompletedOpen((current)=>!current)} className="flex min-h-11 w-full items-center justify-between rounded-xl border-2 border-emerald-300 bg-emerald-50 px-4 font-black text-emerald-900"><span>Erledigt · {completedProcesses.length}</span><ChevronDown className={`transition ${completedOpen?'rotate-180':''}`} size={18}/></button>{completedOpen&&<div className="mt-3 grid gap-3 md:grid-cols-2">{completedProcesses.map((process)=><ProcessCard key={process.id} process={process} onStart={startProcess} infoOpen={openInfo===process.id} onToggleInfo={()=>setOpenInfo((current)=>current===process.id?'':process.id)}/>)}</div>}</section>}
         </div>
 
-        {!demoMode&&<div className="mt-8 border-t border-black/10 pt-5 text-center"><button type="button" onClick={onStartLegacy} className="min-h-11 rounded-xl border-2 border-black/15 bg-white px-5 font-bold text-black/65">Bisherigen Tagesabschluss starten</button><p className="mt-2 text-xs text-black/40">DEV-Rückfallebene · der bisherige Ablauf bleibt unverändert</p></div>}
         </>}
       </div>
       <DemoCoach tip={coachTip} onDismiss={()=>setDismissedCoachKey(coachKey)} onStop={()=>setCoachEnabled(false)}/>
