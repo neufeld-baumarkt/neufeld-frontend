@@ -40,13 +40,17 @@ export const kasseneinzaehlungApi = {
     return payload.closing;
   },
   async saveOpeningCount({ drawerNumber, carryoverDecision, attempts, replaceActiveOpeningId }, branch) {
+    const normalizedAttempts = attempts.map((attempt) => ({
+      counts: attempt.counts,
+      proofToken: attempt.proofToken,
+    }));
     const payload = await request('/api/tageskasse/opening-counts', {
       method: 'POST',
       body: JSON.stringify({
         drawerNumber,
         replaceActiveOpeningId: replaceActiveOpeningId || null,
         carryoverDecision,
-        attempts: attempts.map((attempt) => ({ counts: attempt.counts, proofToken: attempt.countedBy.proofToken })),
+        attempts: normalizedAttempts,
       }),
     }, branch);
     return payload.openingCount;

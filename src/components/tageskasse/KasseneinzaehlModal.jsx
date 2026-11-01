@@ -253,12 +253,18 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
     setBusy(true); setError('');
     const completedAttempts = [...attempts, { countedCents:openingCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     try {
+      const verifiedPeople = [employee, counter].filter(Boolean);
+      const requestAttempts = completedAttempts.map((attempt) => {
+        const verifiedCounter = verifiedPeople.find((person) => String(person.id) === String(attempt.countedBy?.id));
+        const proofToken = attempt.countedBy?.proofToken || verifiedCounter?.proofToken;
+        if (!proofToken) throw new Error('Die persönliche Bestätigung der zählenden Person ist abgelaufen. Bitte öffne die Einzählung erneut und bestätige den PIN.');
+        return { counts: attempt.denominationCounts, proofToken };
+      });
       await draftSave.flush();
       const saved = await onComplete({
         branch, businessDate, drawerNumber, carryoverDecision,
         previousClosingId: previousClosing?.id || null,
-        employeeProofToken: employee.proofToken,
-        attempts: completedAttempts.map((attempt)=>({ denominationCounts: attempt.denominationCounts, proofToken: attempt.countedBy.proofToken })),
+        attempts: requestAttempts,
       });
       await closeDraft?.('completed', draftSave.revisionRef.current);
       setResult({
@@ -322,7 +328,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
   const progressIndex = Math.max(0, progress.indexOf(stage));
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-count-title">
-    <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
+    <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
       <header className="flex items-center justify-between gap-3 bg-[#800000] px-4 py-4 text-white sm:px-6">
         <div>
           <div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div>
