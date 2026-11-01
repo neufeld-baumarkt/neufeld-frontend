@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Banknote,
   Check,
@@ -107,6 +107,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [draftBusy, setDraftBusy] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
+  const [closeError, setCloseError] = useState('');
   useEffect(() => {
     if (!loadContext) return;
     let active = true;
@@ -135,6 +136,17 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   }, [initialDraft, loadContext]);
   const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount }),[activeProcess,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
   const draftSave = useWorkflowDraftAutosave({ enabled: !['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
+  const closeSafely = useCallback(async () => {
+    if (draftBusy) return;
+    setCloseError('');
+    try { await draftSave.flush(); onClose(); }
+    catch (failure) { setCloseError(`Der Zwischenstand konnte nicht gespeichert werden: ${failure.message}`); }
+  }, [draftBusy, draftSave.flush, onClose]);
+  useEffect(() => {
+    const close = (event) => { if (event.key === 'Escape') void closeSafely(); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [closeSafely]);
   const fallbackContext=initialContext||{};
   const [calculationSeed,setCalculationSeed]=useState(null);
   const context=calculationSeed?.base||fallbackContext;
@@ -343,10 +355,11 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     <section className="flex max-h-[100dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
       <header className="flex items-center justify-between bg-[#800000] px-5 py-4 text-white">
         <div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung · DEV</div><h2 id="day-close-v2-title" className="text-2xl font-black">Tagesabrechnung</h2></div>
-        <button type="button" onClick={onClose} className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10" aria-label="Schließen"><X/></button>
+        <button type="button" onClick={closeSafely} className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10" aria-label="Schließen"><X/></button>
       </header>
 
       <div className="overflow-y-auto p-4 sm:p-6">
+        {closeError&&<div role="alert" className="mb-4 rounded-xl border-2 border-red-300 bg-red-50 p-3 font-bold text-red-800">{closeError}</div>}
         {stage!=='resume'&&!['loading','load-error'].includes(stage)&&<WorkflowDraftStatus status={draftSave.status} lastSavedAt={draftSave.lastSavedAt}/>}
         <div className="mb-5 flex flex-wrap gap-2 text-xs font-bold"><span className="rounded-full bg-white px-3 py-1.5">Filiale: {branch}</span><span className="rounded-full bg-white px-3 py-1.5">Geschäftstag: {businessDate}</span></div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Check,
@@ -58,9 +58,9 @@ function PinForm({ pin, setPin, onSubmit, busy, title, description }) {
 const denomItems = (centsValues) => centsValues.map((cents)=>CASH_DENOMINATIONS.find((item)=>item.cents===cents));
 const resumableStages = ['responsible','drawer','missing-opening','full-count','loose-change','float','bank','euro-transfer','euro-submit','difference','review'];
 
-export default function KassenabrechnungsModal({ branch, businessDate, initialDraft, saveDraft, closeDraft, onClose, verifyPin, loadEmployees, loadContext, onComplete, beginClosing, calculateCash }) {
+export default function KassenabrechnungsModal({ branch, businessDate, presetOpening, initialDraft, saveDraft, closeDraft, onClose, verifyPin, loadEmployees, loadContext, onComplete, beginClosing, calculateCash }) {
   const restored=initialDraft?.state||{};
-  const [stage,setStage]=useState(initialDraft?'resume':'purpose');
+  const [stage,setStage]=useState(initialDraft?'resume':presetOpening?'pin':'purpose');
   const [stageHistory,setStageHistory]=useState([]);
   const [resumeTargetStage,setResumeTargetStage]=useState('');
   const [pin,setPin]=useState('');
@@ -96,8 +96,9 @@ export default function KassenabrechnungsModal({ branch, businessDate, initialDr
   }),[bankNotes,differenceAmount,differenceKind,differenceReviewed,drawerNumber,employee,fullCounts,isLastCash,notificationConfirmed,opening,recountAttempts,responsibleEmployee]);
   const autosaveEnabled=Boolean(employee&&!['purpose','resume','pin','complete'].includes(stage));
   const draftSave=useWorkflowDraftAutosave({enabled:autosaveEnabled,initialDraft,stage,state:draftState,saveDraft});
+  const closeSafely=useCallback(async()=>{if(busy)return;if(stage==='complete')return onClose();setError('');try{await draftSave.flush();onClose();}catch(failure){setError(`Der Zwischenstand konnte nicht gespeichert werden: ${failure.message}`);}},[busy,draftSave.flush,onClose,stage]);
 
-  useEffect(()=>{const close=(event)=>{if(event.key==='Escape'&&stage!=='complete')onClose();};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[onClose,stage]);
+  useEffect(()=>{const close=(event)=>{if(event.key==='Escape')void closeSafely();};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[closeSafely]);
   const fail=(message)=>{setError(message);return false;};
   const advance=(next)=>{setError('');setStageHistory((current)=>[...current,stage]);setStage(next);};
   const goBack=()=>{setError('');setStageHistory((current)=>{const copy=[...current];const previous=copy.pop();if(previous)setStage(previous);return copy;});};
@@ -105,15 +106,21 @@ export default function KassenabrechnungsModal({ branch, businessDate, initialDr
   const identify=async(event)=>{event.preventDefault();setError('');setBusy(true);try{
     const identified=await verifyPin(pin,{branch});
     if(resumeTargetStage&&String(identified.id)!==String(restored.employee?.id)) throw new Error('Diese Abrechnung kann nur von der Person fortgesetzt werden, die sie begonnen hat.');
-    const candidates=await loadEmployees();
     const workflow=beginClosing?await beginClosing({employee:identified,branch,businessDate}):null;
     setWorkflowProof(workflow?.workflowToken||identified.proofToken);
-    setEmployee(identified);setEmployees(candidates);setShowOtherEmployees(false);
+    setEmployee(identified);setShowOtherEmployees(false);
     if(resumeTargetStage){
       const resumedResponsible=restored.responsibleEmployee||identified;
       const resumedContext=await loadContext({businessDate,drawerNumber:restored.drawerNumber,employee:identified,responsibleEmployee:resumedResponsible});
       setResponsibleEmployee(resumedResponsible);setOpening(resumedContext?.opening||restored.opening||null);setWorkflowProof(resumedContext?.contextProofToken||null);setStage(resumeTargetStage);setResumeTargetStage('');
+    }else if(presetOpening){
+      const responsible={id:presetOpening.employee.id,name:presetOpening.employee.name};
+      const context=await loadContext({businessDate,drawerNumber:presetOpening.drawerNumber,employee:identified,responsibleEmployee:responsible});
+      if(!context?.opening||Number(context.opening.id)!==Number(presetOpening.id)) throw new Error('Die ausgewählte Kassenschicht ist nicht mehr aktiv. Bitte aktualisiere die Übersicht.');
+      setResponsibleEmployee(responsible);setDrawerNumber(presetOpening.drawerNumber);setOpening(context.opening);setWorkflowProof(context.contextProofToken||null);setStage('full-count');
     }else{
+      const candidates=await loadEmployees();
+      setEmployees(candidates);
       setResponsibleEmployee(identified);setStage('responsible');
     }
     setPin('');
@@ -145,7 +152,7 @@ export default function KassenabrechnungsModal({ branch, businessDate, initialDr
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-closing-title">
     <div className="flex max-h-[100dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-3xl bg-[#f7f4ef] text-black shadow-2xl sm:max-h-[94dvh] sm:rounded-3xl">
-      <header className="flex items-center justify-between gap-3 bg-[#800000] px-4 py-4 text-white sm:px-6"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div><h2 id="cash-closing-title" className="text-xl font-black sm:text-2xl">Kasse abrechnen</h2></div><button type="button" onClick={onClose} aria-label="Modal schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10"><X/></button></header>
+      <header className="flex items-center justify-between gap-3 bg-[#800000] px-4 py-4 text-white sm:px-6"><div><div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div><h2 id="cash-closing-title" className="text-xl font-black sm:text-2xl">Kasse abrechnen</h2></div><button type="button" onClick={closeSafely} aria-label="Modal schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10"><X/></button></header>
       <div className="h-1 bg-black/10"><div className="h-full bg-amber-400 transition-all" style={{width:`${((progress+1)/stages.length)*100}%`}}/></div>
       <div className="overflow-y-auto p-4 sm:p-7">
         {stage!=='resume'&&stage!=='complete'&&<WorkflowDraftStatus status={draftSave.status} lastSavedAt={draftSave.lastSavedAt}/>}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Banknote,
@@ -150,12 +150,19 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
   }), [attempts, counter, counts, drawerNumber, employee, previousClosing]);
   const autosaveEnabled = Boolean(employee && !['resume','pin','first-use-pin','second-pin','complete'].includes(stage));
   const draftSave = useWorkflowDraftAutosave({ enabled: autosaveEnabled, initialDraft, stage, state: draftState, saveDraft });
+  const closeSafely = useCallback(async () => {
+    if (busy) return;
+    if (stage === 'complete') return onClose();
+    setError('');
+    try { await draftSave.flush(); onClose(); }
+    catch (failure) { setError(`Der Zwischenstand konnte nicht gespeichert werden: ${failure.message}`); }
+  }, [busy, draftSave.flush, onClose, stage]);
 
   useEffect(()=>{
-    const closeOnEscape = (event) => { if (event.key === 'Escape') onClose(); };
+    const closeOnEscape = (event) => { if (event.key === 'Escape') void closeSafely(); };
     window.addEventListener('keydown', closeOnEscape);
     return ()=>window.removeEventListener('keydown', closeOnEscape);
-  }, [onClose]);
+  }, [closeSafely]);
 
   const authenticate = async (event, secondPerson = false) => {
     event.preventDefault();
@@ -321,7 +328,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
           <div className="text-xs font-bold uppercase tracking-[.2em] text-white/65">Tageskassenabrechnung</div>
           <h2 id="cash-count-title" className="text-xl font-black sm:text-2xl">Kasse einzählen</h2>
         </div>
-        <button type="button" onClick={onClose} aria-label="Modal schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"><X/></button>
+        <button type="button" onClick={closeSafely} aria-label="Modal schließen" className="flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"><X/></button>
       </header>
       <div className="h-1 bg-black/10"><div className="h-full bg-amber-400 transition-all" style={{ width: `${Math.min(100, ((progressIndex+1)/progress.length)*100)}%` }}/></div>
 
