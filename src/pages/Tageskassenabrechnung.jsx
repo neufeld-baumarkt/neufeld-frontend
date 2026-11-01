@@ -283,7 +283,7 @@ export default function Tageskassenabrechnung() {
         saveDailyMetrics={async()=>{}}
         saveSafeCount={(payload)=>kassenabrechnungApi.saveSafeCount(payload,branch)}
         finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)}
-        onComplete={async()=>{setArchiveRefreshKey((current)=>current+1);await loadReceiptClosings();}}
+        onComplete={async()=>{setWorkflowDrafts((current)=>({...current,day_close:null}));setArchiveRefreshKey((current)=>current+1);await loadReceiptClosings();}}
         onStartProcess={(process)=>toast(`${process.title} wird als Nächstes gemeinsam aufgebaut.`,{icon:'🧩'})}
         onClose={()=>setDayCloseV2Open(false)}
       />}

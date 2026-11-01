@@ -295,6 +295,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     const first = await verifyPin(firstPin);
     const second = await verifyPin(secondPin, { excludeEmployeeId: first.id });
     let savedSafeCount = persistedFinalSafeCount;
+    let createdSafeCount = false;
     if (!savedSafeCount) {
       savedSafeCount = await saveSafeCount({
         countType: 'closing',
@@ -307,28 +308,32 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
         counterProofToken: first.proofToken,
         recorderProofToken: second.proofToken,
       });
-      setPersistedFinalSafeCount(savedSafeCount);
+      createdSafeCount = true;
     }
-    const report = await finalizeDay({
-      safeCountId: savedSafeCount.id,
-      eurocontrolCashTotalCents: reportData.eurocontrolBankCents,
-      looseChangePayoutConfirmed: true,
-      additionalSafeSkimConfirmed: true,
-      bankPayoutConfirmed: true,
-      safeBagConfirmed: true,
-      workflowVersion: 'v2',
-      dailyMetrics: {
-        dailyRevenueCents: reportData.dailyRevenueCents,
-        customerCount: reportData.customerCount,
-        averageReceiptCents: reportData.averageReceiptCents,
-      },
-      approvalProofTokens: [first.proofToken, second.proofToken],
-    });
+    let finalized;
+    try {
+      finalized = await finalizeDay({
+        safeCountId: savedSafeCount.id,
+        eurocontrolCashTotalCents: reportData.eurocontrolBankCents,
+        looseChangePayoutConfirmed: true,
+        additionalSafeSkimConfirmed: true,
+        bankPayoutConfirmed: true,
+        safeBagConfirmed: true,
+        workflowVersion: 'v2',
+        dailyMetrics: {
+          dailyRevenueCents: reportData.dailyRevenueCents,
+          customerCount: reportData.customerCount,
+          averageReceiptCents: reportData.averageReceiptCents,
+        },
+        approvalProofTokens: [first.proofToken, second.proofToken],
+      });
+    } catch (failure) {
+      if (createdSafeCount) setPersistedFinalSafeCount(savedSafeCount);
+      throw failure;
+    }
     const approvals = [{ id: first.id, name: first.name }, { id: second.id, name: second.name }];
-    setLocalProcessStates((current) => ({ ...current, finalize: { status: 'completed', completedAt: new Date().toISOString() } }));
-    await closeDraft?.('completed', draftSave.revisionRef.current);
-    onComplete?.(report);
-    return { report, approvals };
+    onComplete?.(finalized);
+    return { report: finalized, approvals };
   };
 
   const discardDraft = async () => {
