@@ -16,7 +16,12 @@ async function request(path, options = {}, branch = '') {
     },
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.message || 'Die Kassenabrechnung konnte nicht verarbeitet werden.');
+  if (!response.ok) {
+    const error = new Error(payload.message || 'Die Kassenabrechnung konnte nicht verarbeitet werden.');
+    error.status = response.status;
+    error.code = payload.code || null;
+    throw error;
+  }
   return payload;
 }
 

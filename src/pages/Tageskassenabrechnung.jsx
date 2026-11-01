@@ -269,6 +269,7 @@ export default function Tageskassenabrechnung() {
           loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}
           onComplete={async(payload)=>{const saved=await kassenabrechnungApi.saveClosing(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
+          onSuccess={()=>toast.success('Kassenabrechnung erfolgreich gespeichert.')}
           onStartDayClose={()=>{setClosingOpen(false);setClosingPreset(null);setDayCloseV2Open(true);}}
         />
       )}

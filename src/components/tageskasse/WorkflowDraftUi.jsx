@@ -1,15 +1,16 @@
 import { AlertTriangle, Check, Cloud, LoaderCircle } from 'lucide-react';
 
-export function WorkflowDraftStatus({ status, lastSavedAt }) {
+export function WorkflowDraftStatus({ status, lastSavedAt, error }) {
   const config = {
     idle: [Cloud, 'Noch keine Eingabe'],
     pending: [LoaderCircle, 'Speicherung vorgemerkt'],
     saving: [LoaderCircle, 'Wird in der DB gespeichert …'],
     saved: [Check, lastSavedAt ? `Gespeichert · ${new Date(lastSavedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'In der DB gespeichert'],
-    error: [AlertTriangle, 'Nicht gespeichert – Verbindung prüfen'],
+    conflict: [AlertTriangle, error?.message || 'Zwischenstand wurde an anderer Stelle geändert – bitte neu laden'],
+    error: [AlertTriangle, error?.message || 'Zwischenstand konnte nicht gespeichert werden'],
   }[status] || [Cloud, 'Entwurfsstatus unbekannt'];
   const [Icon, label] = config;
-  return <div className={`mb-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${status==='error'?'border-red-300 bg-red-50 text-red-800':'border-black/10 bg-white text-black/55'}`}><Icon size={17} className={status==='saving'||status==='pending'?'animate-spin':''}/>{label}</div>;
+  return <div className={`mb-4 flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold ${status==='error'||status==='conflict'?'border-red-300 bg-red-50 text-red-800':'border-black/10 bg-white text-black/55'}`}><Icon size={17} className={status==='saving'||status==='pending'?'animate-spin':''}/>{label}</div>;
 }
 
 export function WorkflowDraftResume({ title, description, savedAt, busy, onContinue, onDiscard }) {
