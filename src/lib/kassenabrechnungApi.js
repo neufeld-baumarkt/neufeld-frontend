@@ -21,6 +21,12 @@ async function request(path, options = {}, branch = '') {
 }
 
 export const kassenabrechnungApi = {
+  async calculate(workflow, payload, branch) {
+    const response = await request(`/api/tageskasse/calculations/${encodeURIComponent(workflow)}`, {
+      method:'POST', body:JSON.stringify(payload || {}),
+    }, branch);
+    return response.calculation;
+  },
   async loadWorkflowDraft(workflowType, branch) {
     const response = await request(`/api/tageskasse${workflowDraftPath({ workflowType })}`, {}, branch);
     return response.draft || null;

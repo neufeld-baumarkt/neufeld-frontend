@@ -1,15 +1,15 @@
 import { ArrowLeft, Banknote, CheckCircle2 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { BANKNOTE_DENOMINATIONS, sumBanknoteCounts } from '../../lib/tagesabschlussV2.mjs';
+import { BANKNOTE_DENOMINATIONS } from '../../lib/tagesabschlussV2.mjs';
 
-function DenominationTable({ counts, editable = false, onChange }) {
+function DenominationTable({ counts, amounts, editable = false, onChange }) {
   return <div className="overflow-hidden rounded-2xl border-2 border-black/10 bg-white">
     {BANKNOTE_DENOMINATIONS.map((denomination)=><div key={denomination} className="grid grid-cols-[1fr_100px_1fr] items-center gap-3 border-b border-black/10 px-4 py-3 last:border-b-0">
       <strong>{denomination} €</strong>
       {editable
         ? <input aria-label={`${denomination} Euro Anzahl`} inputMode="numeric" value={counts[denomination] || ''} onChange={(event)=>onChange(denomination,event.target.value)} className="min-h-12 rounded-xl border-2 border-black/10 px-3 text-center text-lg font-black outline-none focus:border-[#800000]"/>
         : <strong className="rounded-lg bg-black/5 px-3 py-2 text-center">{counts[denomination] || 0}</strong>}
-      <strong className="text-right text-[#800000]">{formatEuroFromCents((counts[denomination] || 0) * denomination * 100)}</strong>
+      <strong className="text-right text-[#800000]">{formatEuroFromCents(amounts?.[denomination]||0)}</strong>
     </div>)}
   </div>;
 }
@@ -18,7 +18,8 @@ export default function BarAnBankV2Process({ mode, canOpenDepositSafe, counts, c
   const preparation = mode === 'bank-preparation';
   const editable = preparation && canOpenDepositSafe;
   const shownCounts = preparation ? counts : calculation.finalCounts;
-  const totalCents = preparation ? sumBanknoteCounts(counts) : calculation.finalDenominationTotalCents;
+  const shownAmounts = preparation ? calculation.countAmounts : calculation.finalCountAmounts;
+  const totalCents = preparation ? calculation.banknoteTotalCents : calculation.finalDenominationTotalCents;
 
   return <div className="mx-auto max-w-3xl">
     <button type="button" onClick={onBack} className="mb-5 flex min-h-11 items-center gap-2 rounded-xl px-3 font-black text-black/60"><ArrowLeft size={19}/>Zur Übersicht</button>
@@ -34,7 +35,7 @@ export default function BarAnBankV2Process({ mode, canOpenDepositSafe, counts, c
     </div>}
 
     {(preparation||calculation.valid)&&<>
-      <div className="mt-6"><DenominationTable counts={shownCounts} editable={editable} onChange={onCountsChange}/></div>
+      <div className="mt-6"><DenominationTable counts={shownCounts} amounts={shownAmounts} editable={editable} onChange={onCountsChange}/></div>
       <div className="mt-4 rounded-2xl bg-white p-5 text-right"><span className="text-xs font-black uppercase tracking-wide text-black/45">{preparation ? 'Scheine aus Einzelkassen' : 'Buchungssumme'}</span><strong className="mt-1 block text-3xl text-[#800000]">{formatEuroFromCents(totalCents)}</strong></div>
     </>}
 

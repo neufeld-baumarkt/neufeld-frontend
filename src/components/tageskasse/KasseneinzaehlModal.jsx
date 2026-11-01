@@ -14,14 +14,10 @@ import {
 } from 'lucide-react';
 import {
   CASH_DENOMINATIONS,
-  TARGET_CENTS,
-  countCashCents,
   formatEuroFromCents,
-  matchesImmediatePreviousClosing,
-  nextDifferenceStep,
-  openingDifferenceCents,
 } from '../../lib/kasseneinzaehlung.mjs';
 import { needsPersonalPinSetup, personalPinError } from '../../lib/employeePinRules.mjs';
+import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
 
@@ -77,7 +73,7 @@ function FirstUsePinStep({ employees, employeeId, setEmployeeId, newPin, setNewP
   </div>;
 }
 
-function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
+function CashGrid({ counts, setCounts, countedCents, targetCents, denominationAmounts, title, instruction }) {
   const inputRefs = useRef([]);
 
   const moveToNextField = (event, index) => {
@@ -95,7 +91,7 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
         <h3 className="text-2xl font-black">{title}</h3>
         <p className="mt-1 text-black/60">{instruction}</p>
       </div>
-      <div className={`rounded-2xl px-5 py-3 text-right ${countedCents===TARGET_CENTS?'bg-emerald-100 text-emerald-800':'bg-[#f2ede7] text-[#800000]'}`}>
+      <div className={`rounded-2xl px-5 py-3 text-right ${countedCents===targetCents?'bg-emerald-100 text-emerald-800':'bg-[#f2ede7] text-[#800000]'}`}>
         <div className="text-xs font-black uppercase tracking-wider">Aktuell gezählt</div>
         <div className="text-3xl font-black">{formatEuroFromCents(countedCents)}</div>
         <div className="text-xs font-bold">Ziel: 250,00 €</div>
@@ -116,13 +112,13 @@ function CashGrid({ counts, setCounts, countedCents, title, instruction }) {
           onFocus={(event)=>event.currentTarget.select()}
           className="mt-2 min-h-12 w-full rounded-lg border px-2 text-center text-lg font-bold outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15"
         />
-        <span className="mt-1 block text-xs text-black/45">= {formatEuroFromCents(denomination.cents*(Number(counts[denomination.cents])||0))}</span>
+        <span className="mt-1 block text-xs text-black/45">= {formatEuroFromCents(denominationAmounts?.[denomination.cents]||0)}</span>
       </label>)}
     </div>
   </div>;
 }
 
-export default function KasseneinzaehlModal({ branch, businessDate, initialDraft, saveDraft, closeDraft, onClose, verifyPin, previousClosingFor, loadFirstUseCandidates, activatePin, onComplete }) {
+export default function KasseneinzaehlModal({ branch, businessDate, initialDraft, saveDraft, closeDraft, onClose, verifyPin, previousClosingFor, loadFirstUseCandidates, activatePin, onComplete, calculateCash }) {
   const restored = initialDraft?.state || {};
   const [stage, setStage] = useState(initialDraft ? 'resume' : 'pin');
   const [pin, setPin] = useState('');
@@ -142,8 +138,11 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
   const [firstUseSecondPerson, setFirstUseSecondPerson] = useState(false);
   const [resumeTargetStage, setResumeTargetStage] = useState('');
   const [resumeNeedsCounter, setResumeNeedsCounter] = useState(false);
-  const countedCents = useMemo(()=>countCashCents(counts), [counts]);
-  const differenceCents = openingDifferenceCents(countedCents);
+  const calculationPayload=useMemo(()=>({counts,attemptsCount:attempts.length,drawerNumber}),[attempts.length,counts,drawerNumber]);
+  const {calculation}=useCashCalculation({calculate:calculateCash,workflow:'opening',payload:calculationPayload,enabled:Boolean(drawerNumber),initialValue:{targetCents:25000,countedCents:0,differenceCents:-25000,carryoverMatched:false,nextStep:'same-person-recount'}});
+  const countedCents=calculation?.countedCents||0;
+  const differenceCents=calculation?.differenceCents??-25000;
+  const targetCents=calculation?.targetCents||25000;
   const draftState = useMemo(()=>({
     employee: employee ? { id: employee.id, name: employee.name } : null,
     counter: counter ? { id: counter.id, name: counter.name } : null,
@@ -243,7 +242,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
 
   const finish = async (openingCents, carryoverDecision = 'none') => {
     setBusy(true); setError('');
-    const completedAttempts = [...attempts, { countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
+    const completedAttempts = [...attempts, { countedCents:openingCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     try {
       await draftSave.flush();
       const saved = await onComplete({
@@ -258,7 +257,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
       counter,
       drawerNumber,
       openingCents,
-      openingDifferenceCents: openingDifferenceCents(openingCents),
+      openingDifferenceCents: saved?.opening?.openingDifferenceCents ?? saved?.openingDifferenceCents ?? differenceCents,
       carryoverDecision,
         attempts: completedAttempts,
         opening: saved?.opening,
@@ -268,21 +267,22 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
     finally { setBusy(false); }
   };
 
-  const checkCount = () => {
+  const checkCount = async () => {
     setError('');
-    if (countedCents <= 0) return setError('Bitte zuerst die Stückelungen der Lade eintragen.');
-    if (countedCents === TARGET_CENTS) return finish(countedCents);
+    let checked;
+    try { checked=await calculateCash('opening',calculationPayload); }
+    catch(failure){return setError(failure.message);}
+    if (checked.countedCents <= 0) return setError('Bitte zuerst die Stückelungen der Lade eintragen.');
+    if (checked.countedCents === checked.targetCents) return finish(checked.countedCents);
 
-    if (attempts.length === 0 && matchesImmediatePreviousClosing({
-      branch, drawerNumber, openingDifference: differenceCents, previousClosing,
-    })) {
+    if (attempts.length === 0 && checked.carryoverMatched) {
       setStage('match');
       return;
     }
 
-    const updated = [...attempts, { countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
+    const updated = [...attempts, { countedCents:checked.countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     setAttempts(updated);
-    const next = nextDifferenceStep(updated.length-1);
+    const next = checked.nextStep;
     if (next === 'same-person-recount') {
       setCounts({});
       setStage('count');
@@ -344,7 +344,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
           <div className="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-4">{[1,2].map((number)=><button key={number} onClick={()=>chooseDrawer(number)} className="aspect-square rounded-full border-4 border-[#800000]/20 bg-white text-2xl font-black text-[#800000] shadow-lg transition hover:-translate-y-1 hover:border-[#800000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#800000]/20">Lade<br/><span className="text-6xl">{number}</span></button>)}</div>
         </div>}
 
-        {stage==='count'&&<CashGrid counts={counts} setCounts={setCounts} countedCents={countedCents} title={attempts.length===0?'Lade vollständig zählen':counter?`${counter.name} zählt jetzt nach`:'Bitte vollständig nachzählen'} instruction={attempts.length===0?'Trage nur die Anzahl jeder Münze und jedes Scheins ein. Die App rechnet automatisch.':'Beginne die Zählung erneut bei null. Die vorherige Zählung bleibt im Protokoll erhalten.'}/>}
+        {stage==='count'&&<CashGrid counts={counts} setCounts={setCounts} countedCents={countedCents} targetCents={targetCents} denominationAmounts={calculation?.denominationAmounts} title={attempts.length===0?'Lade vollständig zählen':counter?`${counter.name} zählt jetzt nach`:'Bitte vollständig nachzählen'} instruction={attempts.length===0?'Trage nur die Anzahl jeder Münze und jedes Scheins ein. Das Backend rechnet automatisch.':'Beginne die Zählung erneut bei null. Die vorherige Zählung bleibt im Protokoll erhalten.'}/>}
 
         {stage==='match'&&<div className="mx-auto max-w-2xl text-center">
           <ShieldCheck className="mx-auto text-emerald-700" size={56}/>
@@ -364,7 +364,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
         {stage==='second-pin'&&<PinStep title="Zweite Person bestätigen" description="Die nachzählende Person bestätigt sich mit ihrem eigenen PIN." pin={pin} setPin={setPin} onSubmit={(event)=>authenticate(event,true)} busy={busy}/>}
 
         {stage==='adjust'&&<div className="mx-auto max-w-2xl text-center">
-          <RotateCcw className="mx-auto text-[#800000]" size={56}/><h3 className="mt-4 text-2xl font-black">Lade auf 250,00 € ausgleichen</h3><p className="mt-3 text-black/65">{differenceCents>0?`Bitte ${formatEuroFromCents(differenceCents)} abschöpfen.`:`Bitte ${formatEuroFromCents(Math.abs(differenceCents))} auffüllen.`} Danach muss eine abschließende Kontrollzählung exakt 250,00 € ergeben.</p>
+          <RotateCcw className="mx-auto text-[#800000]" size={56}/><h3 className="mt-4 text-2xl font-black">Lade auf 250,00 € ausgleichen</h3><p className="mt-3 text-black/65">{calculation?.adjustmentAction==='skim'?`Bitte ${formatEuroFromCents(calculation?.adjustmentAmountCents)} abschöpfen.`:`Bitte ${formatEuroFromCents(calculation?.adjustmentAmountCents)} auffüllen.`} Danach muss eine abschließende Kontrollzählung exakt 250,00 € ergeben.</p>
           <button onClick={startAnotherCount} className="mt-6 min-h-12 rounded-xl bg-[#800000] px-6 font-black text-white">Ausgleich durchgeführt – Kontrollzählung starten</button>
         </div>}
 

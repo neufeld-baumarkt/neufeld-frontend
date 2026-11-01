@@ -15,7 +15,8 @@ import {
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, validateDailyReport } from '../../lib/tagesabschlussV2.mjs';
+import { buildDayCloseV2ViewModel } from '../../lib/tagesabschlussV2.mjs';
+import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import BarAnBankV2Process from './BarAnBankV2Process';
 import TagesabschlussV2Finalize from './TagesabschlussV2Finalize';
@@ -85,7 +86,7 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   </div>;
 }
 
-export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, initialDraft, saveDraft, closeDraft, loadContext, verifyPin, saveDailyMetrics, saveSafeCount, finalizeDay, onComplete, onStartProcess, onClose }) {
+export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, initialDraft, saveDraft, closeDraft, loadContext, verifyPin, saveDailyMetrics, saveSafeCount, finalizeDay, onComplete, onStartProcess, onClose, calculateCash }) {
   const restored = initialDraft?.state || {};
   const [openInfo, setOpenInfo] = useState('');
   const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
@@ -106,7 +107,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [draftBusy, setDraftBusy] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
-  const context = useMemo(() => dayCloseContext ? mapDayCloseContextToV2(dayCloseContext) : (initialContext || {}), [dayCloseContext, initialContext]);
   useEffect(() => {
     if (!loadContext) return;
     let active = true;
@@ -135,14 +135,14 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   }, [initialDraft, loadContext]);
   const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount }),[activeProcess,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
   const draftSave = useWorkflowDraftAutosave({ enabled: !['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
-  const banknoteCounts = canOpenDepositSafe === false ? (context.individualCashBanknotes || {}) : manualBanknoteCounts;
-  const bankCalculation = useMemo(() => calculateBankBooking({
-    banknoteCounts,
-    eurocontrolBankCents: reportData?.eurocontrolBankCents,
-    looseChangeCents: context.looseChangeCents,
-    latestSafeCountCents: context.latestSafeCount?.countedTotalCents,
-    safeStandardCents: context.safeStandardCents,
-  }), [banknoteCounts, context.latestSafeCount?.countedTotalCents, context.looseChangeCents, context.safeStandardCents, reportData?.eurocontrolBankCents]);
+  const fallbackContext=initialContext||{};
+  const [calculationSeed,setCalculationSeed]=useState(null);
+  const context=calculationSeed?.base||fallbackContext;
+  const banknoteCounts=canOpenDepositSafe===false?(context.individualCashBanknotes||{}):manualBanknoteCounts;
+  const calculationPayload=useMemo(()=>({report,reportData,banknoteCounts,safeTargetInput}),[banknoteCounts,report,reportData,safeTargetInput]);
+  const {calculation:serverCalculation}=useCashCalculation({calculate:calculateCash,workflow:'day-close',payload:calculationPayload,enabled:Boolean(calculateCash),initialValue:null});
+  useEffect(()=>{if(serverCalculation)setCalculationSeed(serverCalculation);},[serverCalculation]);
+  const bankCalculation=serverCalculation?.bank||calculationSeed?.bank||{counts:{},finalCounts:{},banknoteTotalCents:0,valid:false};
   const bookingCompleted = localProcessStates['bank-booking']?.status === 'completed';
   const enrichedContext = useMemo(() => ({
     ...context,
@@ -173,7 +173,9 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const updateReport = (event) => setReport((current) => ({ ...current, [event.target.name]: event.target.value }));
   const submitReport = async (event) => {
     event.preventDefault();
-    const result = validateDailyReport(report);
+    let result;
+    try { result=(await calculateCash('day-close',{report,banknoteCounts,safeTargetInput})).report; }
+    catch(failure){setErrors({form:failure.message});return;}
     setErrors(result.errors);
     if (!result.valid) return;
     try {
@@ -233,14 +235,17 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setActiveProcess('');
   };
 
-  const finishBooking = () => {
-    const parsed = parseMoneyToCents(safeTargetInput);
+  const finishBooking = async () => {
+    let checked;
+    try { checked=await calculateCash('day-close',calculationPayload); }
+    catch(failure){setSafeTargetError(failure.message);return;}
+    const parsed = checked.safeTargetCents;
     if (!Number.isInteger(parsed)) {
       setSafeTargetError('Bitte Tresor-SOLL eingeben.');
       return;
     }
-    if (parsed !== bankCalculation.expectedSafeAfterSkimCents) {
-      setSafeTargetError(`Bitte prüfen: Die App erwartet ${formatEuroFromCents(bankCalculation.expectedSafeAfterSkimCents)}.`);
+    if (parsed !== checked.bank.expectedSafeAfterSkimCents) {
+      setSafeTargetError(`Bitte prüfen: Das Backend erwartet ${formatEuroFromCents(checked.bank.expectedSafeAfterSkimCents)}.`);
       return;
     }
     setSafeTargetError('');
@@ -396,6 +401,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
         />}
 
         {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<TresorabschlussV2Process
+          calculateCash={calculateCash}
           mode={activeProcess}
           transferCents={bankCalculation.safeTransferCents}
           safeTargetCents={safeTargetCents}

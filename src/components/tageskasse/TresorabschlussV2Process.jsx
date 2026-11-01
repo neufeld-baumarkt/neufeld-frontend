@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Landmark } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { COIN_ROLLS, SAFE_NOTES, calculateSafeCount } from '../../lib/tresorzaehlung.mjs';
-import { parseMoneyToCents } from '../../lib/tagesabschlussV2.mjs';
+import { COIN_ROLLS, SAFE_NOTES } from '../../lib/tresorzaehlung.mjs';
+import { useCashCalculation } from '../../lib/useCashCalculation';
 
 function CountInput({ label, value, result, onChange, onEnter }) {
   return <label className="block w-full min-w-0 rounded-2xl border-2 border-black/10 bg-white p-3 text-center font-black">
@@ -18,29 +18,26 @@ function CountInput({ label, value, result, onChange, onEnter }) {
   </label>;
 }
 
-export default function TresorabschlussV2Process({ mode, transferCents, safeTargetCents, fixedDrawerCents, littleBerthaCents, initialLooseMoney = '', initialRollCounts = {}, initialNoteCounts = {}, onConfirmMovement, onSaveCount, onBack }) {
+export default function TresorabschlussV2Process({ mode, transferCents, safeTargetCents, fixedDrawerCents, littleBerthaCents, initialLooseMoney = '', initialRollCounts = {}, initialNoteCounts = {}, onConfirmMovement, onSaveCount, onBack, calculateCash }) {
   const [looseMoney, setLooseMoney] = useState(initialLooseMoney);
   const [looseError, setLooseError] = useState('');
   const [rollCounts, setRollCounts] = useState(initialRollCounts);
   const [noteCounts, setNoteCounts] = useState(initialNoteCounts);
   const inputRefs = useRef([]);
-  const looseMoneyCents = parseMoneyToCents(looseMoney);
-  const result = useMemo(() => calculateSafeCount({
-    fixedDrawerCents,
-    littleBerthaCents,
-    looseMoneyCents: Number.isInteger(looseMoneyCents) ? looseMoneyCents : 0,
-    coinRollCounts: rollCounts,
-    banknoteCounts: noteCounts,
-  }), [fixedDrawerCents, littleBerthaCents, looseMoneyCents, noteCounts, rollCounts]);
-  const differenceCents = Number.isInteger(safeTargetCents) ? result.countedTotalCents - safeTargetCents : null;
+  const calculationPayload=useMemo(()=>({countType:'closing',looseMoney,coinRollCounts:rollCounts,banknoteCounts:noteCounts,eurocontrolTotalCents:safeTargetCents}),[looseMoney,noteCounts,rollCounts,safeTargetCents]);
+  const {calculation:result}=useCashCalculation({calculate:calculateCash,workflow:'safe-count',payload:calculationPayload,initialValue:{countedTotalCents:0,differenceCents:null,rollAmountCents:{},banknoteAmountCents:{}}});
+  const differenceCents=result?.differenceCents;
   const updateCount = (setter, key, value) => setter((current)=>({ ...current, [key]: Number(String(value).replace(/\D/g, '') || 0) }));
-  const saveCount = () => {
-    if (!Number.isInteger(looseMoneyCents)) {
+  const saveCount = async () => {
+    let checked;
+    try { checked=await calculateCash('safe-count',calculationPayload); }
+    catch(failure){setLooseError(failure.message);return;}
+    if (!Number.isInteger(checked.looseMoneyCents)) {
       setLooseError('Bitte loses Geld eingeben.');
       return;
     }
     setLooseError('');
-    onSaveCount?.({ ...result, looseMoneyCents, rollCounts, noteCounts, differenceCents });
+    onSaveCount?.({ ...checked, rollCounts, noteCounts });
   };
 
   if (mode === 'safe-movement') return <div className="mx-auto max-w-3xl text-center">
@@ -70,12 +67,12 @@ export default function TresorabschlussV2Process({ mode, transferCents, safeTarg
 
     <h4 className="mb-3 mt-6 text-xl font-black">Münzrollen</h4>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {COIN_ROLLS.map((item,itemIndex)=>{const index=itemIndex+1;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={rollCounts[item.cents]} result={(rollCounts[item.cents]||0)*item.rollValueCents} onChange={(value)=>updateCount(setRollCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
+      {COIN_ROLLS.map((item,itemIndex)=>{const index=itemIndex+1;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={rollCounts[item.cents]} result={result?.rollAmountCents?.[item.cents]||0} onChange={(value)=>updateCount(setRollCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
     </div>
 
     <h4 className="mb-3 mt-6 text-xl font-black">Scheine</h4>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {SAFE_NOTES.map((item,itemIndex)=>{const index=COIN_ROLLS.length+1+itemIndex;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={noteCounts[item.cents]} result={(noteCounts[item.cents]||0)*item.cents} onChange={(value)=>updateCount(setNoteCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
+      {SAFE_NOTES.map((item,itemIndex)=>{const index=COIN_ROLLS.length+1+itemIndex;return <div className="min-w-0" key={item.cents} ref={(element)=>{const input=element?.querySelector('input');if(input)inputRefs.current[index]=input;}}><CountInput label={item.label} value={noteCounts[item.cents]} result={result?.banknoteAmountCents?.[item.cents]||0} onChange={(value)=>updateCount(setNoteCounts,item.cents,value)} onEnter={()=>nextRef(index)}/></div>;})}
     </div>
 
     <div className={`mt-6 rounded-2xl border-2 p-5 ${differenceCents === 0 ? 'border-emerald-400 bg-emerald-50 text-emerald-950' : 'border-amber-400 bg-amber-50 text-amber-950'}`}>

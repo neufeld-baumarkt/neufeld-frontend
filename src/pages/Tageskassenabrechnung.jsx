@@ -223,7 +223,7 @@ export default function Tageskassenabrechnung() {
             {canUseDayCloseV2&&branch&&branch.toLowerCase()!=='alle'&&<button type="button" disabled={!canStartDayCloseV2} onClick={()=>setDayCloseV2Open(true)} className="relative min-h-24 overflow-hidden rounded-xl border border-amber-300/30 bg-white/[.09] p-3 text-left transition hover:-translate-y-1 hover:bg-white/[.13] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[.04] disabled:text-white/40 disabled:hover:translate-y-0"><div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-[#5b170c] shadow-lg shadow-amber-900/20"><ReceiptText size={24} strokeWidth={2.25} aria-hidden="true"/></span><div className="min-w-0 flex-1"><h2 className="text-lg font-black">Tagesabrechnung</h2><div className={`mt-1 flex items-center gap-2 text-sm font-bold ${canStartDayCloseV2?'text-amber-200':'text-white/35'}`}>{canStartDayCloseV2?<ShieldCheck size={16}/>:<LockKeyhole size={16}/>}<span>{canStartDayCloseV2?'Jetzt starten':'Noch nicht verfügbar'}</span></div></div><ArrowRight className={`shrink-0 ${canStartDayCloseV2?'text-amber-200':'text-white/25'}`} size={21}/></div></button>}
           </div>
 
-          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}}/>}
+          {branch&&branch.toLowerCase()!=='alle'&&<KassenabrechnungsArchiv branch={branch} refreshKey={archiveRefreshKey} calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,payload,branch)} verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})} onOverviewChange={(payload)=>{setActiveOpenings((payload.openings||[]).filter((item)=>item.lifecycleStatus==='active'));setDayClosingCount((payload.closings||[]).length);setBusinessDayStatus(payload.businessDayStatus||'open');}} onCloseOpening={(opening)=>{setClosingPreset(opening);setClosingOpen(true);}}/>}
           {branch&&branch.toLowerCase()!=='alle'&&<section className="mt-7 rounded-3xl border border-amber-300/20 bg-white/[.06] p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div><div className="text-xs font-black uppercase tracking-[.2em] text-amber-300/75">Noch nicht archiviert</div><h2 className="mt-1 text-2xl font-black">Einzahlungsbelege fehlen</h2></div>
@@ -247,6 +247,7 @@ export default function Tageskassenabrechnung() {
           {...draftProps('drawer_opening')}
           branch={branch}
           businessDate={selectedBusinessDate}
+          calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,payload,branch)}
           onClose={() => setOpeningCountOpen(false)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           loadFirstUseCandidates={() => employeePinApi.firstUseCandidates({ branch })}
@@ -261,6 +262,7 @@ export default function Tageskassenabrechnung() {
           {...draftProps('drawer_closing')}
           branch={branch}
           businessDate={selectedBusinessDate}
+          calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,payload,branch)}
           presetOpening={closingPreset}
           onClose={() => {setClosingOpen(false);setClosingPreset(null);}}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
@@ -274,6 +276,7 @@ export default function Tageskassenabrechnung() {
         {...draftProps('day_close')}
         branch={branch}
         businessDate={selectedBusinessDate}
+        calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,payload,branch)}
         loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)}
         verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}
         saveDailyMetrics={async()=>{}}
@@ -288,12 +291,14 @@ export default function Tageskassenabrechnung() {
         branch={branch}
         businessDate="DEMO"
         context={DAY_CLOSE_DEMO_CONTEXT}
+        calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,{...payload,demoContext:DAY_CLOSE_DEMO_CONTEXT},branch)}
         onClose={()=>setDayCloseDemoOpen(false)}
       />}
       {safeCountOpen && (
         <TresorzaehlungsModal
           {...draftProps('safe_count')}
           branch={branch}
+          calculateCash={(workflow,payload)=>kassenabrechnungApi.calculate(workflow,payload,branch)}
           initialType={safeCountMode.initialType}
           forceNewClosing={safeCountMode.forceNewClosing}
           onClose={() => {setSafeCountOpen(false);setSafeRefreshKey((current)=>current+1);}}

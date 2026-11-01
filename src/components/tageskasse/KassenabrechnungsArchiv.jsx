@@ -1,8 +1,9 @@
 import { Archive, ArrowRight, Banknote, ChevronDown, CircleAlert, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { CASH_DENOMINATIONS, formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { BANK_NOTE_CENTS, parseEuroToCents, requiresDifferenceNotification } from '../../lib/kassenabrechnung.mjs';
+import { BANK_NOTE_CENTS } from '../../lib/kassenabrechnung.mjs';
 import { kassenabrechnungApi } from '../../lib/kassenabrechnungApi';
+import { useCashCalculation } from '../../lib/useCashCalculation';
 
 const dateTime = (value) => value ? new Intl.DateTimeFormat('de-DE',{dateStyle:'short',timeStyle:'short'}).format(new Date(value)) : '–';
 const dateOnly = (value) => value ? new Intl.DateTimeFormat('de-DE',{dateStyle:'medium',timeZone:'Europe/Berlin'}).format(new Date(value)) : '';
@@ -19,11 +20,11 @@ function Counts({ title, counts, denominations }) {
 
 function FinalDayReport({ report }) {
   const totals=report?.totals||{};
-  const closingDifference=(report?.closings||[]).reduce((sum,item)=>sum+Number(item.differenceCents||0),0);
+  const closingDifference=Number(report?.totalClosingDifferenceCents||0);
   return <div><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-xl bg-white p-4"><span className="text-xs font-black uppercase text-black/40">Gesamt Bar an Bank</span><strong className="block text-xl">{formatEuroFromCents(totals.cashRevenueCents)}</strong></div><div className="rounded-xl bg-white p-4"><span className="text-xs font-black uppercase text-black/40">Auszahlung an Bank</span><strong className="block text-xl">{formatEuroFromCents(totals.bankPayoutCents)}</strong></div><div className="rounded-xl bg-white p-4"><span className="text-xs font-black uppercase text-black/40">Kassendifferenzen</span><strong className="block text-xl">{formatEuroFromCents(closingDifference,{signed:true})}</strong></div><div className="rounded-xl bg-white p-4"><span className="text-xs font-black uppercase text-black/40">Tresor Schlussbestand</span><strong className="block text-xl">{formatEuroFromCents(report?.finalSafeCount?.countedTotalCents)}</strong></div></div><h4 className="mt-5 font-black">Einzelabrechnungen</h4><div className="mt-2 overflow-hidden rounded-xl border bg-white">{(report?.closings||[]).map((item)=><div key={item.id} className="grid gap-2 border-t p-3 first:border-t-0 sm:grid-cols-[1fr_auto_auto]"><div><strong>{item.responsibleEmployee.name} · Lade {item.drawerNumber}</strong><span className="block text-sm text-black/50">Abgerechnet von {item.closedBy.name}</span></div><strong>{formatEuroFromCents(item.bankAmountCents+item.looseChangeCents)}</strong><strong>{formatEuroFromCents(item.differenceCents,{signed:true})}</strong></div>)}</div>{report?.replacedOpenings?.length>0&&<><h4 className="mt-5 font-black">Abgelöste Kassen</h4><div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-4">{report.replacedOpenings.map((item)=><div key={item.id} className="font-bold">{item.employee.name} · Lade {item.drawerNumber} · nicht abgerechnet</div>)}</div></>}<h4 className="mt-5 font-black">Abschließende Tresorzählung</h4><div className="mt-2 grid gap-3 rounded-xl bg-white p-4 sm:grid-cols-2"><div><span className="text-xs font-black uppercase text-black/40">Physisch gezählt</span><strong className="block text-xl">{formatEuroFromCents(report?.finalSafeCount?.countedTotalCents)}</strong></div><div><span className="text-xs font-black uppercase text-black/40">Differenz</span><strong className="block text-xl">{formatEuroFromCents(report?.finalSafeCount?.differenceCents||0,{signed:true})}</strong></div>{report?.finalSafeCount?.participants?.map((person)=><div key={person.id}><span className="text-xs font-black uppercase text-black/40">{person.role}</span><strong className="block">{person.name}</strong></div>)}</div></div>;
 }
 
-export default function KassenabrechnungsArchiv({ branch, refreshKey, verifyPin, onCloseOpening, onOverviewChange }) {
+export default function KassenabrechnungsArchiv({ branch, refreshKey, verifyPin, onCloseOpening, onOverviewChange, calculateCash }) {
   const [items,setItems]=useState([]);
   const [openings,setOpenings]=useState([]);
   const [businessDate,setBusinessDate]=useState('');
@@ -41,7 +42,10 @@ export default function KassenabrechnungsArchiv({ branch, refreshKey, verifyPin,
   const [reason,setReason]=useState('');
   const [pin,setPin]=useState('');
   const [notificationConfirmed,setNotificationConfirmed]=useState(false);
-  const differenceCents=useMemo(()=>{if(kind==='zero')return 0;const cents=parseEuroToCents(amount);return cents===null?null:(kind==='minus'?-cents:cents);},[kind,amount]);
+  const correctionPayload=useMemo(()=>({differenceKind:kind,differenceAmount:amount}),[amount,kind]);
+  const {calculation:correctionCalculation}=useCashCalculation({calculate:calculateCash,workflow:'closing',payload:correctionPayload,enabled:Boolean(detail),initialValue:{differenceCents:0,notificationRequired:false}});
+  const differenceCents=correctionCalculation?.differenceCents;
+  const requiresDifferenceNotification=()=>Boolean(correctionCalculation?.notificationRequired);
   const activeOpenings=useMemo(()=>openings.filter((item)=>item.lifecycleStatus==='active'),[openings]);
   const replacedOpenings=useMemo(()=>openings.filter((item)=>item.lifecycleStatus==='replaced'),[openings]);
   const openingsById=useMemo(()=>new Map(openings.map((item)=>[Number(item.id),item])),[openings]);
@@ -61,7 +65,7 @@ export default function KassenabrechnungsArchiv({ branch, refreshKey, verifyPin,
   useEffect(()=>{load();},[branch,refreshKey]);
   useEffect(()=>{const now=new Date();const midnight=new Date(now);midnight.setHours(24,0,1,0);const timer=setTimeout(load,midnight.getTime()-now.getTime());return()=>clearTimeout(timer);},[branch]);
   const open=async(id)=>{setBusy(true);setError('');try{const payload=await kassenabrechnungApi.closing(id,branch);setDetail(payload.closing);setCanCorrect(payload.canCorrect===true);setKind('zero');setAmount('');setReason('');setPin('');setNotificationConfirmed(false);}catch(failure){setError(failure.message);}finally{setBusy(false);}};
-  const correct=async(event)=>{event.preventDefault();setError('');if(differenceCents===null)return setError('Bitte gib einen gültigen Differenzbetrag ein. Punkt und Komma sind erlaubt.');if(reason.trim().length<10)return setError('Bitte begründe die Korrektur mit mindestens 10 Zeichen.');setBusy(true);try{const employee=await verifyPin(pin);const correction=await kassenabrechnungApi.correctClosing(detail.id,{differenceCents,reason:reason.trim(),notificationConfirmed,proofToken:employee.proofToken},branch);await load();await open(correction.id);}catch(failure){setError(failure.message);}finally{setBusy(false);}};
+  const correct=async(event)=>{event.preventDefault();setError('');setBusy(true);try{const checked=await calculateCash('closing',correctionPayload);if(checked.differenceCents===null)throw new Error('Bitte gib einen gültigen Differenzbetrag ein. Punkt und Komma sind erlaubt.');if(reason.trim().length<10)throw new Error('Bitte begründe die Korrektur mit mindestens 10 Zeichen.');if(checked.notificationRequired&&!notificationConfirmed)throw new Error('Alex und Peter müssen bei einer Einzelabweichung über 5,00 Euro informiert werden.');const employee=await verifyPin(pin);const correction=await kassenabrechnungApi.correctClosing(detail.id,{differenceCents:checked.differenceCents,reason:reason.trim(),notificationConfirmed,proofToken:employee.proofToken},branch);await load();await open(correction.id);}catch(failure){setError(failure.message);}finally{setBusy(false);}};
 
   return <section className="mt-7 rounded-3xl border border-white/10 bg-white/[.06] p-4 sm:p-6">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs font-black uppercase tracking-[.2em] text-amber-300/70">Laufender Geschäftstag{businessDate?` · ${dateOnly(businessDate)}`:''}</div><h2 className="mt-1 text-2xl font-black">Kassen des laufenden Tages</h2></div><div className="flex flex-wrap gap-2"><button onClick={()=>setArchiveOpen(true)} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 font-bold"><Archive size={18}/>Tagesberichte</button><button onClick={load} disabled={busy} className="flex min-h-11 items-center gap-2 rounded-xl border border-white/15 px-4 font-bold"><RefreshCw size={18} className={busy?'animate-spin':''}/>Aktualisieren</button></div></div>
