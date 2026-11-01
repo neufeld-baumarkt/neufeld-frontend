@@ -5,16 +5,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 
 import App from './App.jsx';
-import InactivityGuard from './components/InactivityGuard.jsx';
-import MaintenanceProvider from './components/MaintenanceProvider.jsx';
 import './index.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <MaintenanceProvider>
-        <InactivityGuard />
-        <App />
+      <App />
 
       {/* Globaler Toaster (muss im Root gemountet sein, sonst erscheinen keine Toasts) */}
       <Toaster
@@ -23,7 +19,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         gutter={10}
         containerStyle={{ zIndex: 999999 }}
       />
-      </MaintenanceProvider>
     </BrowserRouter>
   </React.StrictMode>
 );

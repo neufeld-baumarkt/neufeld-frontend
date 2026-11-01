@@ -1,10 +1,6 @@
-export function saveAuthSession(token, user) {
-  sessionStorage.setItem('token', token);
-  sessionStorage.setItem('user', JSON.stringify(user));
-}
-
 export function saveAuthToken(token, role) {
-  saveAuthSession(token, { role });
+  sessionStorage.setItem('token', token);
+  sessionStorage.setItem('user', JSON.stringify({ role }));
 }
 
 export function getToken() {
@@ -12,21 +8,17 @@ export function getToken() {
 }
 
 export function getRole() {
-  return getUser()?.role || null;
-}
-
-export function getUser() {
   const user = sessionStorage.getItem('user');
   if (!user) return null;
 
   try {
-    return JSON.parse(user);
+    const parsed = JSON.parse(user);
+    return parsed.role;
   } catch {
     return null;
   }
 }
 
 export function logout() {
-  sessionStorage.removeItem('token');
-  sessionStorage.removeItem('user');
+  sessionStorage.clear();
 }
