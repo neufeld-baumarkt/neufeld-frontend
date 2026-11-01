@@ -210,7 +210,7 @@ export default function EinzahlungsbelegModal({ branch, closings, onClose, onCon
           </section>
 
           <section className="mx-auto mt-5 max-w-md">
-            <label className="font-black">Mit persönlichem PIN bestätigen<input type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={(event)=>setPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 px-4 text-center text-3xl font-black tracking-[.4em]" placeholder="••••"/></label>
+            <label className="font-black">Mit persönlichem PIN bestätigen<input type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin} onChange={(event)=>setPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 bg-white px-4 text-center text-3xl font-black text-black caret-[#800000] tracking-[.4em]" placeholder="••••"/></label>
             <button disabled={busy} className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#990000] px-5 text-lg font-black text-white disabled:opacity-50"><FileCheck2/>{busy?'Wird gespeichert …':'Beleg verbindlich zuordnen'}</button>
           </section>
         </form>}

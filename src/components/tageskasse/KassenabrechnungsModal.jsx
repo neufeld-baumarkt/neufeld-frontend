@@ -50,7 +50,7 @@ function PinForm({ pin, setPin, onSubmit, busy, title, description }) {
     <form className="mt-6 text-left" onSubmit={onSubmit}><label className="text-sm font-bold">Persönlicher Mitarbeiter-PIN
       <input autoFocus type="password" inputMode="numeric" autoComplete="off" maxLength={4} value={pin}
         onChange={(event)=>setPin(event.target.value.replace(/\D/g,'').slice(0,4))}
-        className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+        className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 bg-white px-4 text-center text-3xl font-black text-black caret-[#800000] tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
     </label><button disabled={busy||pin.length!==4} className="mt-5 min-h-12 w-full rounded-xl bg-[#800000] font-black text-white disabled:opacity-40">{busy?'PIN wird geprüft …':'PIN bestätigen'}</button></form>
   </div>;
 }

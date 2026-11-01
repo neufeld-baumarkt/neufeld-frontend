@@ -38,7 +38,7 @@ function PinStep({ title, description, pin, setPin, onSubmit, busy, hint }) {
         maxLength={4}
         value={pin}
         onChange={(event)=>setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
-        className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000] focus:ring-4 focus:ring-[#800000]/10"
+        className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 bg-white px-4 text-center text-3xl font-black text-black caret-[#800000] tracking-[.45em] outline-none focus:border-[#800000] focus:ring-4 focus:ring-[#800000]/10"
         placeholder="••••"
         autoFocus
       />
@@ -63,10 +63,10 @@ function FirstUsePinStep({ employees, employeeId, setEmployeeId, newPin, setNewP
         </select>
       </label>
       <label className="block text-sm font-bold">Neuer persönlicher PIN
-        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={newPin} onChange={(event)=>setNewPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={newPin} onChange={(event)=>setNewPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 bg-white px-4 text-center text-3xl font-black text-black caret-[#800000] tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
       </label>
       <label className="block text-sm font-bold">Neuen PIN wiederholen
-        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={confirmPin} onChange={(event)=>setConfirmPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 px-4 text-center text-3xl font-black tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
+        <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={4} value={confirmPin} onChange={(event)=>setConfirmPin(event.target.value.replace(/\D/g,'').slice(0,4))} className="mt-2 min-h-14 w-full rounded-xl border-2 border-black/15 bg-white px-4 text-center text-3xl font-black text-black caret-[#800000] tracking-[.45em] outline-none focus:border-[#800000]" placeholder="••••" />
       </label>
       <button disabled={busy||!employeeId||newPin.length!==4||confirmPin.length!==4} className="min-h-12 w-full rounded-xl bg-[#800000] px-5 font-black text-white disabled:opacity-40">{busy?'PIN wird gespeichert …':'Persönlichen PIN speichern'}</button>
     </form>
