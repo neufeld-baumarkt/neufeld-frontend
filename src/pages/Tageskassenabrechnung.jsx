@@ -25,6 +25,7 @@ import { canUseCashModule, needsTemporaryCashBranch } from '../lib/cashModuleAcc
 import { berlinBusinessDate, canSelectHistoricalBusinessDate, formatBusinessDate, setActiveCashBusinessDate } from '../lib/cashBusinessDate.mjs';
 import { formatEuroCents } from '../lib/einzahlungsbeleg.mjs';
 import { DAY_CLOSE_DEMO_CONTEXT } from '../lib/tagesabschlussDemo.mjs';
+import { resumableDraft } from '../lib/workflowDraft.mjs';
 
 const processes = [
   {
@@ -69,6 +70,7 @@ export default function Tageskassenabrechnung() {
   const [dayClosingCount, setDayClosingCount] = useState(0);
   const [businessDayStatus, setBusinessDayStatus] = useState('open');
   const [branches, setBranches] = useState([]);
+  const [workflowDrafts, setWorkflowDrafts] = useState({});
   const user = useMemo(() => {
     try { return JSON.parse(sessionStorage.getItem('user')) || {}; } catch { return {}; }
   }, []);
@@ -111,6 +113,32 @@ export default function Tageskassenabrechnung() {
   };
 
   useEffect(() => { loadReceiptClosings(); }, [branch, archiveRefreshKey]);
+
+  useEffect(() => {
+    if (!branch || branch.toLowerCase() === 'alle') return undefined;
+    let active = true;
+    const types = ['drawer_opening','drawer_closing','safe_count','day_close'];
+    Promise.all(types.map(async(type)=>[type,resumableDraft(await kassenabrechnungApi.loadWorkflowDraft(type,branch))]))
+      .then((entries)=>{
+        if (!active) return;
+        const drafts=Object.fromEntries(entries); setWorkflowDrafts(drafts);
+        const first=types.find((type)=>drafts[type]);
+        if(first==='drawer_opening')setOpeningCountOpen(true);
+        if(first==='drawer_closing')setClosingOpen(true);
+        if(first==='safe_count')setSafeCountOpen(true);
+        if(first==='day_close')setDayCloseV2Open(true);
+      }).catch((error)=>{if(active)toast.error(`Entwürfe konnten nicht geprüft werden: ${error.message}`);});
+    return ()=>{active=false;};
+  }, [branch, selectedBusinessDate]);
+
+  const draftProps=(workflowType)=>({
+    initialDraft:workflowDrafts[workflowType]||null,
+    saveDraft:async(payload)=>kassenabrechnungApi.saveWorkflowDraft(workflowType,{...payload,businessDate:selectedBusinessDate},branch),
+    closeDraft:async(status,expectedRevision)=>{
+      const result=await kassenabrechnungApi.closeWorkflowDraft(workflowType,{status,expectedRevision},branch);
+      setWorkflowDrafts((current)=>({...current,[workflowType]:null})); return result;
+    },
+  });
 
   if (!canUseCashModule(user)) return <Navigate to="/forbidden" replace />;
 
@@ -167,7 +195,7 @@ export default function Tageskassenabrechnung() {
                   type="date"
                   value={selectedBusinessDate}
                   max={currentBusinessDate}
-                  onChange={(event)=>{setOpeningCountOpen(false);setClosingOpen(false);setSafeCountOpen(false);setDayCloseOpen(false);setActiveOpenings([]);setDayClosingCount(0);setBusinessDayStatus('open');setSelectedBusinessDate(event.target.value||currentBusinessDate);}}
+                  onChange={(event)=>{setOpeningCountOpen(false);setClosingOpen(false);setSafeCountOpen(false);setDayCloseV2Open(false);setActiveOpenings([]);setDayClosingCount(0);setBusinessDayStatus('open');setSelectedBusinessDate(event.target.value||currentBusinessDate);}}
                   className="mt-1 block min-h-11 w-full rounded-xl border border-white/20 bg-white px-3 font-bold text-[#242121]"
                 />
               </label>}
@@ -216,7 +244,9 @@ export default function Tageskassenabrechnung() {
       </div>
       {openingCountOpen && (
         <KasseneinzaehlModal
+          {...draftProps('drawer_opening')}
           branch={branch}
+          businessDate={selectedBusinessDate}
           onClose={() => setOpeningCountOpen(false)}
           verifyPin={(pin, options) => kasseneinzaehlungApi.verifyPin(pin, { ...options, branch })}
           loadFirstUseCandidates={() => employeePinApi.firstUseCandidates({ branch })}
@@ -228,6 +258,7 @@ export default function Tageskassenabrechnung() {
       )}
       {closingOpen && (
         <KassenabrechnungsModal
+          {...draftProps('drawer_closing')}
           branch={branch}
           businessDate={selectedBusinessDate}
           presetOpening={closingPreset}
@@ -236,14 +267,16 @@ export default function Tageskassenabrechnung() {
           loadEmployees={() => kassenabrechnungApi.employees(branch)}
           loadContext={({ drawerNumber, employee, responsibleEmployee }) => kassenabrechnungApi.closingContext({ drawerNumber, proofToken: employee.proofToken, responsibleEmployeeId: responsibleEmployee.id }, branch)}
           onComplete={async(payload)=>{const saved=await kassenabrechnungApi.saveClosing(payload,branch);setArchiveRefreshKey((current)=>current+1);return saved;}}
-          onStartDayClose={()=>{setClosingOpen(false);setClosingPreset(null);setDayCloseOpen(true);}}
+          onStartDayClose={()=>{setClosingOpen(false);setClosingPreset(null);setDayCloseV2Open(true);}}
         />
       )}
       {dayCloseV2Open&&<TagesabschlussV2Modal
+        {...draftProps('day_close')}
         branch={branch}
         businessDate={selectedBusinessDate}
         loadContext={()=>kassenabrechnungApi.dayCloseContext(branch)}
         verifyPin={(pin,options)=>kasseneinzaehlungApi.verifyPin(pin,{...options,branch})}
+        saveDailyMetrics={async()=>{}}
         saveSafeCount={(payload)=>kassenabrechnungApi.saveSafeCount(payload,branch)}
         finalizeDay={(payload)=>kassenabrechnungApi.finalizeDay(payload,branch)}
         onComplete={async()=>{setArchiveRefreshKey((current)=>current+1);await loadReceiptClosings();}}
@@ -259,6 +292,7 @@ export default function Tageskassenabrechnung() {
       />}
       {safeCountOpen && (
         <TresorzaehlungsModal
+          {...draftProps('safe_count')}
           branch={branch}
           initialType={safeCountMode.initialType}
           forceNewClosing={safeCountMode.forceNewClosing}

@@ -1,4 +1,5 @@
 import { activeCashBusinessDate } from './cashBusinessDate.mjs';
+import { workflowDraftPath, workflowDraftPayload } from './workflowDraft.mjs';
 
 const baseUrl = () => import.meta.env.VITE_API_URL;
 const token = () => sessionStorage.getItem('token');
@@ -20,6 +21,22 @@ async function request(path, options = {}, branch = '') {
 }
 
 export const kassenabrechnungApi = {
+  async loadWorkflowDraft(workflowType, branch) {
+    const response = await request(`/api/tageskasse${workflowDraftPath({ workflowType })}`, {}, branch);
+    return response.draft || null;
+  },
+  async saveWorkflowDraft(workflowType, payload, branch) {
+    const response = await request(`/api/tageskasse${workflowDraftPath({ workflowType })}`, {
+      method:'PUT', body:JSON.stringify(workflowDraftPayload({ ...payload, branch })),
+    }, branch);
+    return response.draft;
+  },
+  async closeWorkflowDraft(workflowType, { status, expectedRevision }, branch) {
+    const response = await request(`/api/tageskasse${workflowDraftPath({ workflowType })}/close`, {
+      method:'POST', body:JSON.stringify({ status, expectedRevision }),
+    }, branch);
+    return response.draft;
+  },
   async employees(branch) {
     const payload = await request('/api/tageskasse/employees', {}, branch);
     return payload.employees || [];
