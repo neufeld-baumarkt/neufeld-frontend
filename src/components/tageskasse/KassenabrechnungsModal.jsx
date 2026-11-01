@@ -110,7 +110,9 @@ export default function KassenabrechnungsModal({ branch, businessDate, initialDr
     setWorkflowProof(workflow?.workflowToken||identified.proofToken);
     setEmployee(identified);setEmployees(candidates);setShowOtherEmployees(false);
     if(resumeTargetStage){
-      setResponsibleEmployee(restored.responsibleEmployee);setStage(resumeTargetStage);setResumeTargetStage('');
+      const resumedResponsible=restored.responsibleEmployee||identified;
+      const resumedContext=await loadContext({businessDate,drawerNumber:restored.drawerNumber,employee:identified,responsibleEmployee:resumedResponsible});
+      setResponsibleEmployee(resumedResponsible);setOpening(resumedContext?.opening||restored.opening||null);setWorkflowProof(resumedContext?.contextProofToken||null);setStage(resumeTargetStage);setResumeTargetStage('');
     }else{
       setResponsibleEmployee(identified);setStage('responsible');
     }
@@ -120,14 +122,14 @@ export default function KassenabrechnungsModal({ branch, businessDate, initialDr
   const completeClosing=async()=>{setError('');setBusy(true);try{
     if(!workflowProof)throw new Error('Die persönliche Bestätigung fehlt. Bitte öffne die Abrechnung erneut.');
     await draftSave.flush();
-    const saved=await onComplete({businessDate,isLastCash,responsibleEmployeePinId:responsibleEmployee?.id||employee.id,drawerNumber,openingCountId:opening?.id||null,proceededWithoutOpening:!opening,fullCounts,looseChangeCents:plan.looseChangeCents,retainedCoinCents:plan.retainedCoinCents,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:bankAmountCents,differenceCents,notificationConfirmed,recountAttempts,proofToken:workflowProof,workflowToken:workflowProof});
+    const saved=await onComplete({businessDate,isLastCash,responsibleEmployeeId:responsibleEmployee?.id||employee.id,drawerNumber,openingCountId:opening?.id||null,proceededWithoutOpening:!opening,fullCounts,looseChangeCents:plan.looseChangeCents,retainedCoinCents:plan.retainedCoinCents,bankNoteCounts:bankNotes,bankAmountCents,eurocontrolTotalCents:bankAmountCents,differenceCents,notificationConfirmed,recountAttempts,contextProofToken:workflowProof});
     await closeDraft?.('completed',draftSave.revisionRef.current);
     setResult(saved||{employee});setStage('complete');
   }catch(failure){setError(failure.message);}finally{setBusy(false);}};
 
   const discardDraft=async()=>{setBusy(true);setError('');try{await closeDraft?.('discarded',Number(initialDraft.revision));setEmployee(null);setResponsibleEmployee(null);setDrawerNumber(null);setOpening(null);setFullCounts(EMPTY);setBankNotes(EMPTY);setDifferenceKind('zero');setDifferenceAmount('');setRecountAttempts([]);setStage('purpose');}catch(failure){setError(failure.message);}finally{setBusy(false);}};
 
-  const chooseDrawer=async(number)=>{setError('');setBusy(true);try{const context=await loadContext({businessDate,drawerNumber:number,employee:responsibleEmployee});setDrawerNumber(number);setOpening(context?.opening||null);advance(context?.opening?'full-count':'missing-opening');}catch(failure){setError(failure.message);}finally{setBusy(false);}};
+  const chooseDrawer=async(number)=>{setError('');setBusy(true);try{const context=await loadContext({businessDate,drawerNumber:number,employee,responsibleEmployee});setDrawerNumber(number);setOpening(context?.opening||null);setWorkflowProof(context?.contextProofToken||null);advance(context?.opening?'full-count':'missing-opening');}catch(failure){setError(failure.message);}finally{setBusy(false);}};
   const freshCalculation=()=>calculateCash('closing',calculationPayload);
   const checkFullCount=async()=>{try{const checked=await freshCalculation();if(checked.countedTotalCents<=0)return fail('Bitte zuerst die komplette Lade zählen.');if(checked.countedTotalCents<checked.targetCents)return fail('Die gezählte Lade enthält weniger als 250,00 €. Bitte prüfe deine Eingaben.');advance('loose-change');}catch(failure){fail(failure.message);}};
   const checkBank=async()=>{try{const checked=await freshCalculation();if(checked.bankProblem)return fail(checked.bankProblem);if(checked.remainderCents!==checked.targetCents)return fail(`Die Kontrollrechnung ergibt ${formatEuroFromCents(checked.remainderCents)} statt 250,00 €. Bitte zähle die übrigen Scheine erneut.`);advance('euro-transfer');}catch(failure){fail(failure.message);}};

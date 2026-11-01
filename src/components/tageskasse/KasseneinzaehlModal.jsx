@@ -178,6 +178,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
       if (secondPerson) {
         if (resumeNeedsCounter && String(identified.id)!==String(restored.counter?.id)) throw new Error('Diese Einzählung kann nur von der zuvor beteiligten zweiten Person fortgesetzt werden.');
         setCounter(identified);
+        setAttempts((current)=>current.map((attempt)=>String(attempt.countedBy?.id)===String(identified.id)?{...attempt,countedBy:identified}:attempt));
         setPin('');
         if (resumeNeedsCounter) {
           setResumeNeedsCounter(false);
@@ -191,6 +192,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
         if (resumeTargetStage) {
           if (String(identified.id)!==String(restored.employee?.id)) throw new Error('Diese Einzählung kann nur von der Person fortgesetzt werden, die sie begonnen hat.');
           setEmployee(identified);
+          setAttempts((current)=>current.map((attempt)=>String(attempt.countedBy?.id)===String(identified.id)?{...attempt,countedBy:identified}:attempt));
           setPin('');
           if (restored.counter?.id) { setResumeNeedsCounter(true); setStage('second-pin'); }
           else { setStage(resumeTargetStage); setResumeTargetStage(''); }
