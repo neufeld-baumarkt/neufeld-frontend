@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
 import { BANK_BOOKING_INFO_TEXT, buildDayCloseV2ViewModel } from '../../lib/tagesabschlussV2.mjs';
+import { finalizeDayCloseDemo } from '../../lib/tagesabschlussDemo.mjs';
 import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import BarAnBankV2Process from './BarAnBankV2Process';
@@ -87,7 +88,7 @@ function ProcessCard({ process, onStart, infoOpen, onToggleInfo }) {
   </div>;
 }
 
-export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, initialDraft, saveDraft, closeDraft, loadContext, verifyPin, saveDailyMetrics, saveSafeCount, finalizeDay, onComplete, onStartProcess, onClose, calculateCash }) {
+export default function TagesabschlussV2Modal({ branch, businessDate, context: initialContext, initialDraft, saveDraft, closeDraft, loadContext, verifyPin, saveDailyMetrics, saveSafeCount, finalizeDay, onComplete, onStartProcess, onClose, calculateCash, demoMode = false }) {
   const restored = initialDraft?.state || {};
   const [openInfo, setOpenInfo] = useState('');
   const [stage, setStage] = useState(loadContext ? 'loading' : 'report');
@@ -138,14 +139,15 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     return () => { active = false; };
   }, [initialDraft, loadContext]);
   const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount,babReconciliation }),[activeProcess,babReconciliation,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
-  const draftSave = useWorkflowDraftAutosave({ enabled: !finalized&&!['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
+  const draftSave = useWorkflowDraftAutosave({ enabled: !demoMode&&!finalized&&!['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
   const closeSafely = useCallback(async () => {
     if (draftBusy) return;
+    if (demoMode) return onClose();
     if (finalized) return onClose();
     setCloseError('');
     try { await draftSave.flush(); onClose(); }
     catch (failure) { setCloseError(`Der Zwischenstand konnte nicht gespeichert werden: ${failure.message}`); }
-  }, [draftBusy, draftSave.flush, finalized, onClose]);
+  }, [demoMode, draftBusy, draftSave.flush, finalized, onClose]);
   useEffect(() => {
     const close = (event) => { if (event.key === 'Escape') void closeSafely(); };
     window.addEventListener('keydown', close);
@@ -200,8 +202,10 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setErrors(result.errors);
     if (!result.valid) return;
     try {
-      if (!saveDailyMetrics) throw new Error('Das Speichern der Tageswerte ist nicht verbunden.');
-      await saveDailyMetrics(result.data);
+      if (!demoMode) {
+        if (!saveDailyMetrics) throw new Error('Das Speichern der Tageswerte ist nicht verbunden.');
+        await saveDailyMetrics(result.data);
+      }
       setReportData(result.data);
     } catch (failure) {
       setErrors({ form: failure.message });
@@ -316,6 +320,11 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   };
 
   const finalizeV2 = async ({ firstPin, secondPin }) => {
+    if (demoMode) {
+      const completed = finalizeDayCloseDemo({ reportData, calculation:bankCalculation, safeCount:finalSafeCount, babReconciliation });
+      setFinalized(true);
+      return completed;
+    }
     if (!verifyPin || !saveSafeCount || !finalizeDay || !dayCloseContext) {
       throw new Error('Der verbindliche Abschluss ist in dieser Vorschau nicht verbunden.');
     }
@@ -468,6 +477,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
         />}
 
         {stage==='process'&&activeProcess==='finalize'&&<TagesabschlussV2Finalize
+          demoMode={demoMode}
           reportData={reportData}
           calculation={bankCalculation}
           safeCount={finalSafeCount}
