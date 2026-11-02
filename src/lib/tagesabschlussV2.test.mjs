@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, sumBanknoteCounts, validateDailyReport } from './tagesabschlussV2.mjs';
+import { BANK_BOOKING_INFO_TEXT, buildDayCloseV2ViewModel, calculateBankBooking, mapDayCloseContextToV2, parseMoneyToCents, sumBanknoteCounts, validateDailyReport } from './tagesabschlussV2.mjs';
+
+test('erklärt vor der Buchung die automatisch ergänzten Stückelungen', () => {
+  assert.equal(BANK_BOOKING_INFO_TEXT, 'Die folgenden Stückelungen enthalten bereits alle vom System automatisch berechneten Beträge.');
+});
 
 test('berechnet Fortschritt nur aus erforderlichen Prozessen', () => {
   const model = buildDayCloseV2ViewModel({

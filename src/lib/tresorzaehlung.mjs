@@ -32,6 +32,6 @@ export function calculateSafeCount({ fixedDrawerCents, littleBerthaCents, looseM
 
 export function countTypeLabels(type) {
   if (type === 'morning') return { title: 'Morgendliche Kontrolle', first: 'Frühschicht 1', second: 'Frühschicht 2' };
-  if (type === 'handover') return { title: 'Schichtübergabe', first: 'Übernahme durch', second: 'Übergabe durch' };
-  return { title: 'Abendzählung', first: 'Spätschicht 1', second: 'Spätschicht 2' };
+  if (type === 'handover') return { title: 'Schichtübergabe', first: 'PIN des übergebenden Mitarbeiters', second: 'PIN des übernehmenden Mitarbeiters' };
+  return { title: 'Tresorzählung', first: 'PIN Mitarbeiter 1', second: 'PIN Mitarbeiter 2' };
 }

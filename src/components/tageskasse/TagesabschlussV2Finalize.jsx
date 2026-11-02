@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
 
@@ -12,8 +12,10 @@ export default function TagesabschlussV2Finalize({ reportData, calculation, safe
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState(null);
+  const submittingRef = useRef(false);
 
   const submit = async () => {
+    if (submittingRef.current) return;
     if (!/^\d{4}$/.test(firstPin) || !/^\d{4}$/.test(secondPin)) {
       setError('Bitte beide persönlichen PINs eingeben.');
       return;
@@ -22,6 +24,7 @@ export default function TagesabschlussV2Finalize({ reportData, calculation, safe
       setError('Es müssen zwei unterschiedliche Personen bestätigen.');
       return;
     }
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     try {
@@ -32,6 +35,7 @@ export default function TagesabschlussV2Finalize({ reportData, calculation, safe
     } catch (failure) {
       setError(failure.message);
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   };

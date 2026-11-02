@@ -43,6 +43,8 @@ export const DAY_CLOSE_V2_PROCESSES = Object.freeze([
   },
 ]);
 
+export const BANK_BOOKING_INFO_TEXT = 'Die folgenden Stückelungen enthalten bereits alle vom System automatisch berechneten Beträge.';
+
 const isCompleted = (state) => state?.status === 'completed';
 
 export function buildDayCloseV2ViewModel(context = {}) {

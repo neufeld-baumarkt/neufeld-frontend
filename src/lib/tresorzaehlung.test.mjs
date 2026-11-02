@@ -14,7 +14,7 @@ test('berechnet den Excel-Tresorbestand mit Rollenwerten statt Münzstücken', (
 });
 
 test('zeigt für Übergabe zwei fachlich feste Rollen', () => {
-  assert.deepEqual(countTypeLabels('handover'), { title: 'Schichtübergabe', first: 'Übernahme durch', second: 'Übergabe durch' });
+  assert.deepEqual(countTypeLabels('handover'), { title: 'Schichtübergabe', first: 'PIN des übergebenden Mitarbeiters', second: 'PIN des übernehmenden Mitarbeiters' });
 });
 
 test('bestätigt den erwarteten Endbestand nach Kleingeldausgleich und Abschöpfung', () => {

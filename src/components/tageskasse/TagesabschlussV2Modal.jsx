@@ -15,10 +15,11 @@ import {
   X,
 } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { buildDayCloseV2ViewModel } from '../../lib/tagesabschlussV2.mjs';
+import { BANK_BOOKING_INFO_TEXT, buildDayCloseV2ViewModel } from '../../lib/tagesabschlussV2.mjs';
 import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import BarAnBankV2Process from './BarAnBankV2Process';
+import BaBReconciliationV2 from './BaBReconciliationV2';
 import TagesabschlussV2Finalize from './TagesabschlussV2Finalize';
 import TresorabschlussV2Process from './TresorabschlussV2Process';
 import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
@@ -104,6 +105,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [safeTargetError, setSafeTargetError] = useState('');
   const [finalSafeCount, setFinalSafeCount] = useState(restored.finalSafeCount || null);
   const [persistedFinalSafeCount, setPersistedFinalSafeCount] = useState(restored.persistedFinalSafeCount || null);
+  const [babReconciliation, setBabReconciliation] = useState(restored.babReconciliation || null);
+  const [finalized, setFinalized] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
@@ -134,19 +137,25 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     });
     return () => { active = false; };
   }, [initialDraft, loadContext]);
-  const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount }),[activeProcess,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
-  const draftSave = useWorkflowDraftAutosave({ enabled: !['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
+  const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount,babReconciliation }),[activeProcess,babReconciliation,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
+  const draftSave = useWorkflowDraftAutosave({ enabled: !finalized&&!['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
   const closeSafely = useCallback(async () => {
     if (draftBusy) return;
+    if (finalized) return onClose();
     setCloseError('');
     try { await draftSave.flush(); onClose(); }
     catch (failure) { setCloseError(`Der Zwischenstand konnte nicht gespeichert werden: ${failure.message}`); }
-  }, [draftBusy, draftSave.flush, onClose]);
+  }, [draftBusy, draftSave.flush, finalized, onClose]);
   useEffect(() => {
     const close = (event) => { if (event.key === 'Escape') void closeSafely(); };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
   }, [closeSafely]);
+  useEffect(() => {
+    if (stage !== 'process' || activeProcess !== 'bank-booking-info') return undefined;
+    const timer = window.setTimeout(() => setActiveProcess('bank-booking'), 2600);
+    return () => window.clearTimeout(timer);
+  }, [activeProcess, stage]);
   const fallbackContext=initialContext||{};
   const [calculationSeed,setCalculationSeed]=useState(null);
   const context=calculationSeed?.base||fallbackContext;
@@ -203,6 +212,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setSafeTargetError('');
     setFinalSafeCount(null);
     setPersistedFinalSafeCount(null);
+    setBabReconciliation(null);
     setLocalProcessStates((current) => {
       const { 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -217,6 +227,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setSafeTargetError('');
     setFinalSafeCount(null);
     setPersistedFinalSafeCount(null);
+    setBabReconciliation(null);
     setLocalProcessStates((current) => {
       const { 'bank-preparation': _preparation, 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -225,6 +236,16 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   };
 
   const startProcess = (process) => {
+    if (process.id === 'finalize' && !babReconciliation) {
+      setActiveProcess('bab-check');
+      setStage('process');
+      return;
+    }
+    if (process.id === 'bank-booking') {
+      setActiveProcess('bank-booking-info');
+      setStage('process');
+      return;
+    }
     if (['bank-preparation', 'bank-booking', 'safe-movement', 'final-safe-count', 'finalize'].includes(process.id)) {
       setActiveProcess(process.id);
       setStage('process');
@@ -262,6 +283,13 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     }
     setSafeTargetError('');
     setSafeTargetCents(parsed);
+    setBabReconciliation(null);
+    setActiveProcess('bab-check');
+    setStage('process');
+  };
+
+  const finishBabReconciliation = (result) => {
+    setBabReconciliation(result);
     setLocalProcessStates((current) => {
       const { 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return { ...rest, 'bank-booking': { status: 'completed', completedAt: new Date().toISOString() } };
@@ -299,6 +327,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     if (!savedSafeCount) {
       savedSafeCount = await saveSafeCount({
         countType: 'closing',
+        dayCloseWorkflow: true,
         mode: 'full_count',
         repeatClosingConfirmed: Boolean(dayCloseContext.finalSafeCount),
         looseMoneyCents: finalSafeCount.looseMoneyCents,
@@ -326,12 +355,14 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           averageReceiptCents: reportData.averageReceiptCents,
         },
         approvalProofTokens: [first.proofToken, second.proofToken],
+        babReconciliation,
       });
     } catch (failure) {
       if (createdSafeCount) setPersistedFinalSafeCount(savedSafeCount);
       throw failure;
     }
     const approvals = [{ id: first.id, name: first.name }, { id: second.id, name: second.name }];
+    setFinalized(true);
     onComplete?.(finalized);
     return { report: finalized, approvals };
   };
@@ -351,6 +382,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
       setSafeTargetCents(null);
       setFinalSafeCount(dayCloseContext?.finalSafeCount || null);
       setPersistedFinalSafeCount(dayCloseContext?.finalSafeCount || null);
+      setBabReconciliation(null);
+      setFinalized(false);
       setStage(dayCloseContext?.dailyMetrics ? 'safe-access' : 'report');
     } catch (failure) { setContextError(failure.message); }
     finally { setDraftBusy(false); }
@@ -417,6 +450,10 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           onConfirmBooking={finishBooking}
           onBack={()=>{setStage('dashboard');setActiveProcess('');}}
         />}
+
+        {stage==='process'&&activeProcess==='bank-booking-info'&&<div className="mx-auto max-w-2xl py-10 text-center" role="status" aria-live="polite"><CircleHelp className="mx-auto text-[#800000]" size={68}/><h3 className="mt-5 text-2xl font-black sm:text-3xl">Hinweis zur BaB-Buchung</h3><p className="mt-5 rounded-2xl border-2 border-[#800000]/20 bg-white p-6 text-xl font-black leading-relaxed">{BANK_BOOKING_INFO_TEXT}</p><p className="mt-4 text-sm font-bold text-black/45">Die Stückelungen werden automatisch geöffnet …</p></div>}
+
+        {stage==='process'&&activeProcess==='bab-check'&&<BaBReconciliationV2 totalCents={context.bankPayoutCents} onConfirm={finishBabReconciliation}/>}
 
         {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<TresorabschlussV2Process
           calculateCash={calculateCash}
