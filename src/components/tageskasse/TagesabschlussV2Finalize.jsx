@@ -45,7 +45,10 @@ export default function TagesabschlussV2Finalize({ reportData, calculation, safe
     <h3 className="mt-4 text-3xl font-black">{demoMode ? 'Demo erfolgreich abgeschlossen' : 'Tagesabrechnung abgeschlossen'}</h3>
     <p className="mt-2 text-black/60">{demoMode ? 'Es wurden keine Daten gespeichert.' : 'Der Geschäftstag ist jetzt Read-only.'}</p>
     <div className="mt-6 grid gap-3 text-left sm:grid-cols-2">
-      <Metric label="Auszahlung an Bank" value={calculation.bookingTotalCents}/>
+      <Metric label="BaB-SOLL laut EuroControl" value={reportData.eurocontrolBankCents}/>
+      <Metric label="BaB nach Abrundung auf volle 5 €" value={calculation.roundedEurocontrolBankCents}/>
+      <Metric label="Tresorabschöpfung" value={calculation.skimCents}/>
+      <Metric label="BaB gebucht" value={calculation.bookingTotalCents}/>
       <Metric label="Tresor Schlussbestand" value={safeCount.countedTotalCents}/>
       <Metric label="Bestätigt von" value={result.approvals.map((person)=>person.name).join(' · ')} money={false}/>
       <Metric label="Status" value={demoMode ? 'Demo · nicht gespeichert' : 'Verbindlich · Read-only'} money={false}/>
@@ -60,7 +63,10 @@ export default function TagesabschlussV2Finalize({ reportData, calculation, safe
       <Metric label="Kunden" value={reportData.customerCount} money={false}/>
       <Metric label="Durchschnittsbon" value={reportData.averageReceiptCents}/>
       <Metric label="Einzelabrechnungen" value={closingCount} money={false}/>
-      <Metric label="Auszahlung an Bank" value={calculation.bookingTotalCents}/>
+      <Metric label="BaB-SOLL laut EuroControl" value={reportData.eurocontrolBankCents}/>
+      <Metric label="BaB nach Abrundung auf volle 5 €" value={calculation.roundedEurocontrolBankCents}/>
+      <Metric label="Tresorabschöpfung" value={calculation.skimCents}/>
+      <Metric label="BaB gebucht" value={calculation.bookingTotalCents}/>
       <Metric label="Tresor Schlussbestand" value={safeCount.countedTotalCents}/>
       <Metric label="Tresordifferenz" value={safeCount.differenceCents}/>
     </div>

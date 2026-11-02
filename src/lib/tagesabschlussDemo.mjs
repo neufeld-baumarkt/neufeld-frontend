@@ -30,6 +30,7 @@ export function finalizeDayCloseDemo({ reportData, calculation, safeCount, babRe
   return {
     report: {
       workflowVersion:'v2-demo', dailyMetrics:{...reportData}, babReconciliation:{...babReconciliation},
+      babReport:{ eurocontrolTargetCents:reportData.eurocontrolBankCents, roundedCents:calculation.roundedEurocontrolBankCents, safeSkimCents:calculation.skimCents, bookedCents:calculation.bookingTotalCents },
       bankPayoutCents:calculation.bookingTotalCents, finalSafeCount:{...safeCount}, persisted:false,
     },
     approvals:[{id:'demo-1',name:'Demo-Person 1'},{id:'demo-2',name:'Demo-Person 2'}],

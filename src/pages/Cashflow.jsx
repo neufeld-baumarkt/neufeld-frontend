@@ -53,6 +53,7 @@ export default function Cashflow() {
 
   const [weeksData, setWeeksData] = useState([]);
   const [buchungen, setBuchungen] = useState([]);
+  const [babReports, setBabReports] = useState([]);
   const [cashflowLoading, setCashflowLoading] = useState(false);
   const [cashflowError, setCashflowError] = useState('');
 
@@ -132,7 +133,7 @@ export default function Cashflow() {
     try {
       const { token, baseUrl } = getApiBasics();
 
-      const [weeksResponse, buchungenResponse] = await Promise.all([
+      const [weeksResponse, buchungenResponse, babResponse] = await Promise.all([
         fetch(
           `${baseUrl}/api/cashflow/jahresuebersicht?jahr=${jahr}&bisKw=${bisKw}`,
           {
@@ -149,10 +150,14 @@ export default function Cashflow() {
             },
           }
         ),
+        fetch(`${baseUrl}/api/cashflow/bab-tagesberichte?jahr=${jahr}&bisKw=${bisKw}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       const weeksJson = await weeksResponse.json();
       const buchungenJson = await buchungenResponse.json();
+      const babJson = await babResponse.json();
 
       if (!weeksResponse.ok) {
         throw new Error(
@@ -169,16 +174,19 @@ export default function Cashflow() {
           `HTTP ${buchungenResponse.status} bei Buchungen`
         );
       }
+      if (!babResponse.ok) throw new Error(babJson?.message || `HTTP ${babResponse.status} bei BaB-Tagesberichten`);
 
       console.log('Cashflow Jahresübersicht:', weeksJson);
       console.log('Cashflow Buchungen:', buchungenJson);
 
       setWeeksData(Array.isArray(weeksJson?.weeks) ? weeksJson.weeks : []);
       setBuchungen(Array.isArray(buchungenJson?.buchungen) ? buchungenJson.buchungen : []);
+      setBabReports(Array.isArray(babJson?.reports) ? babJson.reports : []);
     } catch (error) {
       console.error('Cashflow-Daten konnten nicht geladen werden:', error);
       setWeeksData([]);
       setBuchungen([]);
+      setBabReports([]);
       setCashflowError(error.message || 'Cashflow-Daten konnten nicht geladen werden.');
     } finally {
       setCashflowLoading(false);
@@ -316,6 +324,7 @@ export default function Cashflow() {
             weeks={weeks}
             weeksData={weeksData}
             buchungen={buchungen}
+            babReports={babReports}
             cashflowLoading={cashflowLoading}
             cashflowError={cashflowError}
             onReload={reloadAll}
