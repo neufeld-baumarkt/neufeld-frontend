@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { CalendarDays, Trash2 } from 'lucide-react';
+import { getIsoDateParts } from '../../lib/cashflowUi.mjs';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -72,6 +75,9 @@ export default function CashflowCellDetailModal({
       editRechnungsdatum: toDateInputValue(buchung.rechnungsdatum),
       editAvisNummer: buchung.avis_nummer || '',
       editZahlungsart: buchung.zahlungsart || '',
+      editDatum: toDateInputValue(buchung.datum),
+      editRechnungsbetragBrutto: String(buchung.rechnungsbetrag_brutto ?? buchung.betrag ?? 0),
+      editSkontoProzent: String(buchung.skonto_prozent ?? 0),
     }));
 
     setEditableBuchungen(mapped);
@@ -115,6 +121,20 @@ export default function CashflowCellDetailModal({
         return { ...buchung, [field]: value };
       })
     );
+  };
+
+  const updateBookingDate = (id, date) => {
+    if (!date) return;
+    const parts = getIsoDateParts(date);
+    setEditableBuchungen((prev) => prev.map((buchung) => buchung.id === id
+      ? {
+          ...buchung,
+          editDatum: toDateInputValue(date),
+          editJahr: String(parts.jahr),
+          editKw: String(parts.kw),
+          editTag: parts.tag,
+        }
+      : buchung));
   };
 
   const validateBuchung = (buchung) => {
@@ -202,6 +222,7 @@ export default function CashflowCellDetailModal({
           jahr: Number(selectedBuchung.editJahr),
           kw: Number(selectedBuchung.editKw),
           tag: selectedBuchung.editTag,
+          datum: selectedBuchung.editDatum || null,
           betrag: Number(selectedBuchung.editBetrag),
           filiale: selectedBuchung.editFiliale,
           status: selectedBuchung.editStatus,
@@ -211,6 +232,8 @@ export default function CashflowCellDetailModal({
           rechnungsdatum: selectedBuchung.editRechnungsdatum || null,
           avis_nummer: selectedBuchung.editAvisNummer || null,
           zahlungsart: selectedBuchung.editZahlungsart || null,
+          rechnungsbetrag_brutto: Number(selectedBuchung.editRechnungsbetragBrutto),
+          skonto_prozent: Number(selectedBuchung.editSkontoProzent),
         };
 
     setSaving(true);
@@ -596,6 +619,31 @@ export default function CashflowCellDetailModal({
 
                         <div>
                           <label className="block text-xs font-bold text-white/50 mb-1">
+                            Kalender
+                          </label>
+                          <DatePicker
+                            selected={selectedBuchung.editDatum ? new Date(`${selectedBuchung.editDatum}T12:00:00`) : null}
+                            onChange={(date) => updateBookingDate(selectedBuchung.id, date)}
+                            dateFormat="dd.MM.yyyy"
+                            showWeekNumbers
+                            calendarStartDay={1}
+                            disabled={saving || !!deletingId}
+                            customInput={(
+                              <button
+                                type="button"
+                                className="w-full rounded-lg px-3 py-2 bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-300/20 text-cyan-100 flex items-center justify-center gap-2 disabled:opacity-50"
+                              >
+                                <CalendarDays size={18} />
+                                {selectedBuchung.editDatum
+                                  ? new Date(`${selectedBuchung.editDatum}T12:00:00`).toLocaleDateString('de-DE')
+                                  : 'Monatskalender'}
+                              </button>
+                            )}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
                             {selectedBuchung.editStatus === 'gebucht'
                               ? 'Ist'
                               : 'Betrag'}
@@ -734,6 +782,50 @@ export default function CashflowCellDetailModal({
                             }
                             className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
                           />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Original-Rechnungswert
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={selectedBuchung.editRechnungsbetragBrutto}
+                            disabled={saving || !!deletingId}
+                            onChange={(event) => updateLocalBuchung(
+                              selectedBuchung.id,
+                              'editRechnungsbetragBrutto',
+                              event.target.value
+                            )}
+                            className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-white outline-none disabled:opacity-50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-white/50 mb-1">
+                            Skonto
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {[0, 2, 3].map((rate) => (
+                              <button
+                                key={rate}
+                                type="button"
+                                disabled={saving || !!deletingId}
+                                onClick={() => updateLocalBuchung(
+                                  selectedBuchung.id,
+                                  'editSkontoProzent',
+                                  String(rate)
+                                )}
+                                className={`rounded-lg px-2 py-2 font-semibold ${Number(selectedBuchung.editSkontoProzent) === rate ? 'bg-emerald-500/30 text-emerald-100' : 'bg-white/10 text-white/65'}`}
+                              >
+                                {rate === 0 ? 'Nein' : `${rate} %`}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="mt-2 text-xs text-white/50">
+                            Geplant: {formatEuro(Number(selectedBuchung.editRechnungsbetragBrutto || 0) * (1 - Number(selectedBuchung.editSkontoProzent || 0) / 100))}
+                          </div>
                         </div>
 
                         <div>

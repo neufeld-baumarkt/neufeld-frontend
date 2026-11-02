@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { calculatePlannedInvoiceAmount } from '../../lib/cashflowUi.mjs';
 
 const FILIALEN = ['Ahaus', 'Münster', 'Telgte', 'Vreden', 'Verwaltung', 'Unternehmen'];
 
@@ -20,12 +21,16 @@ export default function CashflowFastBookingModal({
   onMockSave,
 }) {
   const [value, setValue] = useState('');
+  const [useSkonto, setUseSkonto] = useState(false);
+  const [skontoRate, setSkontoRate] = useState(2);
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     setValue('');
+    setUseSkonto(false);
+    setSkontoRate(2);
 
     window.setTimeout(() => {
       inputRef.current?.focus();
@@ -57,11 +62,18 @@ export default function CashflowFastBookingModal({
     const trimmed = value.trim();
     const isFeiertag = trimmed.toLowerCase() === 'feiertag';
 
+    const originalAmount = isFeiertag ? 0 : Number(trimmed.replace(',', '.'));
+    const plannedAmount = useSkonto
+      ? calculatePlannedInvoiceAmount(originalAmount, skontoRate)
+      : originalAmount;
+
     return {
       ...context,
       filiale,
       eintrag_typ: isFeiertag ? 'feiertag' : 'betrag',
-      betrag: isFeiertag ? 0 : Number(trimmed.replace(',', '.')),
+      betrag: plannedAmount,
+      rechnungsbetrag_brutto: isFeiertag || isEinnahme ? undefined : originalAmount,
+      skonto_prozent: isFeiertag || isEinnahme ? undefined : useSkonto ? skontoRate : 0,
       status: 'angekuendigt',
       notiz: null,
     };
@@ -117,6 +129,39 @@ export default function CashflowFastBookingModal({
             placeholder="z. B. 50000 oder Feiertag"
             className="w-full rounded-xl bg-black/30 border border-white/10 px-4 py-3 text-white outline-none focus:border-white/35"
           />
+
+          {!isEinnahme && value.trim().toLowerCase() !== 'feiertag' && (
+            <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-sm font-semibold text-white/80 mb-2">Skonto</div>
+              <div className="flex flex-wrap gap-2">
+                {[false, true].map((enabled) => (
+                  <button
+                    key={String(enabled)}
+                    type="button"
+                    onClick={() => setUseSkonto(enabled)}
+                    className={`rounded-lg px-4 py-2 font-semibold ${useSkonto === enabled ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/70'}`}
+                  >
+                    {enabled ? 'Ja' : 'Nein'}
+                  </button>
+                ))}
+                {useSkonto && [2, 3].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setSkontoRate(rate)}
+                    className={`rounded-lg px-4 py-2 font-semibold ${skontoRate === rate ? 'bg-emerald-500/30 text-emerald-100' : 'bg-white/10 text-white/70'}`}
+                  >
+                    {rate} %
+                  </button>
+                ))}
+              </div>
+              {canSave && useSkonto && (
+                <div className="mt-3 text-sm text-emerald-200">
+                  Geplanter Zahlbetrag: {(Number(value.replace(',', '.')) * (1 - skontoRate / 100)).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                </div>
+              )}
+            </div>
+          )}
 
           {isEinnahme ? (
             <>

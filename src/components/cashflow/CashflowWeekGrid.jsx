@@ -26,6 +26,7 @@ export default function CashflowWeekGrid({
   previewMode = false,
 }) {
   const [selectedWeek, setSelectedWeek] = useState(null);
+  const [autoOpenBookingId, setAutoOpenBookingId] = useState(null);
 
   const getBuchungenForWeek = (kw) =>
     buchungen.filter((buchung) => Number(buchung.kw) === Number(kw));
@@ -100,6 +101,15 @@ export default function CashflowWeekGrid({
     setJahr(nextYear);
     setBisKw(1);
     setSelectedWeek({ kw: 1 });
+  };
+
+  const navigateToBooking = (booking) => {
+    const targetYear = Number(booking.jahr);
+    const targetWeek = Number(booking.kw);
+    setJahr(targetYear);
+    setBisKw(targetWeek);
+    setSelectedWeek({ kw: targetWeek });
+    setAutoOpenBookingId(booking.id);
   };
 
   return (
@@ -226,6 +236,9 @@ export default function CashflowWeekGrid({
           onNextWeek={openNextWeek}
           canGoToPreviousWeek={canGoToPreviousWeek}
           canGoToNextWeek={canGoToNextWeek}
+          autoOpenBookingId={autoOpenBookingId}
+          onAutoOpenHandled={() => setAutoOpenBookingId(null)}
+          onNavigateToBooking={navigateToBooking}
           onClose={() => setSelectedWeek(null)}
         />
       )}

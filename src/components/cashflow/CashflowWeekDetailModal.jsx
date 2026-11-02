@@ -1,6 +1,6 @@
 // src/components/cashflow/CashflowWeekDetailModal.jsx
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import CashflowFastBookingModal from './CashflowFastBookingModal';
 import CashflowCellDetailModal from './CashflowCellDetailModal';
 
@@ -78,6 +78,9 @@ export default function CashflowWeekDetailModal({
   onNextWeek,
   canGoToPreviousWeek = true,
   canGoToNextWeek = true,
+  autoOpenBookingId = null,
+  onAutoOpenHandled,
+  onNavigateToBooking,
 }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -87,6 +90,27 @@ export default function CashflowWeekDetailModal({
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [bookingAction, setBookingAction] = useState('');
+  const [searchMode, setSearchMode] = useState('rechnung');
+  const [transfers, setTransfers] = useState([]);
+  const [showAllTransfers, setShowAllTransfers] = useState(false);
+  const [paymentDrafts, setPaymentDrafts] = useState({});
+
+  useEffect(() => {
+    if (!autoOpenBookingId) return;
+    const booking = buchungen.find((item) => item.id === autoOpenBookingId);
+    if (!booking) return;
+    setSelectedCell({
+      tag: booking.tag,
+      kw: booking.kw,
+      kategorieId: booking.kategorie_id,
+      kategorieName: booking.kategorie,
+    });
+    setSelectedBooking(booking.id);
+    setSearchValue('');
+    setSearchResults(null);
+    setSearchError('');
+    onAutoOpenHandled?.();
+  }, [autoOpenBookingId, buchungen, onAutoOpenHandled]);
 
   if (!isOpen || !week) return null;
 
@@ -188,6 +212,67 @@ export default function CashflowWeekDetailModal({
     setSearchError('');
   };
 
+  const loadTransfers = async (includeBooked = showAllTransfers) => {
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+    if (!baseUrl || !token) {
+      setSearchError(!baseUrl ? 'VITE_API_URL fehlt.' : 'Kein Login-Token vorhanden.');
+      return;
+    }
+    setSearchLoading(true);
+    setSearchError('');
+    try {
+      const response = await fetch(
+        `${baseUrl}/api/cashflow/buchungen/ueberweisungen${includeBooked ? '?alle=1' : ''}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || 'Überweisungen konnten nicht geladen werden.');
+      const rows = Array.isArray(data?.ueberweisungen) ? data.ueberweisungen : [];
+      setTransfers(rows);
+      const today = new Date().toISOString().slice(0, 10);
+      setPaymentDrafts((current) => Object.fromEntries(rows.map((row) => [
+        row.id,
+        current[row.id] || {
+          zahlungsdatum: today,
+          skonto_genutzt: Number(row.skonto_prozent || 0) > 0,
+        },
+      ])));
+    } catch (error) {
+      setTransfers([]);
+      setSearchError(error.message || 'Überweisungen konnten nicht geladen werden.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const payTransfer = async (booking) => {
+    const token = sessionStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL;
+    const draft = paymentDrafts[booking.id];
+    if (!baseUrl || !token || !draft?.zahlungsdatum) {
+      setSearchError('Überweisungsdatum, API-Verbindung oder Anmeldung fehlt.');
+      return;
+    }
+    setBookingAction(`bezahlen:${booking.id}`);
+    setSearchError('');
+    try {
+      const response = await fetch(`${baseUrl}/api/cashflow/buchungen/${booking.id}/bezahlen`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.message || 'Überweisung konnte nicht gebucht werden.');
+      await onReload?.();
+      await loadTransfers(showAllTransfers);
+    } catch (error) {
+      setSearchError(error.message || 'Überweisung konnte nicht gebucht werden.');
+    } finally {
+      setBookingAction('');
+    }
+  };
+
   const runSearch = async (value = searchValue) => {
     const suchwert = String(value || '').trim();
     const token = sessionStorage.getItem('token');
@@ -214,7 +299,7 @@ export default function CashflowWeekDetailModal({
 
     try {
       const response = await fetch(
-        `${baseUrl}/api/cashflow/buchungen/suche?suchwert=${encodeURIComponent(suchwert)}`,
+        `${baseUrl}/api/cashflow/buchungen/suche?suchwert=${encodeURIComponent(suchwert)}&typ=${searchMode}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -239,13 +324,16 @@ export default function CashflowWeekDetailModal({
     }
   };
 
-  const openBookingFromSearch = (buchungId) => {
-    const buchung = buchungen.find((item) => item.id === buchungId);
+  const openBookingFromSearch = (searchBooking) => {
+    const buchung = buchungen.find((item) => item.id === searchBooking.id);
 
     if (!buchung) {
-      setSearchError(
-        'Die Buchung wurde gefunden, ist aber in der aktuell geladenen Wochenansicht nicht verfügbar.'
-      );
+      if (typeof onNavigateToBooking === 'function') {
+        clearSearch();
+        onNavigateToBooking(searchBooking);
+      } else {
+        setSearchError('Die gefundene Buchung konnte nicht geöffnet werden.');
+      }
       return;
     }
 
@@ -480,6 +568,34 @@ const saveFastBooking = async (payload) => {
           </div>
 
           <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-3 mb-4">
+            <div className="flex flex-wrap gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setSearchMode('rechnung')}
+                className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'rechnung' ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/60'}`}
+              >
+                Rechnungsnummer
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('avis')}
+                className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'avis' ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/60'}`}
+              >
+                Avis
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchMode('ueberweisungen');
+                  loadTransfers(showAllTransfers);
+                }}
+                className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'ueberweisungen' ? 'bg-emerald-500/30 text-emerald-100' : 'bg-white/10 text-white/60'}`}
+              >
+                Überweisungen
+              </button>
+            </div>
+
+            {searchMode !== 'ueberweisungen' && (
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <label className="sr-only">
@@ -495,7 +611,7 @@ const saveFastBooking = async (payload) => {
                       runSearch();
                     }
                   }}
-                  placeholder="Avis- oder Rechnungsnummer"
+                  placeholder={searchMode === 'avis' ? 'Avis-Nummer' : 'Rechnungsnummer'}
                   className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-sm text-white placeholder-white/30 outline-none focus:border-cyan-300/60 disabled:opacity-50"
                 />
               </div>
@@ -509,12 +625,96 @@ const saveFastBooking = async (payload) => {
                 {searchLoading ? 'Suche...' : 'Suchen'}
               </button>
             </div>
+            )}
 
             {searchError && (
               <div className="mt-2 text-sm text-red-300">{searchError}</div>
             )}
 
-            {searchResults && (
+            {searchMode === 'ueberweisungen' && (
+              <div className="mt-3 space-y-3">
+                <label className="flex items-center gap-2 text-sm text-white/65">
+                  <input
+                    type="checkbox"
+                    checked={showAllTransfers}
+                    onChange={(event) => {
+                      setShowAllTransfers(event.target.checked);
+                      loadTransfers(event.target.checked);
+                    }}
+                  />
+                  Bezahlte Überweisungen mit anzeigen
+                </label>
+                {!searchLoading && transfers.length === 0 && (
+                  <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-3 text-sm text-white/50">
+                    Keine passenden Überweisungen vorhanden.
+                  </div>
+                )}
+                <div className="max-h-[360px] overflow-auto space-y-2 pr-1">
+                  {transfers.map((booking) => {
+                    const draft = paymentDrafts[booking.id] || {};
+                    return (
+                      <div key={booking.id} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+                          <div>
+                            <div className="font-bold text-white">
+                              {booking.rechnungsnummer ? `Rechnung ${booking.rechnungsnummer}` : booking.kategorie}
+                            </div>
+                            <div className="text-xs text-white/50 mt-1">
+                              {booking.filiale} · {booking.jahr} / KW {booking.kw} · fällig {booking.datum ? new Date(`${String(booking.datum).slice(0, 10)}T12:00:00`).toLocaleDateString('de-DE') : 'ohne Datum'}
+                            </div>
+                            <div className="text-sm text-white/70 mt-1">
+                              Original {formatEuro(booking.rechnungsbetrag_brutto ?? booking.betrag)} · Skonto {Number(booking.skonto_prozent || 0)} % · geplant {formatEuro(booking.betrag)}
+                            </div>
+                          </div>
+                          {booking.status === 'angekuendigt' ? (
+                            <div className="flex flex-wrap items-end gap-2">
+                              <label className="text-xs text-white/55">
+                                Überweisungsdatum
+                                <input
+                                  type="date"
+                                  value={draft.zahlungsdatum || ''}
+                                  onChange={(event) => setPaymentDrafts((current) => ({
+                                    ...current,
+                                    [booking.id]: { ...draft, zahlungsdatum: event.target.value },
+                                  }))}
+                                  className="block mt-1 rounded-lg bg-black/35 border border-white/10 px-3 py-2 text-white"
+                                />
+                              </label>
+                              <label className="flex items-center gap-2 rounded-lg bg-black/25 px-3 py-2 text-sm text-white/70">
+                                <input
+                                  type="checkbox"
+                                  checked={Boolean(draft.skonto_genutzt)}
+                                  disabled={Number(booking.skonto_prozent || 0) === 0}
+                                  onChange={(event) => setPaymentDrafts((current) => ({
+                                    ...current,
+                                    [booking.id]: { ...draft, skonto_genutzt: event.target.checked },
+                                  }))}
+                                />
+                                Skonto genutzt
+                              </label>
+                              <button
+                                type="button"
+                                disabled={bookingAction === `bezahlen:${booking.id}`}
+                                onClick={() => payTransfer(booking)}
+                                className="rounded-lg bg-emerald-500/25 hover:bg-emerald-500/35 px-4 py-2 font-bold text-emerald-100 disabled:opacity-50"
+                              >
+                                {bookingAction === `bezahlen:${booking.id}` ? 'Buche…' : 'Als bezahlt markieren'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-sm text-emerald-300">
+                              Bezahlt am {booking.zahlungsdatum ? new Date(`${String(booking.zahlungsdatum).slice(0, 10)}T12:00:00`).toLocaleDateString('de-DE') : '—'} · {formatEuro(booking.zahlbetrag ?? booking.betrag)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {searchMode !== 'ueberweisungen' && searchResults && (
               <div className="mt-3 max-h-[260px] overflow-auto pr-1 space-y-3">
                 <div className="text-sm text-white/60">
                   {searchResults.anzahl_treffer === 1
@@ -592,7 +792,7 @@ const saveFastBooking = async (payload) => {
                             <button
                               type="button"
                               disabled={searchLoading || !!bookingAction}
-                              onClick={() => openBookingFromSearch(rechnung.id)}
+                              onClick={() => openBookingFromSearch(rechnung)}
                               className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition disabled:opacity-50"
                             >
                               Bearbeiten
@@ -643,7 +843,7 @@ const saveFastBooking = async (payload) => {
                       <button
                         type="button"
                         disabled={searchLoading || !!bookingAction}
-                        onClick={() => openBookingFromSearch(rechnung.id)}
+                        onClick={() => openBookingFromSearch(rechnung)}
                         className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition disabled:opacity-50"
                       >
                         Bearbeiten
