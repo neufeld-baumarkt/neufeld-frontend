@@ -2,7 +2,7 @@ const VERSION = 1;
 
 const allowedStages = new Set([
   'responsible', 'drawer', 'missing-opening', 'full-count', 'loose-change', 'float',
-  'bank', 'euro-transfer', 'euro-submit', 'difference', 'review',
+  'bank', 'euro-transfer', 'euro-submit', 'difference', 'eurocontrol-bank', 'review',
 ]);
 
 export function cashClosingDraftKey(branch, businessDate = 'active') {
@@ -26,6 +26,7 @@ export function normalizeCashClosingDraft(value) {
     differenceKind: ['minus', 'zero', 'plus'].includes(value.differenceKind) ? value.differenceKind : 'zero',
     differenceAmount: String(value.differenceAmount || ''),
     differenceReviewed: Boolean(value.differenceReviewed),
+    eurocontrolBank: String(value.eurocontrolBank || ''),
     notificationConfirmed: Boolean(value.notificationConfirmed),
     recountAttempts: Array.isArray(value.recountAttempts) ? value.recountAttempts : [],
   };

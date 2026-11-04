@@ -3,7 +3,7 @@ export const DAY_CLOSE_V2_PROCESSES = Object.freeze([
     id: 'daily-report',
     group: 'Am PC',
     title: 'Tageswerte erfassen',
-    description: 'Filialbericht prüfen, die vier Tageswerte in der App speichern und die drei vorgesehenen Werte an die Signal-Gruppe senden.',
+    description: 'Filialbericht prüfen und Tagesumsatz, Kundenanzahl sowie Durchschnittsbon speichern.',
     dependencies: [],
   },
   {
@@ -103,20 +103,18 @@ export function parseMoneyToCents(value) {
   return Number.isSafeInteger(cents) ? cents : null;
 }
 
-export function validateDailyReport(values = {}) {
+export function validateDailyReport(values = {}, eurocontrolBankCents = null) {
   const dailyRevenueCents = parseMoneyToCents(values.dailyRevenue);
   const averageReceiptCents = parseMoneyToCents(values.averageReceipt);
-  const eurocontrolBankCents = parseMoneyToCents(values.eurocontrolBank);
   const customerCount = Number(String(values.customerCount ?? '').trim());
   const errors = {};
   if (!Number.isInteger(dailyRevenueCents) || dailyRevenueCents < 0) errors.dailyRevenue = 'Bitte Tagesumsatz eingeben.';
   if (!Number.isInteger(customerCount) || customerCount < 1) errors.customerCount = 'Bitte Kundenanzahl eingeben.';
   if (!Number.isInteger(averageReceiptCents) || averageReceiptCents < 0) errors.averageReceipt = 'Bitte Durchschnittsbon eingeben.';
-  if (!Number.isInteger(eurocontrolBankCents) || eurocontrolBankCents < 0) errors.eurocontrolBank = 'Bitte Bar an Bank eingeben.';
   return {
     valid: Object.keys(errors).length === 0,
     errors,
-    data: { dailyRevenueCents, customerCount, averageReceiptCents, eurocontrolBankCents },
+    data: { dailyRevenueCents, customerCount, averageReceiptCents, eurocontrolBankCents:Number.isInteger(eurocontrolBankCents)?eurocontrolBankCents:null },
   };
 }
 

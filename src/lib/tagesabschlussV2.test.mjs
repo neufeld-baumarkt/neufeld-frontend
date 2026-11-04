@@ -41,14 +41,14 @@ test('akzeptiert Komma und Punkt bei Geldbeträgen', () => {
   assert.equal(parseMoneyToCents('abc'), null);
 });
 
-test('prüft alle vier Pflichtwerte des Filialberichts', () => {
-  const valid = validateDailyReport({ dailyRevenue: '919,16', customerCount: '42', averageReceipt: '21,88', eurocontrolBank: '665,00' });
+test('prüft nur die drei Tageswerte; BaB stammt aus den Einzelkassen', () => {
+  const valid = validateDailyReport({ dailyRevenue: '919,16', customerCount: '42', averageReceipt: '21,88' }, 66500);
   assert.equal(valid.valid, true);
   assert.deepEqual(valid.data, { dailyRevenueCents: 91916, customerCount: 42, averageReceiptCents: 2188, eurocontrolBankCents: 66500 });
 
-  const invalid = validateDailyReport({ dailyRevenue: '', customerCount: '0', averageReceipt: 'x', eurocontrolBank: '' });
+  const invalid = validateDailyReport({ dailyRevenue: '', customerCount: '0', averageReceipt: 'x' });
   assert.equal(invalid.valid, false);
-  assert.deepEqual(Object.keys(invalid.errors).sort(), ['averageReceipt', 'customerCount', 'dailyRevenue', 'eurocontrolBank']);
+  assert.deepEqual(Object.keys(invalid.errors).sort(), ['averageReceipt', 'customerCount', 'dailyRevenue']);
 });
 
 test('liefert Kennzahlen aus dem gespeicherten Tageskontext', () => {

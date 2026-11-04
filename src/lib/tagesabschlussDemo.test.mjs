@@ -12,7 +12,6 @@ test('Demo-Abschluss erzeugt nur ein nicht persistiertes In-Memory-Ergebnis', ()
   const result = finalizeDayCloseDemo({
     reportData:{dailyRevenueCents:487540,customerCount:123,averageReceiptCents:3964,eurocontrolBankCents:125781},
     calculation:{bookingTotalCents:125500}, safeCount:{countedTotalCents:250362},
-    babReconciliation:{status:'confirmed',displayedTotalCents:125781},
   });
   assert.equal(result.report.persisted, false);
   assert.equal(result.report.workflowVersion, 'v2-demo');

@@ -20,7 +20,6 @@ import { finalizeDayCloseDemo } from '../../lib/tagesabschlussDemo.mjs';
 import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import BarAnBankV2Process from './BarAnBankV2Process';
-import BaBReconciliationV2 from './BaBReconciliationV2';
 import TagesabschlussV2Finalize from './TagesabschlussV2Finalize';
 import TresorabschlussV2Process from './TresorabschlussV2Process';
 import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
@@ -54,7 +53,7 @@ function SummaryCard({ label, children, tone = 'neutral' }) {
   </div>;
 }
 
-const emptyReport = { dailyRevenue: '', customerCount: '', averageReceipt: '', eurocontrolBank: '' };
+const emptyReport = { dailyRevenue: '', customerCount: '', averageReceipt: '' };
 
 function Field({ label, name, value, error, onChange, integer = false }) {
   return <label className="block text-sm font-black">{label}
@@ -106,14 +105,16 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   const [safeTargetError, setSafeTargetError] = useState('');
   const [finalSafeCount, setFinalSafeCount] = useState(restored.finalSafeCount || null);
   const [persistedFinalSafeCount, setPersistedFinalSafeCount] = useState(restored.persistedFinalSafeCount || null);
-  const [babReconciliation, setBabReconciliation] = useState(restored.babReconciliation || null);
   const [finalized, setFinalized] = useState(false);
   const [draftBusy, setDraftBusy] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [closeError, setCloseError] = useState('');
   useEffect(() => {
-    if (!loadContext) return;
+    // Completing the day updates the surrounding overview and therefore gives
+    // this still-open modal new callback identities. Never reload the now
+    // immutable business day and replace the success screen with a 409 error.
+    if (!loadContext || finalized) return undefined;
     let active = true;
     setContextError('');
     loadContext().then((loaded) => {
@@ -137,8 +138,8 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
       setStage('load-error');
     });
     return () => { active = false; };
-  }, [initialDraft, loadContext]);
-  const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount,babReconciliation }),[activeProcess,babReconciliation,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
+  }, [finalized, initialDraft, loadContext]);
+  const draftState = useMemo(()=>({ report,reportData,canOpenDepositSafe,activeProcess,manualBanknoteCounts,localProcessStates,safeTargetInput,safeTargetCents,finalSafeCount,persistedFinalSafeCount }),[activeProcess,canOpenDepositSafe,finalSafeCount,localProcessStates,manualBanknoteCounts,persistedFinalSafeCount,report,reportData,safeTargetCents,safeTargetInput]);
   const draftSave = useWorkflowDraftAutosave({ enabled: !demoMode&&!finalized&&!['loading','load-error','resume'].includes(stage), initialDraft, stage, state: draftState, saveDraft });
   const closeSafely = useCallback(async () => {
     if (draftBusy) return;
@@ -216,7 +217,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setSafeTargetError('');
     setFinalSafeCount(null);
     setPersistedFinalSafeCount(null);
-    setBabReconciliation(null);
     setLocalProcessStates((current) => {
       const { 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -231,7 +231,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     setSafeTargetError('');
     setFinalSafeCount(null);
     setPersistedFinalSafeCount(null);
-    setBabReconciliation(null);
     setLocalProcessStates((current) => {
       const { 'bank-preparation': _preparation, 'bank-booking': _booking, 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return rest;
@@ -240,11 +239,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
   };
 
   const startProcess = (process) => {
-    if (process.id === 'finalize' && !babReconciliation) {
-      setActiveProcess('bab-check');
-      setStage('process');
-      return;
-    }
     if (process.id === 'bank-booking') {
       setActiveProcess('bank-booking-info');
       setStage('process');
@@ -287,13 +281,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     }
     setSafeTargetError('');
     setSafeTargetCents(parsed);
-    setBabReconciliation(null);
-    setActiveProcess('bab-check');
-    setStage('process');
-  };
-
-  const finishBabReconciliation = (result) => {
-    setBabReconciliation(result);
     setLocalProcessStates((current) => {
       const { 'safe-movement': _movement, 'final-safe-count': _count, ...rest } = current;
       return { ...rest, 'bank-booking': { status: 'completed', completedAt: new Date().toISOString() } };
@@ -321,7 +308,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
 
   const finalizeV2 = async ({ firstPin, secondPin }) => {
     if (demoMode) {
-      const completed = finalizeDayCloseDemo({ reportData, calculation:bankCalculation, safeCount:finalSafeCount, babReconciliation });
+      const completed = finalizeDayCloseDemo({ reportData, calculation:bankCalculation, safeCount:finalSafeCount });
       setFinalized(true);
       return completed;
     }
@@ -352,7 +339,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     try {
       finalized = await finalizeDay({
         safeCountId: savedSafeCount.id,
-        eurocontrolCashTotalCents: reportData.eurocontrolBankCents,
         looseChangePayoutConfirmed: true,
         additionalSafeSkimConfirmed: true,
         bankPayoutConfirmed: true,
@@ -364,7 +350,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           averageReceiptCents: reportData.averageReceiptCents,
         },
         approvalProofTokens: [first.proofToken, second.proofToken],
-        babReconciliation,
       });
     } catch (failure) {
       if (createdSafeCount) setPersistedFinalSafeCount(savedSafeCount);
@@ -391,7 +376,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
       setSafeTargetCents(null);
       setFinalSafeCount(dayCloseContext?.finalSafeCount || null);
       setPersistedFinalSafeCount(dayCloseContext?.finalSafeCount || null);
-      setBabReconciliation(null);
       setFinalized(false);
       setStage(dayCloseContext?.dailyMetrics ? 'safe-access' : 'report');
     } catch (failure) { setContextError(failure.message); }
@@ -432,7 +416,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
             <Field label="Tagesumsatz" name="dailyRevenue" value={report.dailyRevenue} error={errors.dailyRevenue} onChange={updateReport}/>
             <Field label="Kundenanzahl" name="customerCount" value={report.customerCount} error={errors.customerCount} onChange={updateReport} integer/>
             <Field label="Durchschnittsbon" name="averageReceipt" value={report.averageReceipt} error={errors.averageReceipt} onChange={updateReport}/>
-            <Field label="Bar an Bank laut Filialbericht" name="eurocontrolBank" value={report.eurocontrolBank} error={errors.eurocontrolBank} onChange={updateReport}/>
           </div>
           <button type="submit" className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">Werte speichern</button>
         </form>}
@@ -462,7 +445,6 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
 
         {stage==='process'&&activeProcess==='bank-booking-info'&&<div className="mx-auto max-w-2xl py-10 text-center" role="status" aria-live="polite"><CircleHelp className="mx-auto text-[#800000]" size={68}/><h3 className="mt-5 text-2xl font-black sm:text-3xl">Hinweis zur BaB-Buchung</h3><p className="mt-5 rounded-2xl border-2 border-[#800000]/20 bg-white p-6 text-xl font-black leading-relaxed">{BANK_BOOKING_INFO_TEXT}</p><p className="mt-4 text-sm font-bold text-black/45">Die Stückelungen werden automatisch geöffnet …</p></div>}
 
-        {stage==='process'&&activeProcess==='bab-check'&&<BaBReconciliationV2 totalCents={context.bankPayoutCents} onConfirm={finishBabReconciliation}/>}
 
         {stage==='process'&&(activeProcess==='safe-movement'||activeProcess==='final-safe-count')&&<TresorabschlussV2Process
           calculateCash={calculateCash}
