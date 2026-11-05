@@ -22,6 +22,7 @@ import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
 
 const EMPTY_COUNTS = Object.freeze({});
+const openingResumeStage = (stage) => ['match', 'second-person-choice', 'adjust'].includes(stage) ? 'difference-choice' : stage;
 
 function PinStep({ title, description, pin, setPin, onSubmit, busy, hint }) {
   return <div className="mx-auto max-w-lg">
@@ -139,7 +140,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
   const [resumeTargetStage, setResumeTargetStage] = useState('');
   const [resumeNeedsCounter, setResumeNeedsCounter] = useState(false);
   const calculationPayload=useMemo(()=>({counts,attemptsCount:attempts.length,drawerNumber}),[attempts.length,counts,drawerNumber]);
-  const {calculation}=useCashCalculation({calculate:calculateCash,workflow:'opening',payload:calculationPayload,enabled:Boolean(drawerNumber),initialValue:{targetCents:25000,countedCents:0,differenceCents:-25000,carryoverMatched:false,nextStep:'same-person-recount'}});
+  const {calculation}=useCashCalculation({calculate:calculateCash,workflow:'opening',payload:calculationPayload,enabled:Boolean(drawerNumber),initialValue:{targetCents:25000,countedCents:0,differenceCents:-25000,previousDifferenceAvailable:false,recountRecommended:false}});
   const countedCents=calculation?.countedCents||0;
   const differenceCents=calculation?.differenceCents??-25000;
   const targetCents=calculation?.targetCents||25000;
@@ -249,9 +250,11 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
     setStage('count');
   };
 
-  const finish = async (openingCents, carryoverDecision = 'none') => {
+  const finish = async (openingCents, carryoverDecision = 'none', { includeCurrent = true } = {}) => {
     setBusy(true); setError('');
-    const completedAttempts = [...attempts, { countedCents:openingCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
+    const completedAttempts = includeCurrent
+      ? [...attempts, { countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }]
+      : attempts;
     try {
       const verifiedPeople = [employee, counter].filter(Boolean);
       const requestAttempts = completedAttempts.map((attempt) => {
@@ -290,24 +293,9 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
     if (checked.countedCents <= 0) return setError('Bitte zuerst die Stückelungen der Lade eintragen.');
     if (checked.countedCents === checked.targetCents) return finish(checked.countedCents);
 
-    if (attempts.length === 0 && checked.carryoverMatched) {
-      setStage('match');
-      return;
-    }
-
     const updated = [...attempts, { countedCents:checked.countedCents, countedBy: counter||employee, denominationCounts: { ...counts } }];
     setAttempts(updated);
-    const next = checked.nextStep;
-    if (next === 'same-person-recount') {
-      setCounts({});
-      setStage('count');
-      return;
-    }
-    if (next === 'recommend-other-person') {
-      setStage('second-person-choice');
-      return;
-    }
-    setStage('adjust');
+    setStage('difference-choice');
   };
 
   const startAnotherCount = () => {
@@ -324,7 +312,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
     finally { setBusy(false); }
   };
 
-  const progress = ['resume','pin','first-use-pin','drawer','count','match','second-person-choice','second-pin','adjust','complete'];
+  const progress = ['resume','pin','first-use-pin','drawer','count','difference-choice','second-pin','complete'];
   const progressIndex = Math.max(0, progress.indexOf(stage));
 
   return <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/65 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cash-count-title">
@@ -348,7 +336,7 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
         </div>
         {error&&<div role="alert" className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 font-bold text-red-800"><CircleAlert className="mt-0.5 shrink-0" size={20}/>{error}</div>}
 
-        {stage==='resume'&&<WorkflowDraftResume title="Kasse einzählen" description={restored.drawerNumber?`Lade ${restored.drawerNumber}`:''} savedAt={initialDraft.savedAt} busy={busy} onDiscard={discardDraft} onContinue={()=>{setResumeTargetStage(initialDraft.stage);setEmployee(restored.employee);setCounter(restored.counter);setPin('');setStage('pin');}}/>}
+        {stage==='resume'&&<WorkflowDraftResume title="Kasse einzählen" description={restored.drawerNumber?`Lade ${restored.drawerNumber}`:''} savedAt={initialDraft.savedAt} busy={busy} onDiscard={discardDraft} onContinue={()=>{setResumeTargetStage(openingResumeStage(initialDraft.stage));setEmployee(restored.employee);setCounter(restored.counter);setPin('');setStage('pin');}}/>}
 
         {stage==='pin'&&<PinStep title={resumeTargetStage?'Einzählung erneut bestätigen':'Wer beginnt diese Kassenschicht?'} description={resumeTargetStage?'Bitte bestätige deine Identität, bevor der gespeicherte Stand geöffnet wird.':'Mit deinem persönlichen PIN beginnt die Einzählung und wird dir eindeutig zugeordnet.'} pin={pin} setPin={setPin} onSubmit={authenticate} busy={busy}/>}
 
@@ -361,13 +349,17 @@ export default function KasseneinzaehlModal({ branch, businessDate, initialDraft
 
         {stage==='count'&&<CashGrid counts={counts} setCounts={setCounts} countedCents={countedCents} targetCents={targetCents} denominationAmounts={calculation?.denominationAmounts} title={attempts.length===0?'Lade vollständig zählen':counter?`${counter.name} zählt jetzt nach`:'Bitte vollständig nachzählen'} instruction={attempts.length===0?'Trage nur die Anzahl jeder Münze und jedes Scheins ein. Das Backend rechnet automatisch.':'Beginne die Zählung erneut bei null. Die vorherige Zählung bleibt im Protokoll erhalten.'}/>}
 
-        {stage==='match'&&<div className="mx-auto max-w-2xl text-center">
-          <ShieldCheck className="mx-auto text-emerald-700" size={56}/>
-          <h3 className="mt-4 text-2xl font-black">Passende Vorgängerdifferenz gefunden</h3>
-          <p className="mt-3 text-black/65">Deine Anfangsabweichung von <strong>{formatEuroFromCents(differenceCents,{signed:true})}</strong> passt exakt zur letzten Abrechnung von Lade {drawerNumber} ({formatEuroFromCents(previousClosing.differenceCents,{signed:true})}).</p>
+        {stage==='difference-choice'&&<div className="mx-auto max-w-3xl text-center">
+          <CircleAlert className={`mx-auto ${calculation?.recountRecommended?'text-amber-700':'text-[#800000]'}`} size={56}/>
+          <h3 className="mt-4 text-2xl font-black">Abweichung festgestellt</h3>
+          <p className="mt-3 text-black/65">Gezählt wurden <strong>{formatEuroFromCents(countedCents)}</strong>. Das sind <strong>{formatEuroFromCents(differenceCents,{signed:true})}</strong> gegenüber dem vorgesehenen Anfangsbestand.</p>
+          {calculation?.previousDifferenceAvailable&&<div className="mt-5 rounded-2xl border-2 border-blue-300 bg-blue-50 p-4 text-left text-blue-950"><strong>Letzter gespeicherter Stand dieser Lade: {formatEuroFromCents(previousClosing.differenceCents,{signed:true})} Differenz.</strong><p className="mt-1 text-sm">Du darfst die jetzt gezählte Abweichung unabhängig von diesem Betrag als neuen Anfangsbestand übernehmen oder die Lade auf 250,00 € ausgleichen.</p></div>}
+          {calculation?.recountRecommended&&<div className="mt-5 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 text-left text-amber-950"><strong>Eine freiwillige Kontrollzählung wird empfohlen.</strong><p className="mt-1 text-sm">Die Abweichung ist größer als 2,00 € und für diese Lade ist keine Vorgängerdifferenz gespeichert. Du entscheidest trotzdem selbst, wie du fortfährst.</p></div>}
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <button onClick={()=>finish(countedCents,'keep-in-drawer')} className="min-h-28 rounded-2xl bg-emerald-700 p-4 text-left font-black text-white"><Check className="mb-2"/>Differenz in der Lade belassen<span className="mt-1 block text-sm font-normal text-white/75">Startbestand wird {formatEuroFromCents(countedCents)} und gleicht später die Filialdifferenz aus.</span></button>
-            <button onClick={()=>{setAttempts(current=>[...current,{countedCents,countedBy:counter||employee,denominationCounts:{...counts}}]);setStage('adjust');}} className="min-h-28 rounded-2xl border-2 border-[#800000] bg-white p-4 text-left font-black text-[#800000]"><RotateCcw className="mb-2"/>Auf 250,00 € ausgleichen<span className="mt-1 block text-sm font-normal text-black/55">Auffüllen beziehungsweise abschöpfen und anschließend kontrollieren.</span></button>
+            <button disabled={busy} onClick={()=>finish(countedCents,'keep-in-drawer',{includeCurrent:attempts.length===0})} className="min-h-28 rounded-2xl bg-emerald-700 p-4 text-left font-black text-white disabled:opacity-50"><Check className="mb-2"/>Mit {formatEuroFromCents(countedCents)} übernehmen<span className="mt-1 block text-sm font-normal text-white/75">Die Kassenschicht startet mit der tatsächlich gezählten Differenz.</span></button>
+            <button disabled={busy} onClick={()=>finish(targetCents,'normalize-to-target',{includeCurrent:attempts.length===0})} className="min-h-28 rounded-2xl bg-[#800000] p-4 text-left font-black text-white disabled:opacity-50"><Banknote className="mb-2"/>{differenceCents>0?`${formatEuroFromCents(differenceCents)} entnommen`:`${formatEuroFromCents(Math.abs(differenceCents))} aufgefüllt`} – mit 250,00 € speichern<span className="mt-1 block text-sm font-normal text-white/75">Keine weitere Kontrollzählung erforderlich.</span></button>
+            <button disabled={busy} onClick={()=>finish(targetCents,'normalize-to-target',{includeCurrent:attempts.length===0})} className="min-h-24 rounded-2xl border-2 border-[#800000] bg-white p-4 text-left font-black text-[#800000] disabled:opacity-50"><ShieldCheck className="mb-2"/>Es waren 250,00 €<span className="mt-1 block text-sm font-normal text-black/55">Die Eingabe wird auf den verbindlichen Anfangsbestand korrigiert.</span></button>
+            <button disabled={busy} onClick={startAnotherCount} className="min-h-24 rounded-2xl border-2 border-black/15 bg-white p-4 text-left font-black disabled:opacity-50"><RotateCcw className="mb-2"/>Freiwillig noch einmal zählen<span className="mt-1 block text-sm font-normal text-black/55">Die bisherige Zählung bleibt im Protokoll erhalten.</span></button>
           </div>
         </div>}
 

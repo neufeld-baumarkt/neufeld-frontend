@@ -28,17 +28,15 @@ export function openingDifferenceCents(countedCents) {
   return Number(countedCents || 0) - TARGET_CENTS;
 }
 
-export function matchesImmediatePreviousClosing({ branch, drawerNumber, openingDifference, previousClosing }) {
+export function previousClosingHasDifference({ branch, drawerNumber, previousClosing }) {
   if (!previousClosing || previousClosing.status !== 'closed') return false;
   if (previousClosing.branch !== branch || Number(previousClosing.drawerNumber) !== Number(drawerNumber)) return false;
   if (previousClosing.resolved === true || Number(previousClosing.differenceCents) === 0) return false;
-  return Number(previousClosing.differenceCents) === -Number(openingDifference);
+  return Number.isInteger(Number(previousClosing.differenceCents));
 }
 
-export function nextDifferenceStep(completedAttempts) {
-  if (completedAttempts <= 0) return 'same-person-recount';
-  if (completedAttempts === 1) return 'recommend-other-person';
-  return 'adjust-to-target';
+export function shouldRecommendOpeningRecount({ differenceCents, hasPreviousDifference }) {
+  return Math.abs(Number(differenceCents) || 0) > 200 && hasPreviousDifference !== true;
 }
 
 export function formatEuroFromCents(cents, { signed = false } = {}) {
