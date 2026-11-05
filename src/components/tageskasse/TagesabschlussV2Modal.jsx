@@ -53,7 +53,7 @@ function SummaryCard({ label, children, tone = 'neutral' }) {
   </div>;
 }
 
-const emptyReport = { dailyRevenue: '', customerCount: '', averageReceipt: '' };
+const emptyReport = { dailyRevenue: '', customerCount: '', averageReceipt: '', eurocontrolBank: '' };
 
 function Field({ label, name, value, error, onChange, integer = false }) {
   return <label className="block text-sm font-black">{label}
@@ -339,6 +339,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
     try {
       finalized = await finalizeDay({
         safeCountId: savedSafeCount.id,
+        eurocontrolCashTotalCents: reportData.eurocontrolBankCents,
         looseChangePayoutConfirmed: true,
         additionalSafeSkimConfirmed: true,
         bankPayoutConfirmed: true,
@@ -348,6 +349,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
           dailyRevenueCents: reportData.dailyRevenueCents,
           customerCount: reportData.customerCount,
           averageReceiptCents: reportData.averageReceiptCents,
+          eurocontrolBankCents: reportData.eurocontrolBankCents,
         },
         approvalProofTokens: [first.proofToken, second.proofToken],
       });
@@ -416,6 +418,7 @@ export default function TagesabschlussV2Modal({ branch, businessDate, context: i
             <Field label="Tagesumsatz" name="dailyRevenue" value={report.dailyRevenue} error={errors.dailyRevenue} onChange={updateReport}/>
             <Field label="Kundenanzahl" name="customerCount" value={report.customerCount} error={errors.customerCount} onChange={updateReport} integer/>
             <Field label="Durchschnittsbon" name="averageReceipt" value={report.averageReceipt} error={errors.averageReceipt} onChange={updateReport}/>
+            <Field label="Bar an Bank laut Filialbericht" name="eurocontrolBank" value={report.eurocontrolBank} error={errors.eurocontrolBank} onChange={updateReport}/>
           </div>
           <button type="submit" className="mt-6 min-h-14 w-full rounded-xl bg-[#800000] px-5 text-lg font-black text-white">Werte speichern</button>
         </form>}

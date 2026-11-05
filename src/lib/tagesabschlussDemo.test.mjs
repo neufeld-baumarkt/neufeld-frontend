@@ -28,3 +28,12 @@ test('Schulung und Echtbetrieb verwenden dasselbe Modal mit gesperrten Schreibpf
   assert.match(modal, /if \(!demoMode\) \{[\s\S]*await saveDailyMetrics/);
   assert.match(modal, /if \(demoMode\) \{[\s\S]*finalizeDayCloseDemo/);
 });
+
+test('Tageswerte-Maske behält alle vier Filialberichtswerte', async () => {
+  const modal = await readFile(new URL('../components/tageskasse/TagesabschlussV2Modal.jsx', import.meta.url), 'utf8');
+  assert.match(modal, /label="Tagesumsatz"/);
+  assert.match(modal, /label="Kundenanzahl"/);
+  assert.match(modal, /label="Durchschnittsbon"/);
+  assert.match(modal, /label="Bar an Bank laut Filialbericht"/);
+  assert.match(modal, /eurocontrolCashTotalCents: reportData\.eurocontrolBankCents/);
+});

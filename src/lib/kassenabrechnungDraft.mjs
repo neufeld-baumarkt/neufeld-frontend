@@ -26,7 +26,9 @@ export function normalizeCashClosingDraft(value) {
     differenceKind: ['minus', 'zero', 'plus'].includes(value.differenceKind) ? value.differenceKind : 'zero',
     differenceAmount: String(value.differenceAmount || ''),
     differenceReviewed: Boolean(value.differenceReviewed),
-    eurocontrolBank: String(value.eurocontrolBank || ''),
+    previousBabTotalCents: Number(value.previousBabTotalCents) || 0,
+    cumulativeBabMatches: typeof value.cumulativeBabMatches === 'boolean' ? value.cumulativeBabMatches : null,
+    cumulativeBabEurocontrol: String(value.cumulativeBabEurocontrol || ''),
     notificationConfirmed: Boolean(value.notificationConfirmed),
     recountAttempts: Array.isArray(value.recountAttempts) ? value.recountAttempts : [],
   };
