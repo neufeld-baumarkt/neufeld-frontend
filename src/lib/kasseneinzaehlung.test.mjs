@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {
   CASH_DENOMINATIONS,
   countCashCents,
-  matchesImmediatePreviousClosing,
-  nextDifferenceStep,
+  previousClosingHasDifference,
+  shouldRecommendOpeningRecount,
   openingDifferenceCents,
 } from './kasseneinzaehlung.mjs';
 
@@ -24,33 +24,35 @@ test('berechnet die Abweichung zum bindenden Bestand von 250 Euro', () => {
   assert.equal(openingDifferenceCents(24_750), -250);
 });
 
-test('ordnet ausschließlich die unmittelbar übergebene letzte Abrechnung derselben Lade zu', () => {
+test('erkennt jede offene Vorgängerdifferenz derselben Lade unabhängig vom Betrag', () => {
   const previousClosing = {
     status: 'closed', branch: 'Vreden', drawerNumber: 1, differenceCents: -500, resolved: false,
   };
-  assert.equal(matchesImmediatePreviousClosing({
-    branch: 'Vreden', drawerNumber: 1, openingDifference: 500, previousClosing,
+  assert.equal(previousClosingHasDifference({
+    branch: 'Vreden', drawerNumber: 1, previousClosing,
   }), true);
-  assert.equal(matchesImmediatePreviousClosing({
-    branch: 'Vreden', drawerNumber: 2, openingDifference: 500, previousClosing,
+  assert.equal(previousClosingHasDifference({
+    branch: 'Vreden', drawerNumber: 2, previousClosing,
   }), false);
 });
 
-test('ordnet weder Null-, Teil- noch bereits erledigte Differenzen zu', () => {
+test('ignoriert nur Nullwerte und bereits erledigte Vorgängerdifferenzen', () => {
   const base = { status: 'closed', branch: 'Vreden', drawerNumber: 1, resolved: false };
   for (const previousClosing of [
     { ...base, differenceCents: 0 },
-    { ...base, differenceCents: -400 },
     { ...base, differenceCents: -500, resolved: true },
   ]) {
-    assert.equal(matchesImmediatePreviousClosing({
-      branch: 'Vreden', drawerNumber: 1, openingDifference: 500, previousClosing,
+    assert.equal(previousClosingHasDifference({
+      branch: 'Vreden', drawerNumber: 1, previousClosing,
     }), false);
   }
+  assert.equal(previousClosingHasDifference({
+    branch: 'Vreden', drawerNumber: 1, previousClosing: { ...base, differenceCents: -400 },
+  }), true);
 });
 
-test('führt nach erster und zweiter Abweichung durch die vereinbarte Eskalation', () => {
-  assert.equal(nextDifferenceStep(0), 'same-person-recount');
-  assert.equal(nextDifferenceStep(1), 'recommend-other-person');
-  assert.equal(nextDifferenceStep(2), 'adjust-to-target');
+test('empfiehlt eine Neuzählung nur über zwei Euro ohne gespeicherte Vorgängerdifferenz', () => {
+  assert.equal(shouldRecommendOpeningRecount({ differenceCents: 200, hasPreviousDifference: false }), false);
+  assert.equal(shouldRecommendOpeningRecount({ differenceCents: -201, hasPreviousDifference: false }), true);
+  assert.equal(shouldRecommendOpeningRecount({ differenceCents: 500, hasPreviousDifference: true }), false);
 });
