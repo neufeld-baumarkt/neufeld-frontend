@@ -11,9 +11,9 @@ const draft = { stage:'euro-transfer', employee:{id:1,name:'Max Mustermann'}, re
 
 test('sichert eine laufende Abrechnung ohne PIN und Proof-Token', () => {
   const storage=memoryStorage(); const key=cashClosingDraftKey('Vreden');
-  assert.equal(writeCashClosingDraft(storage,key,{...draft,stage:'eurocontrol-bank',eurocontrolBank:'1.108,93',pin:'1234',proofToken:'secret'}),true);
+  assert.equal(writeCashClosingDraft(storage,key,{...draft,stage:'eurocontrol-bank',previousBabTotalCents:163601,cumulativeBabMatches:false,cumulativeBabEurocontrol:'2.740,00',pin:'1234',proofToken:'secret'}),true);
   const restored=readCashClosingDraft(storage,key);
-  assert.equal(restored.stage,'eurocontrol-bank'); assert.equal(restored.eurocontrolBank,'1.108,93'); assert.equal(restored.pin,undefined); assert.equal(restored.proofToken,undefined);
+  assert.equal(restored.stage,'eurocontrol-bank'); assert.equal(restored.previousBabTotalCents,163601); assert.equal(restored.cumulativeBabMatches,false); assert.equal(restored.cumulativeBabEurocontrol,'2.740,00'); assert.equal(restored.pin,undefined); assert.equal(restored.proofToken,undefined);
   removeCashClosingDraft(storage,key); assert.equal(readCashClosingDraft(storage,key),null);
 });
 
