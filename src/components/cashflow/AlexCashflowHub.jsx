@@ -6,6 +6,7 @@ import CashflowWeekGrid from './CashflowWeekGrid';
 import CashflowWeekPreview from './CashflowWeekPreview';
 import EcCashPreview from '../controlling/EcCashPreview';
 import EcCashModal from '../controlling/EcCashModal';
+import EcCashV2Prototype, { EcCashV2Preview } from '../controlling/EcCashV2Prototype';
 import BabEzAzReport from './BabEzAzReport';
 
 const MODULES = [
@@ -36,8 +37,8 @@ const MODULES = [
   },
   {
     id: 'prognosen',
-    title: 'Prognosen',
-    subtitle: 'In Vorbereitung',
+    title: 'EC-Cash / Kreditkarten V2.0',
+    subtitle: 'Neuer optischer Entwurf · parallel zu Alex-Modul 2',
   },
 ];
 
@@ -127,6 +128,8 @@ export default function AlexCashflowHub({
                 <EcCashPreview />
               ) : activeModule.id === 'ezAz' ? (
                 <BabEzAzReport reports={babReports} loading={cashflowLoading} error={cashflowError} compact />
+              ) : activeModule.id === 'prognosen' ? (
+                <EcCashV2Preview />
               ) : (
                 <div className="h-[340px] rounded-xl border border-white/10 bg-black/20 flex items-center justify-center">
                   <div className="text-center">
@@ -208,8 +211,10 @@ export default function AlexCashflowHub({
 
               {openModule.id === 'ezAz' && <BabEzAzReport reports={babReports} loading={cashflowLoading} error={cashflowError} />}
 
+              {openModule.id === 'prognosen' && <EcCashV2Prototype />}
+
               {openModule.id !== 'einnahmenAusgaben' &&
-                openModule.id !== 'ecCashKreditkarte' && openModule.id !== 'ezAz' && (
+                openModule.id !== 'ecCashKreditkarte' && openModule.id !== 'ezAz' && openModule.id !== 'prognosen' && (
                   <div className="text-white/60">
                     Dieses Alex-Modul folgt später.
                   </div>
