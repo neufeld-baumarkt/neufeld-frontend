@@ -14,6 +14,10 @@ const v2Source = await readFile(
   new URL('../components/controlling/EcCashV2Prototype.jsx', import.meta.url),
   'utf8'
 );
+const classicSource = await readFile(
+  new URL('../components/controlling/EcCashModal.jsx', import.meta.url),
+  'utf8'
+);
 
 test('Modul 2 startet bei jedem Öffnen in der klassischen Ansicht', () => {
   assert.match(moduleSource, /useState\(CLASSIC_VIEW\)/);
@@ -41,4 +45,11 @@ test('V2 führt sichtbar durch Prüfung, Zuordnung und Monatsübersicht', () => 
 test('Geldbeträge werden in V2 ohne Vorzeichen formatiert', () => {
   assert.match(v2Source, /Math\.abs\(Number\(cents\) \|\| 0\)/);
   assert.match(v2Source, /Beträge werden bewusst ohne Vorzeichen dargestellt/);
+});
+
+test('klassische Gesamtüberweisungen sind bearbeitbar und werden gespeichert', () => {
+  assert.match(classicSource, /onTransferChange=\{updateLocalTransfer\}/);
+  assert.match(classicSource, /onTransferCommit=\{saveClassicTransfer\}/);
+  assert.match(classicSource, /api\/controlling\/transfers\/classic/);
+  assert.doesNotMatch(classicSource, /value=\{formatMoneyValue\(getTransferValue\(row\)\}\s+disabled\s*\/>/);
 });
