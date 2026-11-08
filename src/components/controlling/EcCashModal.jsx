@@ -33,7 +33,8 @@ const BRANCH_COLUMNS = [
 ];
 
 const MONEY_COLUMNS_PER_BRANCH = 2;
-const MAX_COLUMN_INDEX = BRANCH_COLUMNS.length * MONEY_COLUMNS_PER_BRANCH - 1;
+const TRANSFER_COLUMN_INDEX = BRANCH_COLUMNS.length * MONEY_COLUMNS_PER_BRANCH;
+const MAX_COLUMN_INDEX = TRANSFER_COLUMN_INDEX;
 
 function getApiBasics() {
   const token = sessionStorage.getItem('token');
@@ -120,6 +121,8 @@ function PaymentBlock({
   cellRefs,
   onChange,
   onCommit,
+  onTransferChange,
+  onTransferCommit,
   onNavigate,
 }) {
   return (
@@ -151,7 +154,14 @@ function PaymentBlock({
             </div>
           </div>
 
-          {rows.map((row, rowIndex) => (
+          {rows.map((row, rowIndex) => {
+            const transferCellKey = createCellKey({
+              blockKey,
+              rowIndex,
+              columnIndex: TRANSFER_COLUMN_INDEX,
+            });
+
+            return (
             <div
               key={`${paymentType}-${row.datum}`}
               className="grid grid-cols-[120px_repeat(8,130px)_170px] text-xs border-b border-black/20 last:border-b-0 min-h-[38px]"
@@ -268,12 +278,31 @@ function PaymentBlock({
 
               <div className="bg-white">
                 <MoneyCell
+                  ref={(inputElement) => {
+                    if (inputElement) {
+                      cellRefs.current[transferCellKey] = inputElement;
+                    } else {
+                      delete cellRefs.current[transferCellKey];
+                    }
+                  }}
                   value={formatMoneyValue(getTransferValue(row))}
-                  disabled
+                  disabled={disabled}
+                  onChange={(value) => onTransferChange({ paymentType, datum: row.datum, value })}
+                  onCommit={(value) => onTransferCommit({ paymentType, row, amount: value })}
+                  onNavigate={(direction) =>
+                    onNavigate({
+                      currentCellKey: transferCellKey,
+                      direction,
+                      blockKey,
+                      maxRowIndex: rows.length - 1,
+                      maxColumnIndex: MAX_COLUMN_INDEX,
+                    })
+                  }
                 />
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -331,6 +360,29 @@ export default function EcCashModal() {
               },
             };
           }),
+        },
+      };
+    });
+  }
+
+  function updateLocalTransfer({ paymentType, datum, value }) {
+    setMonthData((currentData) => {
+      const blockKey = paymentType === 'KREDITKARTE' ? 'kreditkarte' : 'ecCash';
+      const currentBlock = currentData[blockKey];
+
+      return {
+        ...currentData,
+        [blockKey]: {
+          ...currentBlock,
+          tage: currentBlock.tage.map((row) => row.datum === datum
+            ? {
+              ...row,
+              gesamtUeberweisung: {
+                ...row.gesamtUeberweisung,
+                betrag: value,
+              },
+            }
+            : row),
         },
       };
     });
@@ -481,6 +533,43 @@ export default function EcCashModal() {
     }
   }
 
+  async function saveClassicTransfer({ paymentType, row, amount }) {
+    if (!paymentType || !row?.datum || amount === '') {
+      setError('Speichern nicht möglich: Zahlungsart, Datum oder Betrag fehlt.');
+      return;
+    }
+
+    setSaving(true);
+    setError('');
+
+    try {
+      const { token, baseUrl } = getApiBasics();
+      const response = await fetch(`${baseUrl}/api/controlling/transfers/classic`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentType, datum: row.datum, amount }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.message || data?.error ||
+          `Gesamtüberweisung konnte nicht gespeichert werden. HTTP ${response.status}`
+        );
+      }
+
+      await loadMonth(activeMonth.value);
+    } catch (saveError) {
+      console.error('Gesamtüberweisung konnte nicht gespeichert werden:', saveError);
+      setError(saveError.message || 'Gesamtüberweisung konnte nicht gespeichert werden.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   useEffect(() => {
     loadMonth(activeMonth.value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -545,6 +634,8 @@ export default function EcCashModal() {
               cellRefs={cellRefs}
               onChange={updateLocalPaymentDay}
               onCommit={savePaymentDay}
+              onTransferChange={updateLocalTransfer}
+              onTransferCommit={saveClassicTransfer}
               onNavigate={handleNavigate}
             />
 
@@ -557,6 +648,8 @@ export default function EcCashModal() {
               cellRefs={cellRefs}
               onChange={updateLocalPaymentDay}
               onCommit={savePaymentDay}
+              onTransferChange={updateLocalTransfer}
+              onTransferCommit={saveClassicTransfer}
               onNavigate={handleNavigate}
             />
           </div>
