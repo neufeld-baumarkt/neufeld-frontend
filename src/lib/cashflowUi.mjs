@@ -14,3 +14,11 @@ export function getIsoDateParts(date) {
 export function calculatePlannedInvoiceAmount(grossAmount, skontoRate = 0) {
   return Math.round(Number(grossAmount) * (1 - Number(skontoRate) / 100) * 100) / 100;
 }
+
+export function getCashflowDetailBookings(bookings = [], selectedBookingId = null) {
+  if (selectedBookingId == null) return bookings;
+
+  return bookings.filter(
+    (booking) => String(booking.id) === String(selectedBookingId)
+  );
+}
