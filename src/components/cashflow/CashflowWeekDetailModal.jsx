@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import CashflowFastBookingModal from './CashflowFastBookingModal';
 import CashflowCellDetailModal from './CashflowCellDetailModal';
+import { getCashflowDetailBookings } from '../../lib/cashflowUi.mjs';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -160,12 +161,15 @@ export default function CashflowWeekDetailModal({
   );
 
   const cellDetailBuchungen = selectedCell
-  ? getCellBuchungen(
-      buchungen,
-      selectedCell.tag,
-      selectedCell.kategorieId
-    )
-  : [];
+    ? getCashflowDetailBookings(
+        getCellBuchungen(
+          buchungen,
+          selectedCell.tag,
+          selectedCell.kategorieId
+        ),
+        selectedBooking
+      )
+    : [];
 
   const closeModal = () => {
    setSelectedCell(null);
@@ -1005,6 +1009,7 @@ const saveFastBooking = async (payload) => {
           		  kategorieId: kategorie.id,
           		  kategorieName: kategorie.name,
         		});
+                  setSelectedBooking(null);
       		      }}
       		      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-xl leading-none font-bold text-cyan-200 hover:text-white transition shadow-[0_0_0_1px_rgba(103,232,249,0.22)]"
     		    >

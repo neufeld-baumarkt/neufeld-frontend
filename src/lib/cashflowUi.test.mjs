@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { calculatePlannedInvoiceAmount, getIsoDateParts } from './cashflowUi.mjs';
+import {
+  calculatePlannedInvoiceAmount,
+  getCashflowDetailBookings,
+  getIsoDateParts,
+} from './cashflowUi.mjs';
 
 test('Kalenderauswahl setzt ISO-Jahr, Kalenderwoche und Wochentag atomar', () => {
   assert.deepEqual(getIsoDateParts(new Date(2027, 0, 1)), {
@@ -19,4 +23,19 @@ test('Kalenderauswahl setzt ISO-Jahr, Kalenderwoche und Wochentag atomar', () =>
 test('Skontovorschau rechnet centgenau', () => {
   assert.equal(calculatePlannedInvoiceAmount(1000, 3), 970);
   assert.equal(calculatePlannedInvoiceAmount(19.99, 3), 19.39);
+});
+
+test('Tagesansicht zeigt weiterhin alle Buchungen der Zelle', () => {
+  const bookings = [{ id: 17 }, { id: 18 }];
+
+  assert.equal(getCashflowDetailBookings(bookings), bookings);
+});
+
+test('Bearbeiten aus der Rechnungssuche zeigt nur den exakten Treffer', () => {
+  const bookings = [
+    { id: 17, rechnungsnummer: 'RE-100' },
+    { id: 18, rechnungsnummer: 'RE-101' },
+  ];
+
+  assert.deepEqual(getCashflowDetailBookings(bookings, '18'), [bookings[1]]);
 });
