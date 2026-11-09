@@ -57,7 +57,7 @@ export default function TresorabschlussV2Process({ mode, transferCents, safeTarg
 
     <div className="mt-5 grid gap-3 sm:grid-cols-2">
       <div className="rounded-2xl bg-white p-4"><span className="text-xs font-black uppercase text-black/45">2 Kassenladen</span><strong className="block text-2xl">{formatEuroFromCents(fixedDrawerCents)}</strong></div>
-      <div className="rounded-2xl bg-white p-4"><span className="text-xs font-black uppercase text-black/45">Little Bertha</span><strong className="block text-2xl">{formatEuroFromCents(littleBerthaCents)}</strong></div>
+      {littleBerthaCents>0&&<div className="rounded-2xl bg-white p-4"><span className="text-xs font-black uppercase text-black/45">Little Bertha</span><strong className="block text-2xl">{formatEuroFromCents(littleBerthaCents)}</strong></div>}
     </div>
 
     <label className="mt-4 block text-sm font-black">Loses Geld
