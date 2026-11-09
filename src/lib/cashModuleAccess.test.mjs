@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canCorrectCashClosing, canUseCashModule, needsTemporaryCashBranch } from './cashModuleAccess.mjs';
 
-test('schaltet den DEV-Prozess nur für Vreden und zentrale Rollen frei', () => {
+test('schaltet den DEV-Prozess für Ahaus, Vreden und zentrale Rollen frei', () => {
   assert.equal(canUseCashModule({ role: 'Mitarbeiter', filiale: 'Vreden' }), true);
-  assert.equal(canUseCashModule({ role: 'Mitarbeiter', filiale: 'Ahaus' }), false);
+  assert.equal(canUseCashModule({ role: 'Mitarbeiter', filiale: 'Ahaus' }), true);
+  assert.equal(canUseCashModule({ role: 'Mitarbeiter', filiale: 'Münster' }), false);
   for (const role of ['Admin', 'Supervisor', 'Geschäftsführer', 'Manager-1']) {
     assert.equal(canUseCashModule({ role, filiale: 'Alle' }), true);
   }
