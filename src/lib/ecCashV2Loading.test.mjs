@@ -12,3 +12,9 @@ test('V2 behaelt vorhandene Werte bei stillen Aktualisierungen sichtbar', () => 
   assert.match(source, /if \(showLoading\) setLoading\(true\)/);
   assert.match(source, /await load\(\{ showLoading: false \}\)/);
 });
+
+test('V2 benennt Match-Einträge als Filial-Tageswerte und bietet bestätigte Matches nicht erneut an', () => {
+  assert.match(source, /Filial-Tageswerte vorgeschlagen/);
+  assert.match(source, /\['vorgeschlagen', 'vertagt'\]\.includes\(row\.match_status\)/);
+  assert.match(source, /Zuordnung abgeschlossen/);
+});
