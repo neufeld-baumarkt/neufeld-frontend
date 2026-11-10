@@ -18,3 +18,8 @@ test('V2 benennt Match-Einträge als Filial-Tageswerte und bietet bestätigte Ma
   assert.match(source, /\['vorgeschlagen', 'vertagt'\]\.includes\(row\.match_status\)/);
   assert.match(source, /Zuordnung abgeschlossen/);
 });
+
+test('V2 blendet umsatzlose Tage auch bei einer veralteten Backend-Antwort aus', () => {
+  assert.match(source, /Number\(item\?\.qlikTotalCents\) > 0/);
+  assert.match(source, /setOverview\(withPositiveRevenueItems\(o\)\)/);
+});

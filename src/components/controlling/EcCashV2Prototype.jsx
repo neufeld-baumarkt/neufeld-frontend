@@ -26,6 +26,10 @@ const euro = (cents) => new Intl.NumberFormat('de-DE', { style: 'currency', curr
 const atNoon = (value) => new Date(`${value}T12:00:00`);
 const shortDate = (value) => value ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short' }).format(atNoon(value)) : '–';
 const weekday = (value) => value ? new Intl.DateTimeFormat('de-DE', { weekday: 'long' }).format(atNoon(value)) : '';
+const withPositiveRevenueItems = (overview) => ({
+  ...overview,
+  items: (overview?.items || []).filter((item) => Number(item?.qlikTotalCents) > 0),
+});
 
 function StatusBadge({ status }) {
   const tone = status === 'ABWEICHEND'
@@ -166,7 +170,7 @@ export function EcCashV2Preview() { return <div className="h-[340px] overflow-hi
 
 export default function EcCashV2Prototype() {
   const now = new Date(); const [activeView, setActiveView] = useState('pruefen'); const [year, setYear] = useState(now.getFullYear()); const [month, setMonth] = useState(now.getMonth() + 1); const [overview, setOverview] = useState({ items: [], summary: {} }); const [transfers, setTransfers] = useState([]); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
-  const load = useCallback(async ({ showLoading = true } = {}) => { if (showLoading) setLoading(true); setError(''); try { const query = `?jahr=${year}&monat=${month}`; const [o, t] = await Promise.all([api(`/v2/overview${query}`), api(`/v2/transfers${query}`)]); setOverview(o); setTransfers(t.transfers || []); } catch (e) { setError(e.message); } finally { if (showLoading) setLoading(false); } }, [year, month]);
+  const load = useCallback(async ({ showLoading = true } = {}) => { if (showLoading) setLoading(true); setError(''); try { const query = `?jahr=${year}&monat=${month}`; const [o, t] = await Promise.all([api(`/v2/overview${query}`), api(`/v2/transfers${query}`)]); setOverview(withPositiveRevenueItems(o)); setTransfers(t.transfers || []); } catch (e) { setError(e.message); } finally { if (showLoading) setLoading(false); } }, [year, month]);
   useEffect(() => { load(); }, [load]);
   const mutate = async (request) => { setBusy(true); setError(''); try { await request(); await load({ showLoading: false }); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const review = (item, body) => mutate(() => api('/v2/reviews', { method: 'PATCH', body: JSON.stringify({ ...body, datum: item.datum, paymentType: item.paymentType }) })); const create = (body) => mutate(() => api('/v2/transfers', { method: 'POST', body: JSON.stringify(body) })); const suggest = (id) => mutate(() => api(`/v2/transfers/${id}/suggest`, { method: 'POST' })); const decide = (id, body) => mutate(() => api(`/v2/transfers/${id}/decision`, { method: 'POST', body: JSON.stringify(body) })); const match = (id, items) => mutate(() => api(`/v2/transfers/${id}/match`, { method: 'PUT', body: JSON.stringify({ items }) }));
