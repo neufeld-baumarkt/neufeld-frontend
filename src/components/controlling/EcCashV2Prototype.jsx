@@ -7,6 +7,7 @@ const VIEWS = [
 ];
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const PAYMENT_LABELS = { EC_CASH: 'EC-Kartenzahlungen', KREDITKARTE: 'Kreditkartenzahlungen' };
+const PROVIDER_BY_PAYMENT_TYPE = { EC_CASH: 'TeleCash', KREDITKARTE: 'FirstData' };
 const STATUS_LABELS = { OFFEN: 'Neu', IN_PRUEFUNG: 'In Prüfung', BESTAETIGT: 'Bestätigt', KORRIGIERT: 'Korrigiert', VERTAGT: 'Vertagt', EXTERN_BESTAETIGT: 'Über Transfer bestätigt', ABWEICHEND: 'Abweichung', vorgeschlagen: 'Vorschlag', bestaetigt: 'Bestätigt', abgelehnt: 'Abgelehnt', vertagt: 'Vertagt', offen: 'Offen' };
 
 function api(path, options = {}) {
@@ -118,13 +119,13 @@ function ReviewView({ items, summary, decide, busy }) {
 
 function TransferForm({ create, busy }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ provider: 'FirstData', paymentType: 'EC_CASH', buchungsdatum: new Date().toISOString().slice(0, 10), amount: '', referenz: '' });
+  const [form, setForm] = useState({ paymentType: 'EC_CASH', buchungsdatum: new Date().toISOString().slice(0, 10), amount: '', referenz: '' });
   if (!open) return <button type="button" onClick={() => setOpen(true)} className="rounded-lg bg-[#800000] px-4 py-2.5 text-sm font-black text-white">Überweisung erfassen</button>;
   const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15';
   return <form onSubmit={async (event) => { event.preventDefault(); await create(form); setOpen(false); }} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4">
     <div className="mb-4"><div className="font-black">Neue Sammelüberweisung</div><div className="mt-1 text-sm text-slate-500">Nur Bankbuchung erfassen – die Zuordnung schlägt anschließend die Match-Engine vor.</div></div>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-      <label className="text-xs font-black text-slate-600">Anbieter<select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })} className={fieldClass}><option>FirstData</option><option>TeleCash</option></select></label>
+      <div className="text-xs font-black text-slate-600">Dienstleister<div className={`${fieldClass} flex min-h-[42px] items-center`}>{PROVIDER_BY_PAYMENT_TYPE[form.paymentType]}</div></div>
       <label className="text-xs font-black text-slate-600">Zahlungsart<select value={form.paymentType} onChange={(e) => setForm({ ...form, paymentType: e.target.value })} className={fieldClass}><option value="EC_CASH">EC-Kartenzahlungen</option><option value="KREDITKARTE">Kreditkartenzahlungen</option></select></label>
       <label className="text-xs font-black text-slate-600">Buchungsdatum<input required type="date" value={form.buchungsdatum} onChange={(e) => setForm({ ...form, buchungsdatum: e.target.value })} className={fieldClass} /></label>
       <label className="text-xs font-black text-slate-600">Betrag<input required inputMode="decimal" placeholder="z. B. 1.234,56" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={fieldClass} /></label>
