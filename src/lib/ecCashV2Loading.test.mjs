@@ -23,3 +23,10 @@ test('V2 blendet umsatzlose Tage auch bei einer veralteten Backend-Antwort aus',
   assert.match(source, /Number\(item\?\.qlikTotalCents\) > 0/);
   assert.match(source, /setOverview\(withPositiveRevenueItems\(o\)\)/);
 });
+
+test('V2 ordnet den Dienstleister fest über die Zahlungsart zu', () => {
+  assert.match(source, /EC_CASH: 'TeleCash'/);
+  assert.match(source, /KREDITKARTE: 'FirstData'/);
+  assert.doesNotMatch(source, /value=\{form\.provider\}/);
+  assert.match(source, /Dienstleister/);
+});
