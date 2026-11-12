@@ -30,3 +30,13 @@ test('V2 ordnet den Dienstleister fest über die Zahlungsart zu', () => {
   assert.doesNotMatch(source, /value=\{form\.provider\}/);
   assert.match(source, /Dienstleister/);
 });
+
+test('V2 lässt den exakten Differenz-Ausgleich ausschließlich bewusst bestätigen', () => {
+  assert.match(source, /Exakter Ausgleich gefunden/);
+  assert.match(source, /Fehlbetrag vorgemerkt/);
+  assert.match(source, /exakte positive Gegenbuchung/);
+  assert.match(source, /settleCarryId: carrySuggestion\.id/);
+  assert.match(source, /Ausgleichen &amp; bestätigen/);
+  assert.match(source, /Centgenau ausgeglichen/);
+  assert.match(source, /Ursprünglich \{euro\(row\.rawDifferenzCents\)\}/);
+});
