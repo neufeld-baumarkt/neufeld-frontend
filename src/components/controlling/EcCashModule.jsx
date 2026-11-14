@@ -26,19 +26,26 @@ function ViewSwitcher({ activeView, onChange }) {
         onClick={() => onChange(isClassic ? V2_VIEW : CLASSIC_VIEW)}
         className="shrink-0 rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-black text-white transition hover:border-white/35 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40"
       >
-        {isClassic ? 'Zur V2-Ansicht wechseln' : 'Zur klassischen Ansicht wechseln'}
+        {isClassic
+          ? 'Zur V2-Ansicht wechseln'
+          : 'Zur klassischen Ansicht wechseln'}
       </button>
     </div>
   );
 }
-
 export default function EcCashModule() {
   const [activeView, setActiveView] = useState(CLASSIC_VIEW);
 
   return (
-    <div className="min-h-full">
-      <ViewSwitcher activeView={activeView} onChange={setActiveView} />
-      {activeView === CLASSIC_VIEW ? <EcCashModal /> : <EcCashV2Prototype />}
+    <div className="h-full min-h-0">
+      {activeView === CLASSIC_VIEW ? (
+        <div className="h-full overflow-auto pt-5">
+          <ViewSwitcher activeView={activeView} onChange={setActiveView} />
+          <EcCashModal />
+        </div>
+      ) : (
+        <EcCashV2Prototype onSwitchToClassic={() => setActiveView(CLASSIC_VIEW)} />
+      )}
     </div>
   );
 }
