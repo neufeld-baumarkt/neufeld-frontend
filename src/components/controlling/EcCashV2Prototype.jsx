@@ -22,7 +22,6 @@ function api(path, options = {}) {
     return payload;
   });
 }
-
 const euro = (cents) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(Math.abs(Number(cents) || 0) / 100);
 const atNoon = (value) => new Date(`${value}T12:00:00`);
 const shortDate = (value) => value ? new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short' }).format(atNoon(value)) : '–';
@@ -45,16 +44,36 @@ function StatusBadge({ status }) {
   return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-black ${tone}`}>{STATUS_LABELS[status] || status}</span>;
 }
 
-function Header({ activeView, setActiveView, year, setYear, month, setMonth, refresh, summary }) {
+function SummaryCards({ summary }) {
+  const cards = [
+    { label: 'Neu eingegangen', value: summary?.newCount || 0, note: 'wartet auf Sichtung', tone: 'border-sky-200 bg-sky-50 text-sky-950', labelTone: 'text-sky-700', noteTone: 'text-sky-800' },
+    { label: 'Mit Abweichung', value: summary?.deviationCount || 0, note: 'sichtbar, aber nicht blockierend', tone: 'border-amber-200 bg-amber-50 text-amber-950', labelTone: 'text-amber-700', noteTone: 'text-amber-800' },
+    { label: 'Wiedervorlage', value: summary?.deferredCount || 0, note: 'bewusst vertagt', tone: 'border-slate-200 bg-white text-slate-900', labelTone: 'text-slate-500', noteTone: 'text-slate-500' },
+  ];
+
+  return <div className="bg-[#eef0f2] px-4 py-2 lg:px-8">
+    <div className="grid gap-3 sm:grid-cols-3">
+      {cards.map((card) => <div key={card.label} className={`rounded-xl border px-4 py-2.5 ${card.tone}`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className={`pt-0.5 text-xs font-black uppercase tracking-wide ${card.labelTone}`}>{card.label}</div>
+          <div className="text-2xl font-black leading-none tabular-nums">{card.value}</div>
+        </div>
+        <div className={`mt-1 text-right text-xs ${card.noteTone}`}>{card.note}</div>
+      </div>)}
+    </div>
+  </div>;
+}
+
+function Header({ activeView, setActiveView, year, setYear, month, setMonth, refresh, summary, onSwitchToClassic }) {
   return <>
-    <div className="bg-gradient-to-br from-[#570000] via-[#750000] to-[#971616] px-5 py-6 text-white lg:px-8">
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+    <div className="rounded-t-2xl bg-gradient-to-br from-[#570000] via-[#750000] to-[#971616] px-5 py-4 text-white lg:px-8">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/60">Alex Modul 2 · geführte Ansicht</div>
-          <h2 className="mt-2 text-2xl font-black sm:text-3xl">EC-Cash &amp; Kreditkarten</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/75">Qlik liefert die Werte. Alex und Mirko prüfen bewusst. Abweichungen bleiben sichtbar, blockieren den Tagesabschluss aber nie.</p>
+          <h2 className="mt-1 text-2xl font-black sm:text-3xl">EC-Cash &amp; Kreditkarten</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/15 bg-black/10 p-2">
+          <button type="button" onClick={onSwitchToClassic} className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:border-white/35 hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-white/40">Zur klassischen Ansicht wechseln</button>
           <select aria-label="Monat" value={month} onChange={(event) => setMonth(Number(event.target.value))} className="rounded-lg border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-bold text-white">{MONTHS.map((name, index) => <option className="text-slate-900" value={index + 1} key={name}>{name}</option>)}</select>
           <input aria-label="Jahr" type="number" min="2020" max="2100" value={year} onChange={(event) => setYear(Number(event.target.value))} className="w-24 rounded-lg border border-white/20 bg-white/10 px-3 py-2.5 text-sm font-bold text-white" />
           <button type="button" onClick={refresh} className="rounded-lg bg-white px-4 py-2.5 text-sm font-black text-[#720000] shadow-sm transition hover:bg-white/90">Neu laden</button>
@@ -74,24 +93,14 @@ function Header({ activeView, setActiveView, year, setYear, month, setMonth, ref
         })}
       </div>
     </div>
+    {activeView === 'pruefen' ? <SummaryCards summary={summary} /> : null}
   </>;
 }
 
-function ReviewView({ items, summary, decide, busy }) {
+function ReviewView({ items, decide, busy }) {
   const [expanded, setExpanded] = useState('');
   const defer = (item) => { const note = window.prompt('Warum wird die Prüfung vertagt?'); if (!note) return; const deferredUntil = window.prompt('Wiedervorlage (JJJJ-MM-TT):'); if (deferredUntil) decide(item, { action: 'defer', note, deferredUntil }); };
   return <div className="space-y-5">
-    <section className="grid gap-3 sm:grid-cols-3">
-      <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><div className="text-xs font-black uppercase tracking-wide text-sky-700">Neu eingegangen</div><div className="mt-2 text-3xl font-black text-sky-950">{summary?.newCount || 0}</div><div className="mt-1 text-xs text-sky-800">wartet auf Sichtung</div></div>
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><div className="text-xs font-black uppercase tracking-wide text-amber-700">Mit Abweichung</div><div className="mt-2 text-3xl font-black text-amber-950">{summary?.deviationCount || 0}</div><div className="mt-1 text-xs text-amber-800">sichtbar, aber nicht blockierend</div></div>
-      <div className="rounded-xl border border-slate-200 bg-white p-4"><div className="text-xs font-black uppercase tracking-wide text-slate-500">Wiedervorlage</div><div className="mt-2 text-3xl font-black text-slate-900">{summary?.deferredCount || 0}</div><div className="mt-1 text-xs text-slate-500">bewusst vertagt</div></div>
-    </section>
-
-    <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 font-black text-white">✓</span>
-      <div><b>Der Tagesabschluss bleibt immer frei.</b><div className="mt-0.5 text-emerald-800">Diese Prüfung dokumentiert die Kontrolle von Alex und Mirko. Sie sperrt keinen operativen Ablauf.</div></div>
-    </div>
-
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h3 className="font-black text-slate-900">Tageswerte zur Prüfung</h3><p className="mt-1 text-sm text-slate-500">Ein Gesamtwert je Tag und Zahlungsart. Filialdetails bleiben jederzeit einsehbar.</p></div>
       {items.length === 0 ? <Empty text="Für diesen Monat liegen noch keine zugeordneten Qlik-Werte vor." /> : items.map((item) => {
@@ -169,11 +178,11 @@ function ErrorBox({ text }) { return <div role="alert" className="rounded-lg bor
 
 export function EcCashV2Preview() { return <div className="h-[340px] overflow-hidden rounded-xl border border-white/10 bg-[#eef0f2] text-slate-900"><div className="bg-gradient-to-r from-[#650000] to-[#8d1010] px-5 py-4 text-white"><div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/65">Alex Modul 2 · V2.0</div><div className="mt-1 text-xl font-black">EC-Cash / Kreditkarten</div></div><div className="flex gap-5 border-b bg-white px-5 py-3 text-xs font-black"><span className="text-[#800000]">Prüfen</span><span className="text-slate-400">Sammelüberweisungen</span><span className="text-slate-400">Monatsübersicht</span></div><div className="p-4"><div className="rounded-xl border bg-white p-5"><div className="font-black">Qlik-Werte aus der Datenbank</div><div className="mt-2 text-sm text-slate-500">Vier Filialen · bewusste Bestätigung · Tagesabschluss bleibt frei</div></div></div></div>; }
 
-export default function EcCashV2Prototype() {
+export default function EcCashV2Prototype({ onSwitchToClassic }) {
   const now = new Date(); const [activeView, setActiveView] = useState('pruefen'); const [year, setYear] = useState(now.getFullYear()); const [month, setMonth] = useState(now.getMonth() + 1); const [overview, setOverview] = useState({ items: [], summary: {} }); const [transfers, setTransfers] = useState([]); const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const load = useCallback(async ({ showLoading = true } = {}) => { if (showLoading) setLoading(true); setError(''); try { const query = `?jahr=${year}&monat=${month}`; const [o, t] = await Promise.all([api(`/v2/overview${query}`), api(`/v2/transfers${query}`)]); setOverview(withPositiveRevenueItems(o)); setTransfers(t.transfers || []); } catch (e) { setError(e.message); } finally { if (showLoading) setLoading(false); } }, [year, month]);
   useEffect(() => { load(); }, [load]);
   const mutate = async (request) => { setBusy(true); setError(''); try { await request(); await load({ showLoading: false }); } catch (e) { setError(e.message); } finally { setBusy(false); } };
   const review = (item, body) => mutate(() => api('/v2/reviews', { method: 'PATCH', body: JSON.stringify({ ...body, datum: item.datum, paymentType: item.paymentType }) })); const create = (body) => mutate(() => api('/v2/transfers', { method: 'POST', body: JSON.stringify(body) })); const suggest = (id) => mutate(() => api(`/v2/transfers/${id}/suggest`, { method: 'POST' })); const decide = (id, body) => mutate(() => api(`/v2/transfers/${id}/decision`, { method: 'POST', body: JSON.stringify(body) })); const match = (id, items) => mutate(() => api(`/v2/transfers/${id}/match`, { method: 'PUT', body: JSON.stringify({ items }) }));
-  return <div className="min-h-full overflow-hidden rounded-2xl border border-white/10 bg-[#eef0f2] text-slate-900 shadow-[6px_6px_18px_rgba(0,0,0,0.7)]"><Header activeView={activeView} setActiveView={setActiveView} year={year} setYear={setYear} month={month} setMonth={setMonth} refresh={load} summary={overview.summary} /><main className="p-4 lg:p-7">{error ? <div className="mb-4"><ErrorBox text={error} /></div> : null}{overview.summary?.unresolvedPaymentTypeCount ? <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>{overview.summary.unresolvedPaymentTypeCount} Qlik-Zahlarten sind noch ungeklärt.</b> Sie werden nicht automatisch zugeordnet.</div> : null}{loading ? <Empty text="Daten werden aus der Datenbank geladen …" /> : activeView === 'pruefen' ? <ReviewView items={overview.items || []} summary={overview.summary} decide={review} busy={busy} /> : activeView === 'sammelueberweisungen' ? <TransfersView transfers={transfers} busy={busy} create={create} suggest={suggest} decide={decide} match={match} /> : <MonthlyView items={overview.items || []} />}</main></div>;
+  return <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#eef0f2] text-slate-900 shadow-[6px_6px_18px_rgba(0,0,0,0.7)]"><div className="shrink-0 overflow-hidden rounded-t-2xl border-b-[3px] border-[#800000] bg-[#eef0f2] shadow-[0_8px_16px_rgba(66,0,0,0.18)]"><Header activeView={activeView} setActiveView={setActiveView} year={year} setYear={setYear} month={month} setMonth={setMonth} refresh={load} summary={overview.summary} onSwitchToClassic={onSwitchToClassic} /></div><main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-7">{error ? <div className="mb-4"><ErrorBox text={error} /></div> : null}{overview.summary?.unresolvedPaymentTypeCount ? <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>{overview.summary.unresolvedPaymentTypeCount} Qlik-Zahlarten sind noch ungeklärt.</b> Sie werden nicht automatisch zugeordnet.</div> : null}{loading ? <Empty text="Daten werden aus der Datenbank geladen …" /> : activeView === 'pruefen' ? <ReviewView items={overview.items || []} decide={review} busy={busy} /> : activeView === 'sammelueberweisungen' ? <TransfersView transfers={transfers} busy={busy} create={create} suggest={suggest} decide={decide} match={match} /> : <MonthlyView items={overview.items || []} />}</main></div>;
 }

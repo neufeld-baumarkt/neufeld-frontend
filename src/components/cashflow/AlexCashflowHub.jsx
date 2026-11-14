@@ -175,7 +175,7 @@ export default function AlexCashflowHub({
               </button>
             </div>
 
-            <div className="p-6 overflow-auto h-[calc(100vh-82px)]">
+            <div className={`${openModule.id === 'ecCashKreditkarte' ? 'overflow-hidden px-6 pb-6 pt-1' : 'overflow-auto p-6'} h-[calc(100vh-82px)]`}>
               {openModule.id === 'einnahmenAusgaben' && (
                 <>
                   {cashflowError && (

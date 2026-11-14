@@ -21,12 +21,14 @@ const classicSource = await readFile(
 
 test('Modul 2 startet bei jedem Öffnen in der klassischen Ansicht', () => {
   assert.match(moduleSource, /useState\(CLASSIC_VIEW\)/);
-  assert.match(moduleSource, /activeView === CLASSIC_VIEW \? <EcCashModal \/> : <EcCashV2Prototype \/>/);
+  assert.match(moduleSource, /activeView === CLASSIC_VIEW \? \(/);
+  assert.match(moduleSource, /<EcCashModal \/>/);
 });
 
 test('beide Ansichten bieten den eindeutigen Wechsel an', () => {
   assert.match(moduleSource, /Zur V2-Ansicht wechseln/);
-  assert.match(moduleSource, /Zur klassischen Ansicht wechseln/);
+  assert.match(moduleSource, /onSwitchToClassic=\{\(\) => setActiveView\(CLASSIC_VIEW\)\}/);
+  assert.match(v2Source, /Zur klassischen Ansicht wechseln/);
 });
 
 test('V2 ist in Modul 2 gebündelt und Prognosen bleibt ein eigener Platzhalter', () => {
@@ -39,7 +41,18 @@ test('V2 führt sichtbar durch Prüfung, Zuordnung und Monatsübersicht', () => 
   assert.match(v2Source, /Qlik-Werte prüfen/);
   assert.match(v2Source, /Überweisungen zuordnen/);
   assert.match(v2Source, /Monat überblicken/);
-  assert.match(v2Source, /Der Tagesabschluss bleibt immer frei/);
+});
+
+test('V2 trennt den festen Arbeitskopf vollständig vom scrollenden Inhalt', () => {
+  assert.doesNotMatch(v2Source, /sticky top-/);
+  assert.match(v2Source, /flex h-full min-h-0 flex-col overflow-hidden rounded-2xl/);
+  assert.match(v2Source, /shrink-0 overflow-hidden rounded-t-2xl border-b-\[3px\] border-\[#800000\]/);
+  assert.match(v2Source, /<main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-7">/);
+  assert.match(hubSource, /openModule\.id === 'ecCashKreditkarte' \? 'overflow-hidden px-6 pb-6 pt-1' : 'overflow-auto p-6'/);
+  assert.match(moduleSource, /<div className="h-full overflow-auto pt-5">[\s\S]*<ViewSwitcher/);
+  assert.match(v2Source, /<SummaryCards summary=\{summary\} \/>/);
+  assert.doesNotMatch(v2Source, /Der Tagesabschluss bleibt immer frei/);
+  assert.doesNotMatch(v2Source, /Qlik liefert die Werte\. Alex und Mirko prüfen bewusst\./);
 });
 
 test('Geldbeträge werden in V2 ohne Vorzeichen formatiert', () => {
