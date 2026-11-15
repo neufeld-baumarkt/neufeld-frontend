@@ -138,3 +138,38 @@ test('V2 trennt Geschäftstage optisch, hält EC und Kreditkarte desselben Tages
   assert.match(v2Source, /startsNewDay \? 'mt-2 border-t border-slate-200'/);
   assert.match(v2Source, /bg-slate-100 shadow-sm/);
 });
+
+test('Monatsübersicht ordnet jede Statuspille direkt ihrer Zahlungsart zu', () => {
+  const start = v2Source.indexOf('function MonthlyValue');
+  const end = v2Source.indexOf('export default function EcCashV2Prototype', start);
+  const monthlySource = v2Source.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  assert.match(monthlySource, /<MonthlyValue item=\{row\.EC_CASH\}/);
+  assert.match(monthlySource, /<MonthlyValue item=\{row\.KREDITKARTE\}/);
+  assert.doesNotMatch(monthlySource, />Prüfstatus</);
+  assert.match(monthlySource, /colSpan="3"/);
+});
+
+test('Monatsübersicht zeigt menschliche und Transferbestätigung gleichzeitig', () => {
+  const start = v2Source.indexOf('function MonthlyValue');
+  const end = v2Source.indexOf('function MonthlyView', start);
+  const valueSource = v2Source.slice(start, end);
+  assert.match(valueSource, /item\.confirmationStatuses\?\.length/);
+  assert.match(valueSource, /statuses\.map\(\(status\) => <StatusBadge/);
+  assert.match(valueSource, /item\.reviewStatus \|\| 'OFFEN'/);
+});
+
+test('Monatsübersicht verteilt EC und Kreditkarte gleichmäßig und hält Beträge ausgerichtet', () => {
+  const start = v2Source.indexOf('function MonthlyValue');
+  const end = v2Source.indexOf('export default function EcCashV2Prototype', start);
+  const monthlySource = v2Source.slice(start, end);
+  assert.match(monthlySource, /table-fixed/);
+  assert.match(monthlySource, /w-\[14%\]/);
+  assert.equal((monthlySource.match(/w-\[43%\]/g) || []).length, 2);
+  assert.match(monthlySource, /flex flex-wrap items-center justify-start gap-2/);
+  assert.match(monthlySource, /font-bold tabular-nums/);
+  assert.match(monthlySource, /flex flex-wrap justify-start gap-1/);
+  assert.match(monthlySource, /<th className="px-4 py-3">EC-Karten · Qlik<\/th>/);
+  assert.match(monthlySource, /<th className="px-4 py-3">Kreditkarten · Qlik<\/th>/);
+  assert.doesNotMatch(monthlySource, /grid-cols-\[120px_minmax\(0,1fr\)\]/);
+});
