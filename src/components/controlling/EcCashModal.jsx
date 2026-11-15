@@ -494,6 +494,9 @@ export default function EcCashModal() {
       }
 
       await loadMonth(activeMonth.value);
+      if (data.suggestionError) {
+        setError(`Sammelüberweisung gespeichert. Automatischer Match nicht möglich: ${data.suggestionError}`);
+      }
     } catch (saveError) {
       console.error('Gesamtüberweisung konnte nicht gespeichert werden:', saveError);
       setError(saveError.message || 'Gesamtüberweisung konnte nicht gespeichert werden.');

@@ -89,3 +89,8 @@ test('klassische Qlik-Werte wechseln per Ein-Klick von orange auf bestätigt', (
   assert.match(classicSource, /formatMoneyDisplay\(cell\.istBetrag\)/);
   assert.doesNotMatch(classicSource, /field: 'istBetrag'/);
 });
+
+test('Sammelüberweisungen starten in Klassik und V2 automatisch den Match und bleiben bei Suchfehlern gespeichert', () => {
+  assert.match(classicSource, /Automatischer Match nicht möglich/);
+  assert.match(v2Source, /Automatischer Match nicht möglich/);
+});
