@@ -98,14 +98,14 @@ function Header({ activeView, setActiveView, year, setYear, month, setMonth, ref
 }
 
 function ReviewView({ items, decide, busy }) {
-  const [expanded, setExpanded] = useState('');
+  const [expandedDate, setExpandedDate] = useState('');
   const defer = (item) => { const note = window.prompt('Warum wird die Prüfung vertagt?'); if (!note) return; const deferredUntil = window.prompt('Wiedervorlage (JJJJ-MM-TT):'); if (deferredUntil) decide(item, { action: 'defer', note, deferredUntil }); };
   return <div className="space-y-5">
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h3 className="font-black text-slate-900">Tageswerte zur Prüfung</h3><p className="mt-1 text-sm text-slate-500">Ein Gesamtwert je Tag und Zahlungsart. Filialdetails bleiben jederzeit einsehbar.</p></div>
       {items.length === 0 ? <Empty text="Für diesen Monat liegen noch keine zugeordneten Qlik-Werte vor." /> : items.map((item) => {
         const key = `${item.datum}-${item.paymentType}`;
-        const open = expanded === key;
+        const open = expandedDate === item.datum;
         const hasDeviation = item.comparisonStatus === 'ABWEICHEND';
         return <div key={key} className={`border-b border-slate-100 last:border-0 ${hasDeviation ? 'bg-amber-50/40' : ''}`}>
           <div className="grid gap-4 px-5 py-5 lg:grid-cols-[115px_1fr_160px_190px_270px] lg:items-center">
@@ -114,7 +114,7 @@ function ReviewView({ items, decide, busy }) {
             <div className="text-xl font-black tabular-nums lg:text-right">{euro(item.qlikTotalCents)}</div>
             <div className="flex flex-wrap gap-1.5"><StatusBadge status={item.reviewStatus} />{hasDeviation ? <StatusBadge status="ABWEICHEND" /> : null}</div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
-              <button type="button" onClick={() => setExpanded(open ? '' : key)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">{open ? 'Details schließen' : 'Filialen ansehen'}</button>
+              <button type="button" onClick={() => setExpandedDate(open ? '' : item.datum)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">{open ? 'Filialdetails schließen' : 'Filialen ansehen'}</button>
               <button disabled={busy} type="button" onClick={() => decide(item, { action: 'confirm' })} className="rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50">Geprüft &amp; bestätigen</button>
               <button disabled={busy} type="button" onClick={() => defer(item)} className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950 hover:bg-amber-100 disabled:opacity-50">Später prüfen</button>
             </div>

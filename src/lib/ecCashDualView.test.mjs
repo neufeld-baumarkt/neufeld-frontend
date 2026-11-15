@@ -94,3 +94,11 @@ test('Sammelüberweisungen starten in Klassik und V2 automatisch den Match und b
   assert.match(classicSource, /Automatischer Match nicht möglich/);
   assert.match(v2Source, /Automatischer Match nicht möglich/);
 });
+
+test('V2 öffnet die Filialdetails beider Zahlungsarten gemeinsam je Geschäftstag', () => {
+  assert.match(v2Source, /const \[expandedDate, setExpandedDate\] = useState\(''\)/);
+  assert.match(v2Source, /const open = expandedDate === item\.datum/);
+  assert.match(v2Source, /setExpandedDate\(open \? '' : item\.datum\)/);
+  assert.match(v2Source, /Filialdetails schließen/);
+  assert.doesNotMatch(v2Source, /setExpanded\(open \? '' : key\)/);
+});
