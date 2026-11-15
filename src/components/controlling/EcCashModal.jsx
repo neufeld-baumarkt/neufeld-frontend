@@ -25,6 +25,10 @@ const MONTHS_2026 = [
   { value: 12, label: "Dez'26" },
 ];
 
+function getCurrentMonth() {
+  const currentMonthValue = new Date().getMonth() + 1;
+  return MONTHS_2026.find((month) => month.value === currentMonthValue) || MONTHS_2026[0];
+}
 const BRANCH_COLUMNS = [
   { key: 'Telgte', label: 'Telgte' },
   { key: 'Ahaus', label: 'Ahaus' },
@@ -50,7 +54,6 @@ function getApiBasics() {
 
   return { token, baseUrl };
 }
-
 function formatGermanDate(isoDate) {
   if (!isoDate) return '';
 
@@ -71,11 +74,26 @@ function formatMoneyValue(value) {
   return String(value);
 }
 
+function formatMoneyDisplay(value) {
+  if (value === null || value === undefined || value === '') return '';
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value));
+}
+
+const CONFIRMED_REVIEW_STATUSES = new Set(['BESTAETIGT', 'KORRIGIERT', 'EXTERN_BESTAETIGT']);
+
 function getFilialeCell(row, filiale) {
   return row?.filialen?.[filiale] || {
     id: null,
     sollBetrag: null,
     istBetrag: null,
+    reviewStatus: 'OFFEN',
+    reviewedBy: null,
+    reviewedAt: null,
     status: 'offen',
     bemerkung: null,
     updatedAt: null,
@@ -111,7 +129,6 @@ function MonthTabs({ activeMonth, onChange, disabled }) {
     </div>
   );
 }
-
 function PaymentBlock({
   title,
   blockKey,
@@ -119,10 +136,10 @@ function PaymentBlock({
   rows,
   disabled,
   cellRefs,
-  onChange,
-  onCommit,
   onTransferChange,
   onTransferCommit,
+  onConfirmQlik,
+  confirmingCellId,
   onNavigate,
 }) {
   return (
@@ -134,24 +151,33 @@ function PaymentBlock({
       <div className="overflow-auto">
         <div className="min-w-[1380px]">
           <div className="grid grid-cols-[120px_repeat(8,130px)_170px] text-xs font-bold border-b border-black/40">
-            <div className="bg-[#eeeeee] border-r border-black/30 px-2 py-2 flex items-center justify-center">
+            <div className="row-span-2 bg-[#eeeeee] border-r border-black/30 px-2 py-2 flex items-center justify-center">
               Datum
             </div>
 
             {BRANCH_COLUMNS.map((branch) => (
-              <div key={branch.key} className="contents">
-                <div className="bg-[#eeeeee] border-r border-black/30 px-2 py-2 text-center">
-                  {branch.label} IST
-                </div>
-                <div className="bg-[#eeeeee] border-r border-black/30 px-2 py-2 text-center">
-                  {branch.label} SOLL
-                </div>
+              <div
+                key={branch.key}
+                className="col-span-2 bg-[#dddddd] border-r border-b border-black/30 px-2 py-2 text-center text-sm"
+              >
+                {branch.label}
               </div>
             ))}
 
-            <div className="bg-[#eeeeee] px-2 py-2 text-center">
+            <div className="row-span-2 bg-[#eeeeee] px-2 py-2 flex items-center justify-center text-center">
               Gesamt Überweisung
             </div>
+
+            {BRANCH_COLUMNS.map((branch) => (
+              <div key={`${branch.key}-subcolumns`} className="contents">
+                <div className="bg-[#eeeeee] border-r border-black/30 px-2 py-2 text-center">
+                  IST · Match-Engine
+                </div>
+                <div className="bg-[#eeeeee] border-r border-black/30 px-2 py-2 text-center">
+                  SOLL · Qlik
+                </div>
+              </div>
+            ))}
           </div>
 
           {rows.map((row, rowIndex) => {
@@ -172,13 +198,7 @@ function PaymentBlock({
 
               {BRANCH_COLUMNS.map((branch, branchIndex) => {
                 const cell = getFilialeCell(row, branch.key);
-                const istColumnIndex = branchIndex * MONEY_COLUMNS_PER_BRANCH;
-                const sollColumnIndex = istColumnIndex + 1;
-                const istCellKey = createCellKey({
-                  blockKey,
-                  rowIndex,
-                  columnIndex: istColumnIndex,
-                });
+                const sollColumnIndex = (branchIndex * MONEY_COLUMNS_PER_BRANCH) + 1;
                 const sollCellKey = createCellKey({
                   blockKey,
                   rowIndex,
@@ -187,90 +207,51 @@ function PaymentBlock({
 
                 return (
                   <div key={`${paymentType}-${row.datum}-${branch.key}`} className="contents">
-                    <div className="bg-white border-r border-black/20">
-                      <MoneyCell
-                        ref={(inputElement) => {
-                          if (inputElement) {
-                            cellRefs.current[istCellKey] = inputElement;
-                          } else {
-                            delete cellRefs.current[istCellKey];
-                          }
-                        }}
-                        value={formatMoneyValue(cell.istBetrag)}
-                        disabled={disabled}
-                        onChange={(value) =>
-                          onChange({
-                            paymentType,
-                            datum: row.datum,
-                            filiale: branch.key,
-                            field: 'istBetrag',
-                            value,
-                          })
-                        }
-                        onCommit={(value) =>
-                          onCommit({
-                            paymentType,
-                            row,
-                            filiale: branch.key,
-                            sollBetrag: cell.sollBetrag,
-                            istBetrag: value,
-                            status: cell.status,
-                            bemerkung: cell.bemerkung,
-                          })
-                        }
-                        onNavigate={(direction) =>
-                          onNavigate({
-                            currentCellKey: istCellKey,
-                            direction,
-                            blockKey,
-                            maxRowIndex: rows.length - 1,
-                            maxColumnIndex: MAX_COLUMN_INDEX,
-                          })
-                        }
-                      />
+                    <div
+                      className="flex min-h-[38px] items-center justify-end border-r border-black/20 bg-white px-2 py-1 text-right text-xs font-semibold text-[#1f1f1f]"
+                      title={cell.istBetrag == null ? 'Noch kein bestätigter Match' : 'Durch bestätigten Match befüllt'}
+                    >
+                      {formatMoneyDisplay(cell.istBetrag)}
                     </div>
 
                     <div className="bg-white border-r border-black/20">
-                      <MoneyCell
-                        ref={(inputElement) => {
-                          if (inputElement) {
-                            cellRefs.current[sollCellKey] = inputElement;
+                      <button
+                        ref={(buttonElement) => {
+                          if (buttonElement) {
+                            cellRefs.current[sollCellKey] = buttonElement;
                           } else {
                             delete cellRefs.current[sollCellKey];
                           }
                         }}
-                        value={formatMoneyValue(cell.sollBetrag)}
-                        disabled={disabled}
-                        onChange={(value) =>
-                          onChange({
-                            paymentType,
-                            datum: row.datum,
-                            filiale: branch.key,
-                            field: 'sollBetrag',
-                            value,
-                          })
-                        }
-                        onCommit={(value) =>
-                          onCommit({
-                            paymentType,
-                            row,
-                            filiale: branch.key,
-                            sollBetrag: value,
-                            istBetrag: cell.istBetrag,
-                            status: cell.status,
-                            bemerkung: cell.bemerkung,
-                          })
-                        }
-                        onNavigate={(direction) =>
+                        type="button"
+                        disabled={disabled || !cell.id || cell.sollBetrag == null || CONFIRMED_REVIEW_STATUSES.has(cell.reviewStatus)}
+                        onClick={() => onConfirmQlik({ paymentType, datum: row.datum, filiale: branch.key, cell })}
+                        onKeyDown={(event) => {
+                          const directionByKey = {
+                            ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+                          };
+                          const direction = directionByKey[event.key];
+                          if (!direction) return;
+                          event.preventDefault();
                           onNavigate({
                             currentCellKey: sollCellKey,
                             direction,
                             blockKey,
                             maxRowIndex: rows.length - 1,
                             maxColumnIndex: MAX_COLUMN_INDEX,
-                          })
-                        }
-                      />
+                          });
+                        }}
+                        title={CONFIRMED_REVIEW_STATUSES.has(cell.reviewStatus)
+                          ? `Bestätigt${cell.reviewedBy ? ` von ${cell.reviewedBy}` : ''}`
+                          : 'Qlik-Wert mit einem Klick bestätigen'}
+                        className={`h-full min-h-[38px] w-full px-2 py-1 text-right text-xs font-semibold outline-none transition focus:ring-2 focus:ring-inset focus:ring-[#800000] ${
+                          CONFIRMED_REVIEW_STATUSES.has(cell.reviewStatus)
+                            ? 'cursor-default text-[#1f1f1f]'
+                            : 'cursor-pointer text-orange-600 hover:bg-orange-50 hover:text-orange-700'
+                        } disabled:opacity-100`}
+                      >
+                        {confirmingCellId === cell.id ? 'Speichert …' : formatMoneyDisplay(cell.sollBetrag)}
+                      </button>
                     </div>
                   </div>
                 );
@@ -308,9 +289,8 @@ function PaymentBlock({
     </div>
   );
 }
-
 export default function EcCashModal() {
-  const [activeMonth, setActiveMonth] = useState(MONTHS_2026[0]);
+  const [activeMonth, setActiveMonth] = useState(getCurrentMonth);
   const [monthData, setMonthData] = useState({
     ecCash: {
       paymentType: 'EC_CASH',
@@ -323,47 +303,10 @@ export default function EcCashModal() {
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmingCellId, setConfirmingCellId] = useState(null);
   const [error, setError] = useState('');
   const cellRefs = useRef({});
   const pendingFocusRef = useRef(null);
-
-  function updateLocalPaymentDay({
-    paymentType,
-    datum,
-    filiale,
-    field,
-    value,
-  }) {
-    setMonthData((currentData) => {
-      const blockKey = paymentType === 'KREDITKARTE' ? 'kreditkarte' : 'ecCash';
-      const currentBlock = currentData[blockKey];
-
-      return {
-        ...currentData,
-        [blockKey]: {
-          ...currentBlock,
-          tage: currentBlock.tage.map((row) => {
-            if (row.datum !== datum) {
-              return row;
-            }
-
-            const currentCell = getFilialeCell(row, filiale);
-
-            return {
-              ...row,
-              filialen: {
-                ...row.filialen,
-                [filiale]: {
-                  ...currentCell,
-                  [field]: value,
-                },
-              },
-            };
-          }),
-        },
-      };
-    });
-  }
 
   function updateLocalTransfer({ paymentType, datum, value }) {
     setMonthData((currentData) => {
@@ -386,6 +329,53 @@ export default function EcCashModal() {
         },
       };
     });
+  }
+
+  function markQlikCellConfirmed({ paymentType, datum, filiale, reviewedAt }) {
+    setMonthData((currentData) => {
+      const blockKey = paymentType === 'KREDITKARTE' ? 'kreditkarte' : 'ecCash';
+      const currentBlock = currentData[blockKey];
+      return {
+        ...currentData,
+        [blockKey]: {
+          ...currentBlock,
+          tage: currentBlock.tage.map((row) => row.datum !== datum ? row : {
+            ...row,
+            filialen: {
+              ...row.filialen,
+              [filiale]: {
+                ...getFilialeCell(row, filiale),
+                reviewStatus: 'BESTAETIGT',
+                reviewedAt,
+              },
+            },
+          }),
+        },
+      };
+    });
+  }
+
+  async function confirmQlikCell({ paymentType, datum, filiale, cell }) {
+    if (!cell?.id || CONFIRMED_REVIEW_STATUSES.has(cell.reviewStatus) || confirmingCellId) return;
+    setConfirmingCellId(cell.id);
+    setError('');
+    try {
+      const { token, baseUrl } = getApiBasics();
+      const response = await fetch(`${baseUrl}/api/controlling/payment-days/${cell.id}/review`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error || `Qlik-Wert konnte nicht bestätigt werden. HTTP ${response.status}`);
+      }
+      markQlikCellConfirmed({ paymentType, datum, filiale, reviewedAt: data.reviewedAt || new Date().toISOString() });
+    } catch (confirmError) {
+      console.error('Qlik-Wert konnte nicht bestätigt werden:', confirmError);
+      setError(confirmError.message || 'Qlik-Wert konnte nicht bestätigt werden.');
+    } finally {
+      setConfirmingCellId(null);
+    }
   }
 
   function focusPendingCell() {
@@ -472,64 +462,6 @@ export default function EcCashModal() {
       });
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function savePaymentDay({
-    paymentType,
-    row,
-    filiale,
-    sollBetrag,
-    istBetrag,
-    status,
-    bemerkung,
-  }) {
-    if (!paymentType || !row?.datum || !filiale) {
-      setError('Speichern nicht möglich: Zahlungsart, Datum oder Filiale fehlt.');
-      return;
-    }
-
-    setSaving(true);
-    setError('');
-
-    try {
-      const { token, baseUrl } = getApiBasics();
-
-      const payload = {
-        paymentType,
-        filiale,
-        datum: row.datum,
-        sollBetrag,
-        istBetrag,
-        status: status || 'offen',
-        bemerkung: bemerkung || null,
-      };
-
-      const response = await fetch(`${baseUrl}/api/controlling/payment-days`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data?.message ||
-            data?.error ||
-            `Tageswert konnte nicht gespeichert werden. HTTP ${response.status}`
-        );
-      }
-
-      await loadMonth(activeMonth.value);
-    } catch (saveError) {
-      console.error('Tageswert konnte nicht gespeichert werden:', saveError);
-      setError(saveError.message || 'Tageswert konnte nicht gespeichert werden.');
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -632,10 +564,10 @@ export default function EcCashModal() {
               rows={monthData.ecCash.tage}
               disabled={loading || saving}
               cellRefs={cellRefs}
-              onChange={updateLocalPaymentDay}
-              onCommit={savePaymentDay}
               onTransferChange={updateLocalTransfer}
               onTransferCommit={saveClassicTransfer}
+              onConfirmQlik={confirmQlikCell}
+              confirmingCellId={confirmingCellId}
               onNavigate={handleNavigate}
             />
 
@@ -646,10 +578,10 @@ export default function EcCashModal() {
               rows={monthData.kreditkarte.tage}
               disabled={loading || saving}
               cellRefs={cellRefs}
-              onChange={updateLocalPaymentDay}
-              onCommit={savePaymentDay}
               onTransferChange={updateLocalTransfer}
               onTransferCommit={saveClassicTransfer}
+              onConfirmQlik={confirmQlikCell}
+              confirmingCellId={confirmingCellId}
               onNavigate={handleNavigate}
             />
           </div>

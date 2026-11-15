@@ -24,6 +24,12 @@ test('Modul 2 startet bei jedem Öffnen in der klassischen Ansicht', () => {
   assert.match(moduleSource, /activeView === CLASSIC_VIEW \? \(/);
   assert.match(moduleSource, /<EcCashModal \/>/);
 });
+test('klassische Ansicht startet im aktuellen Monat und benennt IST und SOLL eindeutig', () => {
+  assert.match(classicSource, /function getCurrentMonth\(\)/);
+  assert.match(classicSource, /new Date\(\)\.getMonth\(\) \+ 1/);
+  assert.match(classicSource, /useState\(getCurrentMonth\)/);
+  assert.match(classicSource, /\{branch\.label\}[\s\S]*IST · Match-Engine[\s\S]*SOLL · Qlik/);
+});
 
 test('beide Ansichten bieten den eindeutigen Wechsel an', () => {
   assert.match(moduleSource, /Zur V2-Ansicht wechseln/);
@@ -65,4 +71,21 @@ test('klassische Gesamtüberweisungen sind bearbeitbar und werden gespeichert', 
   assert.match(classicSource, /onTransferCommit=\{saveClassicTransfer\}/);
   assert.match(classicSource, /api\/controlling\/transfers\/classic/);
   assert.doesNotMatch(classicSource, /value=\{formatMoneyValue\(getTransferValue\(row\)\}\s+disabled\s*\/>/);
+});
+
+test('Klassik und V2 verwenden dieselben anbieterspezifischen Sammelüberweisungen', () => {
+  assert.match(v2Source, /\['FirstData', 'TeleCash'\]/);
+  assert.match(classicSource, /api\/controlling\/transfers\/classic/);
+});
+
+test('klassische Qlik-Werte wechseln per Ein-Klick von orange auf bestätigt', () => {
+  assert.match(classicSource, /CONFIRMED_REVIEW_STATUSES/);
+  assert.match(classicSource, /text-orange-600/);
+  assert.match(classicSource, /onClick=\{\(\) => onConfirmQlik/);
+  assert.match(classicSource, /api\/controlling\/payment-days\/\$\{cell\.id\}\/review/);
+  assert.match(classicSource, /method: 'PATCH'/);
+  assert.match(classicSource, /reviewStatus: 'BESTAETIGT'/);
+  assert.match(classicSource, /Durch bestätigten Match befüllt/);
+  assert.match(classicSource, /formatMoneyDisplay\(cell\.istBetrag\)/);
+  assert.doesNotMatch(classicSource, /field: 'istBetrag'/);
 });
