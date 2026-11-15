@@ -24,6 +24,7 @@ test('Modul 2 startet bei jedem Öffnen in der klassischen Ansicht', () => {
   assert.match(moduleSource, /activeView === CLASSIC_VIEW \? \(/);
   assert.match(moduleSource, /<EcCashModal \/>/);
 });
+
 test('klassische Ansicht startet im aktuellen Monat und benennt IST und SOLL eindeutig', () => {
   assert.match(classicSource, /function getCurrentMonth\(\)/);
   assert.match(classicSource, /new Date\(\)\.getMonth\(\) \+ 1/);
@@ -93,6 +94,9 @@ test('klassische Qlik-Werte wechseln per Ein-Klick von orange auf bestätigt', (
 test('Sammelüberweisungen starten in Klassik und V2 automatisch den Match und bleiben bei Suchfehlern gespeichert', () => {
   assert.match(classicSource, /Automatischer Match nicht möglich/);
   assert.match(v2Source, /Automatischer Match nicht möglich/);
+  assert.match(v2Source, /Match erneut berechnen/);
+  assert.match(v2Source, /const result = await request\(\)/);
+  assert.match(v2Source, /result\?\.suggestionError/);
 });
 
 test('V2 öffnet die Filialdetails beider Zahlungsarten gemeinsam je Geschäftstag', () => {
@@ -101,4 +105,36 @@ test('V2 öffnet die Filialdetails beider Zahlungsarten gemeinsam je Geschäftst
   assert.match(v2Source, /setExpandedDate\(open \? '' : item\.datum\)/);
   assert.match(v2Source, /Filialdetails schließen/);
   assert.doesNotMatch(v2Source, /setExpanded\(open \? '' : key\)/);
+});
+
+test('V2 bestätigt Kartenarten per Ein-Klick und übernimmt Fortschritt aus dem Backend', () => {
+  assert.match(v2Source, /api\(`\/v2\/component-reviews\/\$\{component\.id\}`/);
+  assert.match(v2Source, /branch\.componentProgress/);
+  assert.match(v2Source, /progress\.confirmed\}\/\{progress\.required\} bestätigt/);
+  assert.match(v2Source, /noRevenue \? 'kein Umsatz'/);
+  assert.doesNotMatch(v2Source, /components\.reduce\([^\n]*amountCents/);
+});
+
+test('V2 zentriert den geöffneten Geschäftstag ausschließlich auf Desktop', () => {
+  assert.match(v2Source, /matchMedia\('\(min-width: 1024px\)'\)/);
+  assert.match(v2Source, /data-review-date=\{item\.datum\}/);
+  assert.match(v2Source, /scrollArea\.scrollTo\(\{ top: Math\.max\(0, centeredTop\), behavior: 'smooth' \}\)/);
+  assert.match(v2Source, /groupHeight = lastRect\.bottom - firstRect\.top/);
+});
+
+test('V2 verdichtet geschlossene Tageswerte auf Desktop ohne die responsive Darstellung zu erzwingen', () => {
+  assert.match(v2Source, /xl:grid-cols-\[115px_minmax\(220px,1fr\)_150px_150px_auto\]/);
+  assert.match(v2Source, /md:col-span-2 md:justify-end xl:col-span-1 xl:flex-nowrap/);
+  assert.doesNotMatch(v2Source, /Ein Gesamtwert je Tag und Zahlungsart\. Filialdetails bleiben jederzeit einsehbar\./);
+  const actionStart = v2Source.indexOf("'Einzelwerte bestätigen'");
+  const deferStart = v2Source.indexOf('Später prüfen', actionStart);
+  const detailsStart = v2Source.indexOf('Filialen ansehen', deferStart);
+  assert.ok(actionStart >= 0 && deferStart > actionStart && detailsStart > deferStart);
+});
+
+test('V2 trennt Geschäftstage optisch, hält EC und Kreditkarte desselben Tages aber zusammen', () => {
+  assert.match(v2Source, /items\.map\(\(item, index\) =>/);
+  assert.match(v2Source, /startsNewDay = index > 0 && items\[index - 1\]\.datum !== item\.datum/);
+  assert.match(v2Source, /startsNewDay \? 'mt-2 border-t border-slate-200'/);
+  assert.match(v2Source, /bg-slate-100 shadow-sm/);
 });

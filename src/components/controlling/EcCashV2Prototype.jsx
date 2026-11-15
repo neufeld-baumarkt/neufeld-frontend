@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 const VIEWS = [
   { id: 'pruefen', step: '01', label: 'Qlik-Werte prüfen', shortLabel: 'Prüfen', description: 'Tageswerte ansehen und bewusst bestätigen' },
@@ -97,29 +97,101 @@ function Header({ activeView, setActiveView, year, setYear, month, setMonth, ref
   </>;
 }
 
-function ReviewView({ items, decide, busy }) {
+function BranchReviewCard({ branch, confirmComponent, busy }) {
+  const progress = branch.componentProgress || { confirmed: 0, required: 0, complete: false };
+  const hasComponents = Array.isArray(branch.components) && branch.components.length > 0;
+  const [showDetails, setShowDetails] = useState(!progress.complete);
+
+  useEffect(() => {
+    if (progress.complete) setShowDetails(false);
+  }, [progress.complete]);
+
+  if (!hasComponents) {
+    return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><b>{branch.filiale}</b><StatusBadge status={branch.reviewStatus} /></div><div className="mt-4 text-xl font-black">{euro(branch.qlikAmountCents)}</div><div className="mt-1 text-xs text-slate-500">Vergleichswert: {branch.comparisonAmountCents == null ? 'nicht vorhanden' : euro(branch.comparisonAmountCents)}</div>{branch.reviewedBy ? <div className="mt-3 border-t pt-2 text-xs text-slate-400">Geprüft von {branch.reviewedBy}</div> : null}</div>;
+  }
+
+  return <div className={`overflow-hidden rounded-xl border bg-white shadow-sm ${progress.complete ? 'border-emerald-200' : 'border-slate-200'}`}>
+    <div className="flex items-start justify-between gap-3 p-4">
+      <div><div className="font-black text-slate-950">{branch.filiale}</div><div className="mt-1 text-xl font-black tabular-nums">{euro(branch.qlikAmountCents)}</div></div>
+      <div className="text-right">
+        <div className={`text-xs font-black ${progress.complete ? 'text-emerald-700' : 'text-slate-600'}`}>{progress.confirmed}/{progress.required} bestätigt</div>
+        {progress.complete ? <button type="button" onClick={() => setShowDetails((value) => !value)} className="mt-2 text-xs font-bold text-slate-500 underline decoration-slate-300 underline-offset-2">{showDetails ? 'Details schließen' : 'Details anzeigen'}</button> : null}
+      </div>
+    </div>
+    {showDetails ? <div className="divide-y border-t border-slate-100">
+      {branch.components.map((component) => {
+        const confirmed = component.reviewStatus === 'BESTAETIGT';
+        const noRevenue = !component.requiresReview;
+        return <button
+          key={component.id}
+          type="button"
+          disabled={busy || confirmed || noRevenue}
+          onClick={() => confirmComponent(component)}
+          className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition ${confirmed ? 'bg-emerald-50/70' : noRevenue ? 'cursor-default bg-slate-50/70' : 'hover:bg-sky-50 disabled:opacity-60'}`}
+          title={noRevenue ? 'Kein Umsatz – keine Bestätigung erforderlich' : confirmed ? 'Bereits bestätigt' : 'Einzelwert mit einem Klick bestätigen'}
+        >
+          <span><span className="block text-sm font-black text-slate-800">{component.label}</span>{component.reviewedBy ? <span className="mt-0.5 block text-[11px] text-slate-400">Geprüft von {component.reviewedBy}</span> : null}</span>
+          <span className="flex items-center gap-2"><span className={`font-black tabular-nums ${noRevenue ? 'text-slate-400' : 'text-slate-950'}`}>{noRevenue ? 'kein Umsatz' : euro(component.amountCents)}</span><span aria-hidden="true" className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${confirmed ? 'bg-emerald-600 text-white' : noRevenue ? 'bg-slate-200 text-slate-500' : 'border-2 border-sky-400 text-sky-700'}`}>{confirmed ? '✓' : noRevenue ? '–' : '1×'}</span></span>
+        </button>;
+      })}
+    </div> : <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">Filiale vollständig geprüft ✓</div>}
+  </div>;
+}
+
+function ReviewView({ items, decide, confirmComponent, busy }) {
   const [expandedDate, setExpandedDate] = useState('');
+  const listRef = useRef(null);
+
+  useEffect(() => {
+    if (!expandedDate || !window.matchMedia('(min-width: 1024px)').matches) return undefined;
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const dayRows = listRef.current?.querySelectorAll(`[data-review-date="${expandedDate}"]`);
+        const firstRow = dayRows?.[0];
+        const lastRow = dayRows?.[dayRows.length - 1];
+        const scrollArea = firstRow?.closest('main');
+        if (!firstRow || !lastRow || !scrollArea) return;
+
+        const scrollRect = scrollArea.getBoundingClientRect();
+        const firstRect = firstRow.getBoundingClientRect();
+        const lastRect = lastRow.getBoundingClientRect();
+        const groupTop = firstRect.top - scrollRect.top + scrollArea.scrollTop;
+        const groupHeight = lastRect.bottom - firstRect.top;
+        const centeredTop = groupTop - Math.max((scrollArea.clientHeight - groupHeight) / 2, 16);
+        scrollArea.scrollTo({ top: Math.max(0, centeredTop), behavior: 'smooth' });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [expandedDate]);
+
   const defer = (item) => { const note = window.prompt('Warum wird die Prüfung vertagt?'); if (!note) return; const deferredUntil = window.prompt('Wiedervorlage (JJJJ-MM-TT):'); if (deferredUntil) decide(item, { action: 'defer', note, deferredUntil }); };
   return <div className="space-y-5">
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 bg-slate-50 px-5 py-4"><h3 className="font-black text-slate-900">Tageswerte zur Prüfung</h3><p className="mt-1 text-sm text-slate-500">Ein Gesamtwert je Tag und Zahlungsart. Filialdetails bleiben jederzeit einsehbar.</p></div>
-      {items.length === 0 ? <Empty text="Für diesen Monat liegen noch keine zugeordneten Qlik-Werte vor." /> : items.map((item) => {
+    <section ref={listRef} className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm">
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-3"><h3 className="font-black text-slate-900">Tageswerte zur Prüfung</h3></div>
+      {items.length === 0 ? <Empty text="Für diesen Monat liegen noch keine zugeordneten Qlik-Werte vor." /> : items.map((item, index) => {
         const key = `${item.datum}-${item.paymentType}`;
         const open = expandedDate === item.datum;
         const hasDeviation = item.comparisonStatus === 'ABWEICHEND';
-        return <div key={key} className={`border-b border-slate-100 last:border-0 ${hasDeviation ? 'bg-amber-50/40' : ''}`}>
-          <div className="grid gap-4 px-5 py-5 lg:grid-cols-[115px_1fr_160px_190px_270px] lg:items-center">
+        const startsNewDay = index > 0 && items[index - 1].datum !== item.datum;
+        const usesComponentReview = item.branches.some((branch) => branch.components?.length);
+        const allComponentsComplete = usesComponentReview && item.branches.every((branch) => branch.componentProgress?.complete || branch.componentProgress?.required === 0);
+        return <div key={key} data-review-date={item.datum} className={`border-b border-slate-100 last:border-0 ${startsNewDay ? 'mt-2 border-t border-slate-200' : ''} ${hasDeviation ? 'bg-amber-50' : 'bg-white'}`}>
+          <div className="grid gap-3 px-5 py-3 md:grid-cols-[115px_1fr] md:items-center xl:grid-cols-[115px_minmax(220px,1fr)_150px_150px_auto]">
             <div><div className="text-base font-black">{shortDate(item.datum)}</div><div className="text-xs text-slate-400">{weekday(item.datum)}</div></div>
             <div><div className="font-black">{PAYMENT_LABELS[item.paymentType]}</div><div className="mt-1 text-sm text-slate-500">Qlik-Summe aus {item.branches.length} Filialen</div></div>
-            <div className="text-xl font-black tabular-nums lg:text-right">{euro(item.qlikTotalCents)}</div>
-            <div className="flex flex-wrap gap-1.5"><StatusBadge status={item.reviewStatus} />{hasDeviation ? <StatusBadge status="ABWEICHEND" /> : null}</div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <button type="button" onClick={() => setExpandedDate(open ? '' : item.datum)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">{open ? 'Filialdetails schließen' : 'Filialen ansehen'}</button>
-              <button disabled={busy} type="button" onClick={() => decide(item, { action: 'confirm' })} className="rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50">Geprüft &amp; bestätigen</button>
+            <div className="text-xl font-black tabular-nums md:text-right">{euro(item.qlikTotalCents)}</div>
+            <div className="flex flex-wrap gap-1.5 md:justify-end xl:justify-start"><StatusBadge status={item.reviewStatus} />{hasDeviation ? <StatusBadge status="ABWEICHEND" /> : null}</div>
+            <div className="flex flex-wrap gap-2 md:col-span-2 md:justify-end xl:col-span-1 xl:flex-nowrap">
+              {usesComponentReview ? <span className={`rounded-lg px-4 py-2.5 text-xs font-black ${allComponentsComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-50 text-sky-800'}`}>{allComponentsComplete ? 'Vollständig geprüft ✓' : 'Einzelwerte bestätigen'}</span> : <button disabled={busy} type="button" onClick={() => decide(item, { action: 'confirm' })} className="rounded-lg bg-emerald-700 px-4 py-2.5 text-xs font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-50">Geprüft &amp; bestätigen</button>}
               <button disabled={busy} type="button" onClick={() => defer(item)} className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2.5 text-xs font-black text-amber-950 hover:bg-amber-100 disabled:opacity-50">Später prüfen</button>
+              <button type="button" onClick={() => setExpandedDate(open ? '' : item.datum)} className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50">{open ? 'Filialdetails schließen' : 'Filialen ansehen'}</button>
             </div>
           </div>
-          {open ? <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-4">{item.branches.map((branch) => <div key={branch.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><b>{branch.filiale}</b><StatusBadge status={branch.reviewStatus} /></div><div className="mt-4 text-xl font-black">{euro(branch.qlikAmountCents)}</div><div className="mt-1 text-xs text-slate-500">Vergleichswert: {branch.comparisonAmountCents == null ? 'nicht vorhanden' : euro(branch.comparisonAmountCents)}</div>{branch.reviewedBy ? <div className="mt-3 border-t pt-2 text-xs text-slate-400">Geprüft von {branch.reviewedBy}</div> : null}</div>)}</div> : null}
+          {open ? <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-2 xl:grid-cols-4">{item.branches.map((branch) => <BranchReviewCard key={branch.id} branch={branch} confirmComponent={confirmComponent} busy={busy} />)}</div> : null}
         </div>;
       })}
     </section>
@@ -132,7 +204,7 @@ function TransferForm({ create, busy }) {
   if (!open) return <button type="button" onClick={() => setOpen(true)} className="rounded-lg bg-[#800000] px-4 py-2.5 text-sm font-black text-white">Überweisung erfassen</button>;
   const fieldClass = 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-bold text-slate-900 outline-none focus:border-[#800000] focus:ring-2 focus:ring-[#800000]/15';
   return <form onSubmit={async (event) => { event.preventDefault(); await create(form); setOpen(false); }} className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4">
-    <div className="mb-4"><div className="font-black">Neue Sammelüberweisung</div><div className="mt-1 text-sm text-slate-500">Nur Bankbuchung erfassen – die Zuordnung schlägt anschließend die Match-Engine vor.</div></div>
+    <div className="mb-4"><div className="font-black">Neue Sammelüberweisung</div><div className="mt-1 text-sm text-slate-500">Nur Bankbuchung erfassen – die Match-Engine erzeugt anschließend automatisch einen Vorschlag.</div></div>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
       <div className="text-xs font-black text-slate-600">Dienstleister<div className={`${fieldClass} flex min-h-[42px] items-center`}>{PROVIDER_BY_PAYMENT_TYPE[form.paymentType]}</div></div>
       <label className="text-xs font-black text-slate-600">Zahlungsart<select value={form.paymentType} onChange={(e) => setForm({ ...form, paymentType: e.target.value })} className={fieldClass}><option value="EC_CASH">EC-Kartenzahlungen</option><option value="KREDITKARTE">Kreditkartenzahlungen</option></select></label>
@@ -154,7 +226,7 @@ function CandidateEditor({ transfer, close, save }) {
 function TransferGroup({ provider, rows, busy, suggest, decide, match }) {
   const [editing, setEditing] = useState('');
   const decision = (row, action, extra = {}) => { let note = ''; let deferredUntil = null; if (action === 'confirm' && row.differenzCents !== 0 && !extra.settleCarryId) { note = window.prompt('Bitte begründe die Differenz:') || ''; if (!note) return; } if (action === 'defer') { note = window.prompt('Warum wird vertagt?') || ''; if (!note) return; deferredUntil = window.prompt('Wiedervorlage (JJJJ-MM-TT):'); if (!deferredUntil) return; } decide(row.id, { action, note, deferredUntil, ...extra }); };
-  return <section className="overflow-hidden rounded-xl border bg-white shadow-sm"><div className="border-b bg-slate-50 px-5 py-4"><h3 className="text-lg font-black">{provider}</h3><p className="text-sm text-slate-500">{rows.length} Überweisungen im gewählten Monat</p></div><div className="divide-y">{rows.length === 0 ? <Empty text={`Keine ${provider}-Überweisungen vorhanden.`} /> : rows.map((row) => { const editable = row.match_id && ['vorgeschlagen', 'vertagt'].includes(row.match_status); const carry = row.differenceCarry; const carrySuggestion = row.carrySuggestion; return <div key={row.id} className="p-5"><div className="grid gap-4 xl:grid-cols-[190px_1fr_160px_320px] xl:items-center"><div><div className="text-xs text-slate-400">{shortDate(row.buchungsdatum)} · {PAYMENT_LABELS[row.payment_type]}</div><div className="mt-1 font-black">{euro(row.betragCents)}</div><div className="text-xs text-slate-400">{row.referenz || 'ohne Referenz'}</div></div><div className="rounded-lg border bg-slate-50 px-4 py-3"><div className="text-[11px] font-black uppercase text-slate-400">Match-Engine</div><div className="mt-1 text-sm font-bold">{row.items?.length ? `${row.items.length} Filial-Tageswerte vorgeschlagen` : 'Noch kein Vorschlag'}</div>{carrySuggestion ? <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Exakter Ausgleich gefunden: {euro(carrySuggestion.amountCents)} Fehlbetrag vom {shortDate(carrySuggestion.sourceDate)}.</div> : null}{carry?.status === 'OFFEN' ? <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Fehlbetrag vorgemerkt: {euro(carry.amountCents)}. Er bleibt offen, bis eine exakte positive Gegenbuchung bestätigt wird.</div> : null}{carry?.status === 'AUSGEGLICHEN' ? <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Centgenau ausgeglichen mit der Überweisung vom {shortDate(carry.counterpartDate)}.</div> : null}</div><div><StatusBadge status={carry?.status === 'OFFEN' ? 'AUSGLEICH_AUSSTEHEND' : row.match_status || row.status} /><div className={`mt-2 font-black ${(row.differenzCents || 0) === 0 ? 'text-emerald-700' : 'text-amber-800'}`}>Differenz: {row.differenzCents == null ? '–' : euro(row.differenzCents)}</div>{carry?.status === 'AUSGEGLICHEN' && row.rawDifferenzCents ? <div className="text-xs text-slate-500">Ursprünglich {euro(row.rawDifferenzCents)}</div> : null}</div><div className="flex flex-wrap gap-2 xl:justify-end">{!row.match_id ? <button disabled={busy} onClick={() => suggest(row.id)} className="rounded bg-[#800000] px-3 py-2 text-sm font-black text-white">Vorschlag erzeugen</button> : editable ? <><button onClick={() => setEditing(editing === row.id ? '' : row.id)} className="rounded border px-3 py-2 text-sm font-black">Anpassen</button>{carrySuggestion ? <button disabled={busy} onClick={() => decision(row, 'confirm', { settleCarryId: carrySuggestion.id })} className="rounded bg-emerald-700 px-3 py-2 text-sm font-black text-white">Ausgleichen &amp; bestätigen</button> : <button disabled={busy} onClick={() => decision(row, 'confirm')} className="rounded bg-emerald-700 px-3 py-2 text-sm font-black text-white">Bestätigen</button>}<button disabled={busy} onClick={() => decision(row, 'defer')} className="rounded border border-amber-300 px-3 py-2 text-sm font-black">Vertagen</button><button disabled={busy} onClick={() => decision(row, 'reject')} className="rounded border px-3 py-2 text-sm font-black">Ablehnen</button></> : <span className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">Zuordnung abgeschlossen</span>}</div></div>{editing === row.id ? <CandidateEditor transfer={row} close={() => setEditing('')} save={(items) => match(row.id, items).then(() => setEditing(''))} /> : null}</div>; })}</div></section>;
+  return <section className="overflow-hidden rounded-xl border bg-white shadow-sm"><div className="border-b bg-slate-50 px-5 py-4"><h3 className="text-lg font-black">{provider}</h3><p className="text-sm text-slate-500">{rows.length} Überweisungen im gewählten Monat</p></div><div className="divide-y">{rows.length === 0 ? <Empty text={`Keine ${provider}-Überweisungen vorhanden.`} /> : rows.map((row) => { const editable = row.match_id && ['vorgeschlagen', 'vertagt'].includes(row.match_status); const carry = row.differenceCarry; const carrySuggestion = row.carrySuggestion; return <div key={row.id} className="p-5"><div className="grid gap-4 xl:grid-cols-[190px_1fr_160px_320px] xl:items-center"><div><div className="text-xs text-slate-400">{shortDate(row.buchungsdatum)} · {PAYMENT_LABELS[row.payment_type]}</div><div className="mt-1 font-black">{euro(row.betragCents)}</div><div className="text-xs text-slate-400">{row.referenz || 'ohne Referenz'}</div></div><div className="rounded-lg border bg-slate-50 px-4 py-3"><div className="text-[11px] font-black uppercase text-slate-400">Match-Engine</div><div className="mt-1 text-sm font-bold">{row.items?.length ? `${row.items.length} Filial-Tageswerte vorgeschlagen` : 'Noch kein Vorschlag'}</div>{carrySuggestion ? <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Exakter Ausgleich gefunden: {euro(carrySuggestion.amountCents)} Fehlbetrag vom {shortDate(carrySuggestion.sourceDate)}.</div> : null}{carry?.status === 'OFFEN' ? <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">Fehlbetrag vorgemerkt: {euro(carry.amountCents)}. Er bleibt offen, bis eine exakte positive Gegenbuchung bestätigt wird.</div> : null}{carry?.status === 'AUSGEGLICHEN' ? <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">Centgenau ausgeglichen mit der Überweisung vom {shortDate(carry.counterpartDate)}.</div> : null}</div><div><StatusBadge status={carry?.status === 'OFFEN' ? 'AUSGLEICH_AUSSTEHEND' : row.match_status || row.status} /><div className={`mt-2 font-black ${(row.differenzCents || 0) === 0 ? 'text-emerald-700' : 'text-amber-800'}`}>Differenz: {row.differenzCents == null ? '–' : euro(row.differenzCents)}</div>{carry?.status === 'AUSGEGLICHEN' && row.rawDifferenzCents ? <div className="text-xs text-slate-500">Ursprünglich {euro(row.rawDifferenzCents)}</div> : null}</div><div className="flex flex-wrap gap-2 xl:justify-end">{!row.match_id ? <button disabled={busy} onClick={() => suggest(row.id)} className="rounded bg-[#800000] px-3 py-2 text-sm font-black text-white">Match erneut berechnen</button> : editable ? <><button onClick={() => setEditing(editing === row.id ? '' : row.id)} className="rounded border px-3 py-2 text-sm font-black">Anpassen</button>{carrySuggestion ? <button disabled={busy} onClick={() => decision(row, 'confirm', { settleCarryId: carrySuggestion.id })} className="rounded bg-emerald-700 px-3 py-2 text-sm font-black text-white">Ausgleichen &amp; bestätigen</button> : <button disabled={busy} onClick={() => decision(row, 'confirm')} className="rounded bg-emerald-700 px-3 py-2 text-sm font-black text-white">Bestätigen</button>}<button disabled={busy} onClick={() => decision(row, 'defer')} className="rounded border border-amber-300 px-3 py-2 text-sm font-black">Vertagen</button><button disabled={busy} onClick={() => decision(row, 'reject')} className="rounded border px-3 py-2 text-sm font-black">Ablehnen</button></> : <span className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">Zuordnung abgeschlossen</span>}</div></div>{editing === row.id ? <CandidateEditor transfer={row} close={() => setEditing('')} save={(items) => match(row.id, items).then(() => setEditing(''))} /> : null}</div>; })}</div></section>;
 }
 
 function TransfersView({ transfers, busy, create, suggest, decide, match }) { return <div className="space-y-5"><div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div><div className="text-lg font-black">Bankbuchung erfassen und Vorschlag prüfen</div><div className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">Die Match-Engine sucht passende Qlik-Tageswerte und bereitet eine Zuordnung vor. Verbindlich wird sie erst, wenn Alex oder Mirko bestätigt.</div></div>{!transfers.length ? <TransferForm create={create} busy={busy} /> : null}</div>{transfers.length ? <div className="mt-4"><TransferForm create={create} busy={busy} /></div> : null}</div><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border bg-white p-4"><div className="text-xs font-black uppercase text-slate-400">Bankbuchungen</div><div className="mt-2 text-2xl font-black">{transfers.length}</div></div><div className="rounded-xl border bg-white p-4"><div className="text-xs font-black uppercase text-slate-400">Mit Vorschlag</div><div className="mt-2 text-2xl font-black">{transfers.filter((row) => row.match_id).length}</div></div><div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="text-xs font-black uppercase text-emerald-700">Entschieden</div><div className="mt-2 text-2xl font-black text-emerald-950">{transfers.filter((row) => ['bestaetigt', 'abgelehnt'].includes(row.match_status || row.status)).length}</div></div></div>{['FirstData', 'TeleCash'].map((provider) => <TransferGroup key={provider} provider={provider} rows={transfers.filter((row) => String(row.provider).toLowerCase() === provider.toLowerCase())} busy={busy} suggest={suggest} decide={decide} match={match} />)}</div>; }
@@ -183,6 +255,6 @@ export default function EcCashV2Prototype({ onSwitchToClassic }) {
   const load = useCallback(async ({ showLoading = true } = {}) => { if (showLoading) setLoading(true); setError(''); try { const query = `?jahr=${year}&monat=${month}`; const [o, t] = await Promise.all([api(`/v2/overview${query}`), api(`/v2/transfers${query}`)]); setOverview(withPositiveRevenueItems(o)); setTransfers(t.transfers || []); } catch (e) { setError(e.message); } finally { if (showLoading) setLoading(false); } }, [year, month]);
   useEffect(() => { load(); }, [load]);
   const mutate = async (request) => { setBusy(true); setError(''); try { const result = await request(); await load({ showLoading: false }); if (result?.suggestionError) setError(`Sammelüberweisung gespeichert. Automatischer Match nicht möglich: ${result.suggestionError}`); return result; } catch (e) { setError(e.message); return null; } finally { setBusy(false); } };
-  const review = (item, body) => mutate(() => api('/v2/reviews', { method: 'PATCH', body: JSON.stringify({ ...body, datum: item.datum, paymentType: item.paymentType }) })); const create = (body) => mutate(() => api('/v2/transfers', { method: 'POST', body: JSON.stringify(body) })); const suggest = (id) => mutate(() => api(`/v2/transfers/${id}/suggest`, { method: 'POST' })); const decide = (id, body) => mutate(() => api(`/v2/transfers/${id}/decision`, { method: 'POST', body: JSON.stringify(body) })); const match = (id, items) => mutate(() => api(`/v2/transfers/${id}/match`, { method: 'PUT', body: JSON.stringify({ items }) }));
-  return <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#eef0f2] text-slate-900 shadow-[6px_6px_18px_rgba(0,0,0,0.7)]"><div className="shrink-0 overflow-hidden rounded-t-2xl border-b-[3px] border-[#800000] bg-[#eef0f2] shadow-[0_8px_16px_rgba(66,0,0,0.18)]"><Header activeView={activeView} setActiveView={setActiveView} year={year} setYear={setYear} month={month} setMonth={setMonth} refresh={load} summary={overview.summary} onSwitchToClassic={onSwitchToClassic} /></div><main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-7">{error ? <div className="mb-4"><ErrorBox text={error} /></div> : null}{overview.summary?.unresolvedPaymentTypeCount ? <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>{overview.summary.unresolvedPaymentTypeCount} Qlik-Zahlarten sind noch ungeklärt.</b> Sie werden nicht automatisch zugeordnet.</div> : null}{loading ? <Empty text="Daten werden aus der Datenbank geladen …" /> : activeView === 'pruefen' ? <ReviewView items={overview.items || []} decide={review} busy={busy} /> : activeView === 'sammelueberweisungen' ? <TransfersView transfers={transfers} busy={busy} create={create} suggest={suggest} decide={decide} match={match} /> : <MonthlyView items={overview.items || []} />}</main></div>;
+  const review = (item, body) => mutate(() => api('/v2/reviews', { method: 'PATCH', body: JSON.stringify({ ...body, datum: item.datum, paymentType: item.paymentType }) })); const confirmComponent = (component) => mutate(() => api(`/v2/component-reviews/${component.id}`, { method: 'PATCH' })); const create = (body) => mutate(() => api('/v2/transfers', { method: 'POST', body: JSON.stringify(body) })); const suggest = (id) => mutate(() => api(`/v2/transfers/${id}/suggest`, { method: 'POST' })); const decide = (id, body) => mutate(() => api(`/v2/transfers/${id}/decision`, { method: 'POST', body: JSON.stringify(body) })); const match = (id, items) => mutate(() => api(`/v2/transfers/${id}/match`, { method: 'PUT', body: JSON.stringify({ items }) }));
+  return <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#eef0f2] text-slate-900 shadow-[6px_6px_18px_rgba(0,0,0,0.7)]"><div className="shrink-0 overflow-hidden rounded-t-2xl border-b-[3px] border-[#800000] bg-[#eef0f2] shadow-[0_8px_16px_rgba(66,0,0,0.18)]"><Header activeView={activeView} setActiveView={setActiveView} year={year} setYear={setYear} month={month} setMonth={setMonth} refresh={load} summary={overview.summary} onSwitchToClassic={onSwitchToClassic} /></div><main className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-7">{error ? <div className="mb-4"><ErrorBox text={error} /></div> : null}{overview.summary?.unresolvedPaymentTypeCount ? <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>{overview.summary.unresolvedPaymentTypeCount} Qlik-Zahlarten sind noch ungeklärt.</b> Sie werden nicht automatisch zugeordnet.</div> : null}{loading ? <Empty text="Daten werden aus der Datenbank geladen …" /> : activeView === 'pruefen' ? <ReviewView items={overview.items || []} decide={review} confirmComponent={confirmComponent} busy={busy} /> : activeView === 'sammelueberweisungen' ? <TransfersView transfers={transfers} busy={busy} create={create} suggest={suggest} decide={decide} match={match} /> : <MonthlyView items={overview.items || []} />}</main></div>;
 }
