@@ -173,3 +173,12 @@ test('Monatsübersicht verteilt EC und Kreditkarte gleichmäßig und hält Betr�
   assert.match(monthlySource, /<th className="px-4 py-3">Kreditkarten · Qlik<\/th>/);
   assert.doesNotMatch(monthlySource, /grid-cols-\[120px_minmax\(0,1fr\)\]/);
 });
+
+test('Sammelüberweisungen bleiben in Klassik und V2 mit Pflichtgrund korrigierbar', () => {
+  assert.match(classicSource, /originalBetrag/);
+  assert.match(classicSource, /Warum wird der Betrag korrigiert/);
+  assert.match(classicSource, /body: JSON\.stringify\(\{ paymentType, datum: row\.datum, amount, reason \}\)/);
+  assert.match(v2Source, />Betrag korrigieren<\/button>/);
+  assert.match(v2Source, /Warum wird der Betrag korrigiert/);
+  assert.match(v2Source, /api\(`\/v2\/transfers\/\$\{id\}`/);
+});

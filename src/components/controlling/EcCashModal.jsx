@@ -29,6 +29,7 @@ function getCurrentMonth() {
   const currentMonthValue = new Date().getMonth() + 1;
   return MONTHS_2026.find((month) => month.value === currentMonthValue) || MONTHS_2026[0];
 }
+
 const BRANCH_COLUMNS = [
   { key: 'Telgte', label: 'Telgte' },
   { key: 'Ahaus', label: 'Ahaus' },
@@ -471,6 +472,25 @@ export default function EcCashModal() {
       return;
     }
 
+    const storedAmount = row?.gesamtUeberweisung?.originalBetrag;
+    const isCorrection = Boolean(row?.gesamtUeberweisung?.classicTransferId)
+      && Number(String(amount).replace(',', '.')) !== Number(storedAmount);
+    let reason = null;
+    if (isCorrection) {
+      reason = window.prompt(
+        'Warum wird der Betrag korrigiert? Die bisherige Zuordnung wird nachvollziehbar zurückgesetzt und neu berechnet.',
+        'Tippfehler korrigiert'
+      );
+      if (!String(reason || '').trim()) {
+        await loadMonth(activeMonth.value);
+        return;
+      }
+      if (!window.confirm('Betrag wirklich korrigieren und den Match neu berechnen?')) {
+        await loadMonth(activeMonth.value);
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
 
@@ -482,7 +502,7 @@ export default function EcCashModal() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ paymentType, datum: row.datum, amount }),
+        body: JSON.stringify({ paymentType, datum: row.datum, amount, reason }),
       });
       const data = await response.json();
 
