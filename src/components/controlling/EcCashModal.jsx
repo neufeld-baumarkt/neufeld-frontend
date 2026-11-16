@@ -139,6 +139,7 @@ function PaymentBlock({
   cellRefs,
   onTransferChange,
   onTransferCommit,
+  onDeleteTransfer,
   onConfirmQlik,
   confirmingCellId,
   onNavigate,
@@ -281,6 +282,16 @@ function PaymentBlock({
                     })
                   }
                 />
+                {row.gesamtUeberweisung?.classicTransferId ? (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onDeleteTransfer({ paymentType, row })}
+                    className="w-full border-t border-red-100 bg-red-50 px-2 py-1 text-[10px] font-black text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    Überweisung löschen
+                  </button>
+                ) : null}
               </div>
             </div>
             );
@@ -525,6 +536,35 @@ export default function EcCashModal() {
     }
   }
 
+  async function deleteClassicTransfer({ row }) {
+    const transferId = row?.gesamtUeberweisung?.classicTransferId;
+    if (!transferId) return;
+    const reason = window.prompt('Warum wird diese Sammelüberweisung gelöscht?', 'Fehleingabe');
+    if (!String(reason || '').trim()) return;
+    if (!window.confirm('Sammelüberweisung wirklich löschen? Bestätigte Matches werden dabei niemals gelöscht.')) return;
+
+    setSaving(true);
+    setError('');
+    try {
+      const { token, baseUrl } = getApiBasics();
+      const response = await fetch(`${baseUrl}/api/controlling/v2/transfers/${transferId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: reason.trim(), source: 'CLASSIC_VIEW' }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.message || 'Sammelüberweisung konnte nicht gelöscht werden.');
+      await loadMonth(activeMonth.value);
+    } catch (deleteError) {
+      setError(deleteError.message || 'Sammelüberweisung konnte nicht gelöscht werden.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   useEffect(() => {
     loadMonth(activeMonth.value);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -589,6 +629,7 @@ export default function EcCashModal() {
               cellRefs={cellRefs}
               onTransferChange={updateLocalTransfer}
               onTransferCommit={saveClassicTransfer}
+              onDeleteTransfer={deleteClassicTransfer}
               onConfirmQlik={confirmQlikCell}
               confirmingCellId={confirmingCellId}
               onNavigate={handleNavigate}
@@ -603,6 +644,7 @@ export default function EcCashModal() {
               cellRefs={cellRefs}
               onTransferChange={updateLocalTransfer}
               onTransferCommit={saveClassicTransfer}
+              onDeleteTransfer={deleteClassicTransfer}
               onConfirmQlik={confirmQlikCell}
               confirmingCellId={confirmingCellId}
               onNavigate={handleNavigate}
