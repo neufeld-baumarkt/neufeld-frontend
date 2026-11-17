@@ -183,11 +183,17 @@ test('Sammelüberweisungen bleiben in Klassik und V2 mit Pflichtgrund korrigierb
   assert.match(v2Source, /api\(`\/v2\/transfers\/\$\{id\}`/);
 });
 
-test('unbestätigte Sammelüberweisungen sind in Klassik und V2 mit Pflichtgrund löschbar', () => {
-  assert.match(classicSource, /Überweisung löschen/);
-  assert.match(classicSource, /method: 'DELETE'/);
-  assert.match(classicSource, /Warum wird diese Sammelüberweisung gelöscht/);
+test('unbestätigte Sammelüberweisungen sind ausschließlich in V2 mit Pflichtgrund löschbar', () => {
+  assert.doesNotMatch(classicSource, /Überweisung löschen/);
+  assert.doesNotMatch(classicSource, /method: 'DELETE'/);
+  assert.doesNotMatch(classicSource, /Warum wird diese Sammelüberweisung gelöscht/);
   assert.match(v2Source, /method: 'DELETE'/);
   assert.match(v2Source, />Löschen<\/button>/);
   assert.match(v2Source, /Bestätigte Matches werden dabei niemals gelöscht/);
+});
+
+test('Klassik bleibt unabhängig von vorhandenen Sammelüberweisungen eine gleichmäßige Exceltabelle', () => {
+  assert.match(classicSource, /last:border-b-0 min-h-\[38px\]/);
+  assert.doesNotMatch(classicSource, /onDeleteTransfer/);
+  assert.doesNotMatch(classicSource, /deleteClassicTransfer/);
 });
