@@ -115,6 +115,13 @@ test('V2 bestätigt Kartenarten per Ein-Klick und übernimmt Fortschritt aus dem
   assert.doesNotMatch(v2Source, /components\.reduce\([^\n]*amountCents/);
 });
 
+test('V2 bestätigt alle Einzelwerte eines Tages und einer Zahlungsart serverseitig', () => {
+  assert.match(v2Source, /Alle Einzelwerte bestätigen/);
+  assert.match(v2Source, /confirmAllComponents\(item\)/);
+  assert.match(v2Source, /api\('\/v2\/component-reviews', \{ method: 'PATCH'/);
+  assert.match(v2Source, /datum: item\.datum, paymentType: item\.paymentType/);
+});
+
 test('V2 zentriert den geöffneten Geschäftstag ausschließlich auf Desktop', () => {
   assert.match(v2Source, /matchMedia\('\(min-width: 1024px\)'\)/);
   assert.match(v2Source, /data-review-date=\{item\.datum\}/);
