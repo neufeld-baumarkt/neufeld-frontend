@@ -50,6 +50,31 @@ function toCents(value) {
   return Number.isFinite(number) ? Math.round(number * 100) : null;
 }
 
+function showQlikConfirmation(current, confirmation) {
+  return {
+    ...current,
+    days: (current.days || []).map((day) => ({
+      ...day,
+      movements: day.movements.map((movement) => ({
+        ...movement,
+        cells: Object.fromEntries(Object.entries(movement.cells).map(([branch, cell]) => [
+          branch,
+          cell.qlik?.id === confirmation.qlikValueId ? {
+            ...cell,
+            qlik: {
+              ...cell.qlik,
+              confirmed: confirmation.confirmed,
+              confirmedAt: confirmation.confirmedAt,
+              confirmedBy: confirmation.confirmedBy,
+            },
+            valueStates: { ...cell.valueStates, soll: confirmation.sollState },
+          } : cell,
+        ])),
+      })),
+    })),
+  };
+}
+
 function StatusBadge({ status, compact = false }) {
   return <span className={`inline-flex max-w-full items-center justify-center rounded-full px-2 py-1 text-center font-black ${compact ? 'text-[9px]' : 'text-[10px]'} ${STATUS_STYLE[status] || STATUS_STYLE.OFFEN}`}>
     {STATUS_LABEL[status] || status || 'Offen'}
@@ -66,7 +91,7 @@ function AutomaticValue({ cell, kind, busy, onConfirmQlik }) {
     : pending ? 'Tagesabrechnung vorhanden · Einzahlungsbeleg offen' : state === 'BESTAETIGT' ? 'Durch Einzahlungsbeleg verifiziert' : 'Tagesabrechnung fehlt';
   const content = <>
     <strong className={`block text-sm ${pending ? 'text-orange-700' : 'text-black'}`}>{euro(value)}</strong>
-    {pending && <span className="mt-0.5 block text-[9px] font-black uppercase tracking-wide text-orange-700">Bestätigung offen</span>}
+    {pending && <span className="mt-0.5 block text-[9px] font-black uppercase tracking-wide text-orange-700">{busy ? 'Speichert …' : 'Bestätigung offen'}</span>}
   </>;
 
   if (isQlik && pending && cell.qlik?.id) {
@@ -75,7 +100,7 @@ function AutomaticValue({ cell, kind, busy, onConfirmQlik }) {
   return <div title={title} className={`flex min-h-[48px] flex-col justify-center px-1 py-1.5 text-center ${pending ? 'bg-orange-100' : 'bg-white'}`}>{content}</div>;
 }
 
-function EzClassicView({ data, loading, confirmingId, onConfirmQlik }) {
+function EzClassicView({ data, loading, confirmingIds, onConfirmQlik }) {
   return <section>
     <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
       <div><h3 className="text-lg font-black">Einzahlungen</h3><p className="text-xs text-white/55">Orange = Bestätigung offen · Schwarz = bestätigt</p></div>
@@ -98,7 +123,7 @@ function EzClassicView({ data, loading, confirmingId, onConfirmQlik }) {
             {BRANCHES.flatMap((branch) => {
               const cell = movement.cells[branch];
               return [
-                <div key={`${branch}-soll`} className="border-r border-black/15"><AutomaticValue cell={cell} kind="soll" busy={confirmingId === cell.qlik?.id} onConfirmQlik={onConfirmQlik}/></div>,
+                <div key={`${branch}-soll`} className="border-r border-black/15"><AutomaticValue cell={cell} kind="soll" busy={loading || confirmingIds.includes(cell.qlik?.id)} onConfirmQlik={onConfirmQlik}/></div>,
                 <div key={`${branch}-ist`} className="border-r border-black/15"><AutomaticValue cell={cell} kind="ist" busy={false} onConfirmQlik={onConfirmQlik}/></div>,
                 <div key={`${branch}-status`} className="flex min-h-[48px] flex-col items-center justify-center gap-1 border-r border-black/15 px-1 py-1"><StatusBadge status={cell.status} compact/>{cell.status === 'ALARM' && <span className="text-[10px] font-black text-red-700">Δ {euro(cell.evidence?.differenceCents, true)}</span>}</div>,
               ];
@@ -142,7 +167,7 @@ function ClassicView(props) {
   return <div className="space-y-2 overflow-auto pb-6"><EzClassicView {...props}/><AzClassicView {...props}/></div>;
 }
 
-function V2View({ data, confirmingId, onConfirmQlik }) {
+function V2View({ data, loading, confirmingIds, onConfirmQlik }) {
   const relevantDays = useMemo(() => (data.days || []).filter((day) => day.movements.some((movement) => BRANCHES.some((branch) => {
     const cell = movement.cells[branch];
     return cell.sollCents !== null || cell.istCents !== null || cell.qlik?.valueCents !== null;
@@ -171,7 +196,7 @@ function V2View({ data, confirmingId, onConfirmQlik }) {
             return <div key={movement.movementType} className="mb-2 rounded-lg border border-black/10 p-2 last:mb-0">
               <div className="flex items-center justify-between gap-2"><b>{movement.label}</b><StatusBadge status={cell.status}/></div>
               {isEz ? <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                <button type="button" disabled={cell.valueStates?.soll !== 'OFFEN' || !cell.qlik?.id || confirmingId === cell.qlik?.id} onClick={() => onConfirmQlik(cell.qlik.id)} className={`rounded-lg border p-2 text-left ${cell.valueStates?.soll === 'OFFEN' ? 'border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-200' : 'border-black/10 bg-white text-black'} disabled:cursor-default`}><span className="block text-[9px] font-black uppercase">SOLL · Qlik</span><strong className="mt-1 block">{euro(cell.sollCents)}</strong><span className="mt-1 block text-[9px]">{cell.valueStates?.soll === 'OFFEN' ? 'Bestätigen' : cell.valueStates?.soll === 'BESTAETIGT' ? 'Bestätigt' : 'Fehlt'}</span></button>
+                <button type="button" disabled={loading || cell.valueStates?.soll !== 'OFFEN' || !cell.qlik?.id || confirmingIds.includes(cell.qlik?.id)} onClick={() => onConfirmQlik(cell.qlik.id)} className={`rounded-lg border p-2 text-left ${cell.valueStates?.soll === 'OFFEN' ? 'border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-200' : 'border-black/10 bg-white text-black'} disabled:cursor-default`}><span className="block text-[9px] font-black uppercase">SOLL · Qlik</span><strong className="mt-1 block">{euro(cell.sollCents)}</strong><span className="mt-1 block text-[9px]">{confirmingIds.includes(cell.qlik?.id) ? 'Speichert …' : cell.valueStates?.soll === 'OFFEN' ? 'Bestätigen' : cell.valueStates?.soll === 'BESTAETIGT' ? 'Bestätigt' : 'Fehlt'}</span></button>
                 <div className={`rounded-lg border p-2 ${cell.valueStates?.ist === 'OFFEN' ? 'border-orange-300 bg-orange-100 text-orange-800' : 'border-black/10 bg-white text-black'}`}><span className="block text-[9px] font-black uppercase">IST · Tagesabrechnung</span><strong className="mt-1 block">{euro(cell.istCents)}</strong><span className="mt-1 block text-[9px]">{cell.valueStates?.ist === 'OFFEN' ? 'Einzahlungsbeleg offen' : cell.valueStates?.ist === 'BESTAETIGT' ? 'Beleg verifiziert' : 'Fehlt'}</span></div>
               </div> : <div className="mt-2 grid grid-cols-2 gap-2 text-xs"><span>Soll: <b>{euro(cell.sollCents)}</b></span><span>Ist: <b>{euro(cell.istCents)}</b></span></div>}
               {isEz && cell.status === 'ALARM' && <div className="mt-2 rounded-lg bg-red-50 px-2 py-1.5 text-xs font-black text-red-800">Unplausible Abweichung: {euro(cell.evidence?.differenceCents, true)}</div>}
@@ -192,7 +217,7 @@ export default function AlexModule3({ year = 2026 }) {
   const [data, setData] = useState({ days: [], summary: {} });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirmingId, setConfirmingId] = useState(null);
+  const [confirmingIds, setConfirmingIds] = useState([]);
   const [error, setError] = useState('');
 
   async function loadMonth(activeMonth = month) {
@@ -208,15 +233,20 @@ export default function AlexModule3({ year = 2026 }) {
   }
 
   async function confirmQlik(qlikValueId) {
-    setConfirmingId(qlikValueId); setError('');
+    setConfirmingIds((current) => current.includes(qlikValueId) ? current : [...current, qlikValueId]);
+    setError('');
     try {
       const { token, baseUrl } = apiBasics();
       const response = await fetch(`${baseUrl}/api/controlling/alex3/qlik-values/${encodeURIComponent(qlikValueId)}/confirm`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
       const payload = await response.json();
+      if (response.status === 409) {
+        await loadMonth(month);
+        throw new Error('Der Qlik-Wert wurde aktualisiert. Monat ist neu geladen – bitte den neuen Wert prüfen.');
+      }
       if (!response.ok) throw new Error(payload?.message || 'Qlik-Wert konnte nicht bestätigt werden.');
-      await loadMonth(month);
+      setData((current) => showQlikConfirmation(current, payload.confirmation));
     } catch (caught) { setError(caught.message || 'Qlik-Wert konnte nicht bestätigt werden.'); }
-    finally { setConfirmingId(null); }
+    finally { setConfirmingIds((current) => current.filter((id) => id !== qlikValueId)); }
   }
 
   async function saveCell({ day, movement, branch, cell, field, value }) {
@@ -234,10 +264,15 @@ export default function AlexModule3({ year = 2026 }) {
 
   useEffect(() => { loadMonth(month); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [month, year]);
 
-  const shared = { data, loading, saving, confirmingId, onSave: saveCell, onConfirmQlik: confirmQlik };
+  function selectMonth(selectedMonth) {
+    if (selectedMonth === month) loadMonth(selectedMonth);
+    else setMonth(selectedMonth);
+  }
+
+  const shared = { data, loading, saving, confirmingIds, onSave: saveCell, onConfirmQlik: confirmQlik };
   return <div className="flex h-full min-h-0 flex-col text-white">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3"><div><div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">Alex Modul 3</div><div className="mt-1 text-sm font-bold">{view === 'classic' ? 'Klassische Excel-Ansicht' : 'Geführte V2-Prüfansicht'}</div></div><button type="button" onClick={() => setView(view === 'classic' ? 'v2' : 'classic')} className="rounded-lg border border-white/20 bg-white/10 px-4 py-2 text-sm font-black hover:bg-white/15">{view === 'classic' ? 'Zur V2-Ansicht wechseln' : 'Zur klassischen Ansicht wechseln'}</button></div>
-    <div className="mb-4 flex flex-wrap gap-2">{MONTHS.map((name, index) => <button key={name} type="button" disabled={loading || saving} onClick={() => setMonth(index + 1)} className={`rounded-lg border px-3 py-2 text-sm font-bold ${month === index + 1 ? 'border-[#800000] bg-[#800000]' : 'border-white/10 bg-white/5 text-white/65'}`}>{name}'{String(year).slice(-2)}</button>)}</div>
+    <div className="mb-4 flex flex-wrap gap-2">{MONTHS.map((name, index) => <button key={name} type="button" disabled={loading || saving} onClick={() => selectMonth(index + 1)} className={`rounded-lg border px-3 py-2 text-sm font-bold ${month === index + 1 ? 'border-[#800000] bg-[#800000]' : 'border-white/10 bg-white/5 text-white/65'}`}>{name}'{String(year).slice(-2)}</button>)}</div>
     {error && <div className="mb-4 rounded-xl border border-red-400/30 bg-red-950/40 px-4 py-3 text-sm font-bold text-red-100">{error}</div>}
     <div className="min-h-0 flex-1">{view === 'classic' ? <ClassicView {...shared}/> : <V2View {...shared}/>}</div>
   </div>;

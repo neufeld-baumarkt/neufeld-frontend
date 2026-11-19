@@ -29,6 +29,25 @@ test('classic and V2 use the same orange confirmation semantics', () => {
   assert.match(component, /Ein unplausibler Unterschied löst bereits vor dem Einzahlungsbeleg Alarm aus/);
 });
 
+test('stale Qlik confirmations refresh the month without confirming the replacement value', () => {
+  assert.match(component, /response\.status === 409/);
+  assert.match(component, /await loadMonth\(month\)/);
+  assert.match(component, /Monat ist neu geladen – bitte den neuen Wert prüfen/);
+  assert.match(component, /if \(selectedMonth === month\) loadMonth\(selectedMonth\)/);
+  assert.match(component, /onClick=\{\(\) => selectMonth\(index \+ 1\)\}/);
+});
+
+test('successful Qlik confirmations update only from the authoritative response and keep other values clickable', () => {
+  const confirmHandler = component.match(/async function confirmQlik[\s\S]*?(?=\n  async function saveCell)/)?.[0] || '';
+  assert.match(component, /setData\(\(current\) => showQlikConfirmation\(current, payload\.confirmation\)\)/);
+  assert.match(component, /confirmation\.confirmed/);
+  assert.match(component, /confirmation\.sollState/);
+  assert.match(component, /setConfirmingIds\(\(current\) => current\.includes\(qlikValueId\)/);
+  assert.match(component, /current\.filter\(\(id\) => id !== qlikValueId\)/);
+  assert.match(component, /confirmingIds\.includes\(cell\.qlik\?\.id\)/);
+  assert.doesNotMatch(confirmHandler, /if \(!response\.ok\)[\s\S]{0,180}await loadMonth\(month\);/);
+});
+
 test('Alex hub opens the new module instead of the old BaB report', () => {
   assert.match(hub, /import AlexModule3 from/);
   assert.match(hub, /<AlexModule3 year=\{jahr\}/);
