@@ -10,7 +10,7 @@ export default function AlexModule3Preview() {
           {Array.from({ length: 10 }, (_, rowIndex) => HEADERS.map((_, cellIndex) => {
             const movement = rowIndex % 2 === 0 ? 'EZ' : 'AZ';
             return <div key={`${rowIndex}-${cellIndex}`} className={`border-b border-r border-black/20 px-1 py-1.5 text-center ${movement === 'EZ' ? 'bg-emerald-50' : 'bg-white'}`}>
-              {cellIndex === 0 ? (rowIndex % 2 === 0 ? `${String(Math.floor(rowIndex / 2) + 1).padStart(2, '0')}.` : '') : cellIndex === 1 ? movement : cellIndex === 4 && movement === 'EZ' ? 'automatisch' : 'manuell'}
+              {cellIndex === 0 ? (rowIndex % 2 === 0 ? `${String(Math.floor(rowIndex / 2) + 1).padStart(2, '0')}.` : '') : cellIndex === 1 ? movement : movement === 'EZ' ? 'Qlik ↔ Tageskasse' : 'manuell'}
             </div>;
           }))}
         </div>
