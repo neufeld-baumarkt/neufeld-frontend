@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import EcCashModal from './EcCashModal';
 import EcCashV2Prototype from './EcCashV2Prototype';
-import QlikExportControl from './QlikExportControl';
 
 const CLASSIC_VIEW = 'classic';
 const V2_VIEW = 'v2';
@@ -41,7 +40,6 @@ export default function EcCashModule() {
     <div className="h-full min-h-0">
       {activeView === CLASSIC_VIEW ? (
         <div className="h-full overflow-auto pt-5">
-          <QlikExportControl />
           <ViewSwitcher activeView={activeView} onChange={setActiveView} />
           <EcCashModal />
         </div>
