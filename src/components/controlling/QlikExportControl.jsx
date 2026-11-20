@@ -105,7 +105,10 @@ function QlikExportControlPanel() {
   const active = ACTIVE.has(data.job?.status);
   const presentation = STATUS[data.job?.status] || ['Bereit', 'border-white/20 bg-white/10 text-white/80'];
   let detail = 'Noch kein Importstatus vorhanden.';
-  if (data.job?.status === 'FAILED') detail = data.job.message || 'Der letzte Lauf ist fehlgeschlagen.';
+  if (data.job?.status === 'FAILED') {
+    const message = data.job.message || 'Der letzte Lauf ist fehlgeschlagen.';
+    detail = data.job.errorCode ? `${message} · Fehlercode: ${data.job.errorCode}` : message;
+  }
   else if (data.job) detail = `${formatDate(data.job.reportDate)} · ${data.job.message || presentation[0]}`;
   else if (data.lastImport) detail = `Letzter Import: ${formatDate(data.lastImport.reportDate)}`;
 
