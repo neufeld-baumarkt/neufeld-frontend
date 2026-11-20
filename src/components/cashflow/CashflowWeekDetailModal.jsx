@@ -216,6 +216,11 @@ export default function CashflowWeekDetailModal({
     setSearchError('');
   };
 
+  const selectSearchMode = (mode) => {
+    setSearchMode(mode);
+    clearSearch();
+  };
+
   const loadTransfers = async (includeBooked = showAllTransfers) => {
     const token = sessionStorage.getItem('token');
     const baseUrl = import.meta.env.VITE_API_URL;
@@ -284,7 +289,9 @@ export default function CashflowWeekDetailModal({
 
     if (!suchwert) {
       setSearchResults(null);
-      setSearchError('Bitte Avis- oder Rechnungsnummer eingeben.');
+      setSearchError(searchMode === 'betrag'
+        ? 'Bitte den abgebuchten oder überwiesenen Betrag eingeben.'
+        : 'Bitte Avis- oder Rechnungsnummer eingeben.');
       return;
     }
 
@@ -575,17 +582,24 @@ const saveFastBooking = async (payload) => {
             <div className="flex flex-wrap gap-2 mb-3">
               <button
                 type="button"
-                onClick={() => setSearchMode('rechnung')}
+                onClick={() => selectSearchMode('rechnung')}
                 className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'rechnung' ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/60'}`}
               >
                 Rechnungsnummer
               </button>
               <button
                 type="button"
-                onClick={() => setSearchMode('avis')}
+                onClick={() => selectSearchMode('avis')}
                 className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'avis' ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/60'}`}
               >
                 Avis
+              </button>
+              <button
+                type="button"
+                onClick={() => selectSearchMode('betrag')}
+                className={`rounded-lg px-4 py-2 text-sm font-bold ${searchMode === 'betrag' ? 'bg-cyan-500/30 text-cyan-100' : 'bg-white/10 text-white/60'}`}
+              >
+                Betrag
               </button>
               <button
                 type="button"
@@ -603,10 +617,11 @@ const saveFastBooking = async (payload) => {
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <label className="sr-only">
-                  Avis- oder Rechnungsnummer
+                  {searchMode === 'betrag' ? 'Abgebuchter oder überwiesener Betrag' : 'Avis- oder Rechnungsnummer'}
                 </label>
                 <input
                   type="text"
+                  inputMode={searchMode === 'betrag' ? 'decimal' : 'text'}
                   value={searchValue}
                   disabled={searchLoading || !!bookingAction}
                   onChange={(event) => setSearchValue(event.target.value)}
@@ -615,7 +630,7 @@ const saveFastBooking = async (payload) => {
                       runSearch();
                     }
                   }}
-                  placeholder={searchMode === 'avis' ? 'Avis-Nummer' : 'Rechnungsnummer'}
+                  placeholder={searchMode === 'betrag' ? 'z. B. 1.234,56' : searchMode === 'avis' ? 'Avis-Nummer' : 'Rechnungsnummer'}
                   className="w-full rounded-lg px-3 py-2 bg-black/35 border border-white/10 text-sm text-white placeholder-white/30 outline-none focus:border-cyan-300/60 disabled:opacity-50"
                 />
               </div>
@@ -728,7 +743,9 @@ const saveFastBooking = async (payload) => {
 
                 {searchResults.anzahl_treffer === 0 && (
                   <div className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-sm text-white/50">
-                    Keine passende Avis- oder Rechnungsnummer gefunden.
+                    {searchMode === 'betrag'
+                      ? 'Keine Einzelrechnung oder vollständige Avis-Summe mit diesem Betrag gefunden.'
+                      : 'Keine passende Avis- oder Rechnungsnummer gefunden.'}
                   </div>
                 )}
 
@@ -788,7 +805,7 @@ const saveFastBooking = async (payload) => {
                             </div>
                             <div className="text-white/50 text-xs mt-1">
                               {rechnung.kategorie} · {rechnung.filiale} ·{' '}
-                              {formatEuro(rechnung.betrag)} · {rechnung.status}
+                              {formatEuro(rechnung.suchbetrag ?? rechnung.betrag)} · {rechnung.status}
                             </div>
                           </div>
 
@@ -839,7 +856,7 @@ const saveFastBooking = async (payload) => {
                           ? `Avis ${rechnung.avis_nummer} · `
                           : ''}
                         {rechnung.kategorie} · {rechnung.filiale} ·{' '}
-                        {formatEuro(rechnung.betrag)} · {rechnung.status}
+                        {formatEuro(rechnung.suchbetrag ?? rechnung.betrag)} · {rechnung.status}
                       </div>
                     </div>
 
