@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import QlikExportControl from './QlikExportControl';
 
 const VIEWS = [
   { id: 'pruefen', step: '01', label: 'Qlik-Werte prüfen', shortLabel: 'Prüfen', description: 'Tageswerte ansehen und bewusst bestätigen' },
@@ -79,6 +80,7 @@ function Header({ activeView, setActiveView, year, setYear, month, setMonth, ref
           <button type="button" onClick={refresh} className="rounded-lg bg-white px-4 py-2.5 text-sm font-black text-[#720000] shadow-sm transition hover:bg-white/90">Neu laden</button>
         </div>
       </div>
+      <div className="mt-3"><QlikExportControl /></div>
     </div>
     <div className="border-b border-slate-200 bg-white px-4 py-3 lg:px-8">
       <div className="grid gap-2 md:grid-cols-3">
