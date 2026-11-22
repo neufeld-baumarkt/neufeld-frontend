@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 
 import {
   calculatePlannedInvoiceAmount,
+  getCashflowCorrectionCategories,
   getCashflowDetailBookings,
   getIsoDateParts,
+  hasCashflowBookingChanges,
 } from './cashflowUi.mjs';
 
 test('Kalenderauswahl setzt ISO-Jahr, Kalenderwoche und Wochentag atomar', () => {
@@ -38,4 +40,24 @@ test('Bearbeiten aus der Rechnungssuche zeigt nur den exakten Treffer', () => {
   ];
 
   assert.deepEqual(getCashflowDetailBookings(bookings, '18'), [bookings[1]]);
+});
+
+test('Kategorie-Korrektur bleibt innerhalb des Buchungstyps', () => {
+  const categories = [
+    { id: 1, name: 'Einnahmen' },
+    { id: 2, name: 'Wareneinsatz/Werbung' },
+    { id: 3, name: 'Kosten/Geräte' },
+  ];
+
+  assert.deepEqual(getCashflowCorrectionCategories(categories, false), categories.slice(1));
+  assert.deepEqual(getCashflowCorrectionCategories(categories, true), [categories[0]]);
+});
+
+test('ungespeicherte Cashflow-Änderungen werden zuverlässig erkannt', () => {
+  const initial = [{ id: 'a', editKategorieId: 3, editNotiz: '' }];
+
+  assert.equal(hasCashflowBookingChanges(initial, initial), false);
+  assert.equal(hasCashflowBookingChanges(initial, [
+    { ...initial[0], editKategorieId: 2 },
+  ]), true);
 });
