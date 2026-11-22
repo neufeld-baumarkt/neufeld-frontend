@@ -1050,6 +1050,7 @@ const saveFastBooking = async (payload) => {
   		 isOpen={!!selectedCell}
   		  cell={selectedCell}
   		  buchungen={cellDetailBuchungen}
+		  kategorien={KATEGORIEN}
 		  onReload={onReload}
  		  onClose={() => {
    		  setSelectedCell(null);

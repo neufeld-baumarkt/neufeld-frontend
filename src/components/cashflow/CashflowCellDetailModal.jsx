@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { CalendarDays, Trash2 } from 'lucide-react';
-import { getIsoDateParts } from '../../lib/cashflowUi.mjs';
+import { CalendarDays, Trash2, X } from 'lucide-react';
+import {
+  getCashflowCorrectionCategories,
+  getIsoDateParts,
+  hasCashflowBookingChanges,
+} from '../../lib/cashflowUi.mjs';
 
 function formatEuro(value) {
   return new Intl.NumberFormat('de-DE', {
@@ -49,17 +53,21 @@ export default function CashflowCellDetailModal({
   onClose,
   cell,
   buchungen = [],
+  kategorien = [],
   onReload,
 }) {
   const [editableBuchungen, setEditableBuchungen] = useState([]);
+  const [initialEditableBuchungen, setInitialEditableBuchungen] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState('');
+  const [categoryCorrectionOpen, setCategoryCorrectionOpen] = useState(false);
 
   useEffect(() => {
     const mapped = buchungen.map((buchung) => ({
       ...buchung,
+      editKategorieId: Number(buchung.kategorie_id),
       editJahr: String(buchung.jahr ?? ''),
       editKw: String(buchung.kw ?? ''),
       editTag: buchung.tag || 'Mo',
@@ -81,16 +89,35 @@ export default function CashflowCellDetailModal({
     }));
 
     setEditableBuchungen(mapped);
+    setInitialEditableBuchungen(mapped);
     setSelectedId(mapped[0]?.id || null);
     setError('');
     setSaving(false);
     setDeletingId(null);
+    setCategoryCorrectionOpen(false);
   }, [buchungen, isOpen]);
 
   if (!isOpen || !cell) return null;
 
   const selectedBuchung =
     editableBuchungen.find((buchung) => buchung.id === selectedId) || null;
+  const hasUnsavedChanges = hasCashflowBookingChanges(
+    initialEditableBuchungen,
+    editableBuchungen
+  );
+
+  const requestClose = () => {
+    if (saving || deletingId) return;
+
+    if (
+      hasUnsavedChanges &&
+      !window.confirm('Ungespeicherte Änderungen verwerfen und Fenster schließen?')
+    ) {
+      return;
+    }
+
+    onClose();
+  };
 
   const isEinnahme = Number(selectedBuchung?.kategorie_id) === 1;
   const isCellEinnahme =
@@ -141,7 +168,7 @@ export default function CashflowCellDetailModal({
     const jahr = Number(buchung.editJahr);
     const kw = Number(buchung.editKw);
     const betrag = Number(buchung.editBetrag);
-    const isEinnahmenBuchung = Number(buchung.kategorie_id) === 1;
+    const isEinnahmenBuchung = Number(buchung.editKategorieId) === 1;
 
     if (!Number.isFinite(betrag)) {
       return 'Der Betrag ist ungültig.';
@@ -219,6 +246,7 @@ export default function CashflowCellDetailModal({
           notiz: null,
         }
       : {
+          kategorie_id: Number(selectedBuchung.editKategorieId),
           jahr: Number(selectedBuchung.editJahr),
           kw: Number(selectedBuchung.editKw),
           tag: selectedBuchung.editTag,
@@ -325,11 +353,8 @@ export default function CashflowCellDetailModal({
   return (
     <div
       className="fixed inset-0 z-[75] bg-black/60 px-4 flex items-center justify-center"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !saving && !deletingId) {
-          onClose();
-        }
-      }}
+      role="dialog"
+      aria-modal="true"
     >
       <div className="w-full max-w-[1100px] max-h-[86vh] rounded-2xl border border-white/10 bg-[#2f2d2d] shadow-[6px_6px_18px_rgba(0,0,0,0.75)] overflow-hidden">
         <div className="px-6 py-5 border-b border-white/10 flex items-start justify-between gap-6">
@@ -355,14 +380,26 @@ export default function CashflowCellDetailModal({
             {error && <div className="text-red-300 text-sm mt-2">{error}</div>}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving || !!deletingId}
-            className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 disabled:opacity-50 transition text-white"
-          >
-            Schließen
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={requestClose}
+              disabled={saving || !!deletingId}
+              className="min-h-11 rounded-lg bg-white/10 px-4 py-2 text-white transition hover:bg-white/20 disabled:opacity-50"
+            >
+              Schließen
+            </button>
+            <button
+              type="button"
+              onClick={requestClose}
+              disabled={saving || !!deletingId}
+              aria-label="Fenster schließen"
+              title="Schließen"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-50"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-auto max-h-[calc(86vh-112px)]">
@@ -463,7 +500,7 @@ export default function CashflowCellDetailModal({
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
                       <div>
                         <div className="text-white font-bold text-lg">
                           Ausgewählte Buchung bearbeiten
@@ -475,15 +512,55 @@ export default function CashflowCellDetailModal({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={saving || !!deletingId}
-                        onClick={saveSelectedAndClose}
-                        className="px-5 py-2 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-50 disabled:cursor-not-allowed transition text-white font-semibold"
-                      >
-                        {saving ? 'Speichern...' : 'OK'}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-3">
+                        {!isEinnahme && (
+                          <button
+                            type="button"
+                            disabled={saving || !!deletingId}
+                            onClick={() => setCategoryCorrectionOpen((open) => !open)}
+                            className="min-h-12 rounded-xl bg-cyan-500/15 px-5 font-semibold text-cyan-100 transition hover:bg-cyan-500/25 disabled:opacity-50"
+                          >
+                            Kategorie korrigieren
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          disabled={saving || !!deletingId}
+                          onClick={saveSelectedAndClose}
+                          className="min-h-14 min-w-32 rounded-xl bg-emerald-600 px-8 py-3 text-lg font-bold text-white shadow-lg transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {saving ? 'Speichern...' : 'OK'}
+                        </button>
+                      </div>
                     </div>
+
+                    {categoryCorrectionOpen && !isEinnahme && (
+                      <div className="rounded-xl border border-cyan-300/20 bg-cyan-500/10 p-4">
+                        <label className="mb-2 block text-sm font-bold text-cyan-100">
+                          Neue Kategorie für diese Buchung
+                        </label>
+                        <select
+                          value={selectedBuchung.editKategorieId}
+                          disabled={saving || !!deletingId}
+                          onChange={(event) => updateLocalBuchung(
+                            selectedBuchung.id,
+                            'editKategorieId',
+                            Number(event.target.value)
+                          )}
+                          className="w-full rounded-lg border border-white/10 bg-[#252323] px-3 py-3 text-white outline-none disabled:opacity-50"
+                        >
+                          {getCashflowCorrectionCategories(kategorien, false).map((kategorie) => (
+                            <option key={kategorie.id} value={kategorie.id}>
+                              {kategorie.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="mt-2 text-xs text-cyan-100/70">
+                          Mit OK wird nur diese ausgewählte Buchung verschoben.
+                        </div>
+                      </div>
+                    )}
 
                     {isEinnahme ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

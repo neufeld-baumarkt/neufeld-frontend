@@ -22,3 +22,40 @@ export function getCashflowDetailBookings(bookings = [], selectedBookingId = nul
     (booking) => String(booking.id) === String(selectedBookingId)
   );
 }
+
+export function getCashflowCorrectionCategories(categories = [], isRevenue = false) {
+  return categories.filter((category) =>
+    isRevenue ? Number(category.id) === 1 : Number(category.id) !== 1
+  );
+}
+
+const CASHFLOW_EDIT_FIELDS = [
+  'editKategorieId',
+  'editJahr',
+  'editKw',
+  'editTag',
+  'editBetrag',
+  'editFiliale',
+  'editStatus',
+  'editEintragTyp',
+  'editNotiz',
+  'editRechnungsnummer',
+  'editRechnungsdatum',
+  'editAvisNummer',
+  'editZahlungsart',
+  'editDatum',
+  'editRechnungsbetragBrutto',
+  'editSkontoProzent',
+];
+
+export function hasCashflowBookingChanges(initialBookings = [], currentBookings = []) {
+  if (initialBookings.length !== currentBookings.length) return true;
+
+  const initialById = new Map(initialBookings.map((booking) => [booking.id, booking]));
+
+  return currentBookings.some((booking) => {
+    const initial = initialById.get(booking.id);
+    if (!initial) return true;
+    return CASHFLOW_EDIT_FIELDS.some((field) => initial[field] !== booking[field]);
+  });
+}
