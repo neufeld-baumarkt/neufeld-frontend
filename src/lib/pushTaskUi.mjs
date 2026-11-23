@@ -1,3 +1,5 @@
+export const PUSH_TASKS_PAUSED = true;
+
 export function canUsePushTaskPilot(role) {
   return ['admin', 'supervisor'].includes(String(role || '').trim().toLocaleLowerCase('de-DE'));
 }
