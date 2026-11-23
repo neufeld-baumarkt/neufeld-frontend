@@ -14,6 +14,7 @@ import Tageskassenabrechnung from './pages/Tageskassenabrechnung';
 import Tasks from './pages/Tasks';
 import ProtectedRoute from './components/ProtectedRoute';
 import PrivateRoute from './lib/PrivateRoute';
+import { PUSH_TASKS_PAUSED } from './lib/pushTaskUi.mjs';
 
 function App() {
   return (
@@ -45,7 +46,7 @@ function App() {
       <Route
         path="/tasks"
         element={
-          <ProtectedRoute><PrivateRoute roles={['Supervisor', 'Admin']}>
+          PUSH_TASKS_PAUSED ? <Navigate to="/start" replace /> : <ProtectedRoute><PrivateRoute roles={['Supervisor', 'Admin']}>
             <Tasks />
           </PrivateRoute></ProtectedRoute>
         }

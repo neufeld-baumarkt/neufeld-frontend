@@ -26,7 +26,7 @@ function StatusIcon({ entry }) {
   );
 }
 
-export default function DepositBetaTile() {
+export default function DepositBetaTile({ className = 'mt-6' }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     const apiOrigin = import.meta.env.VITE_API_URL;
@@ -68,7 +68,7 @@ export default function DepositBetaTile() {
   const verified = current.branches.filter(entry => entry.status === 'green').length;
   const reminder = current.branches[0];
   return (
-    <section className="w-full min-w-0 max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-[#353232] text-white shadow-xl" aria-labelledby="deposit-beta-title">
+    <section className={`w-full min-w-0 max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-[#353232] text-white shadow-xl ${className}`} aria-labelledby="deposit-beta-title">
       <header className="bg-[#800000] px-4 py-3">
         <h2 id="deposit-beta-title" className="text-lg font-black">Einzahlungen</h2>
       </header>

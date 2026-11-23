@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
 import DepositBetaTile from '../components/DepositBetaTile';
-import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
+import { canUsePushTaskPilot, PUSH_TASKS_PAUSED } from '../lib/pushTaskUi.mjs';
 import { canUseCashModule } from '../lib/cashModuleAccess.mjs';
 
 const menuItems = [
@@ -145,9 +145,9 @@ function Startseite() {
         </nav>
       </div>
 
-      <div className="relative z-20 mx-7 mt-[150px] space-y-6 sm:ml-[56px] sm:mr-10 sm:mt-24 lg:ml-[95px] lg:mr-[80px]">
-        <DepositBetaTile />
-        {canUsePushTaskPilot(user?.role) && <PushTaskCenter user={user} compact />}
+      <div className="relative z-20 mx-7 mt-[150px] space-y-6 sm:ml-[56px] sm:mr-10 lg:ml-[390px] lg:mr-20 lg:mt-5 xl:ml-[450px]">
+        <DepositBetaTile className="" />
+        {!PUSH_TASKS_PAUSED && canUsePushTaskPilot(user?.role) && <PushTaskCenter user={user} compact />}
       </div>
     </div>
   );
