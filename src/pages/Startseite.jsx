@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
+import DepositBetaTile from '../components/DepositBetaTile';
 import { canUsePushTaskPilot } from '../lib/pushTaskUi.mjs';
 import { canUseCashModule } from '../lib/cashModuleAccess.mjs';
 
@@ -144,11 +145,10 @@ function Startseite() {
         </nav>
       </div>
 
-      {canUsePushTaskPilot(user?.role) && (
-        <div className="relative z-20 mx-7 mt-[150px] sm:ml-[56px] sm:mr-10 sm:mt-24 lg:ml-[95px] lg:mr-[80px]">
-          <PushTaskCenter user={user} compact />
-        </div>
-      )}
+      <div className="relative z-20 mx-7 mt-[150px] space-y-6 sm:ml-[56px] sm:mr-10 sm:mt-24 lg:ml-[95px] lg:mr-[80px]">
+        <DepositBetaTile />
+        {canUsePushTaskPilot(user?.role) && <PushTaskCenter user={user} compact />}
+      </div>
     </div>
   );
 }
