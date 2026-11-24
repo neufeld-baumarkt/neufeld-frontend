@@ -1,6 +1,6 @@
 export const CASH_CENTRAL_ROLES = Object.freeze(['Admin', 'Supervisor', 'Geschäftsführer', 'Manager-1', 'Manager']);
 export const CASH_CORRECTION_ROLES = Object.freeze(['Filialleitung', ...CASH_CENTRAL_ROLES]);
-const ENABLED_CASH_BRANCHES = new Set(['ahaus', 'vreden']);
+const ENABLED_CASH_BRANCHES = new Set(['ahaus', 'münster', 'telgte', 'vreden']);
 
 export function isCashCentralRole(role) {
   return CASH_CENTRAL_ROLES.includes(String(role || '').trim());
