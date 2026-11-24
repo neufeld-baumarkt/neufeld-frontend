@@ -11,5 +11,7 @@ test('Einzählungsadapter übernimmt den bereits bestätigten Proof-Token ohne c
 test('Einzählungsmodal sendet den Backend-Vertrag mit counts und proofToken', async () => {
   const source = await readFile(new URL('../components/tageskasse/KasseneinzaehlModal.jsx', import.meta.url), 'utf8');
   assert.match(source, /return \{ counts: attempt\.denominationCounts, proofToken \}/);
+  assert.match(source, /replaceActiveOpeningId: replacementOpeningId\(activeOpening, replacementConfirmed\)/);
+  assert.match(source, /stage==='occupied-drawer'/);
   assert.match(source, /bg-\[#f7f4ef\] text-black shadow-2xl/);
 });
