@@ -79,7 +79,7 @@ export default function Tageskassenabrechnung() {
   const assignedBranch = String(user.filiale || '').trim();
   const requiresBranchChoice = needsTemporaryCashBranch(user);
   const [branch, setBranch] = useState(requiresBranchChoice ? '' : assignedBranch);
-  const canBackdate = canSelectHistoricalBusinessDate(user.role);
+  const canBackdate = canSelectHistoricalBusinessDate(user);
   const canUseDayCloseV2 = branch.toLowerCase() === 'vreden' || ['Admin','Supervisor'].includes(user.role);
   const displayedBusinessDate = formatBusinessDate(selectedBusinessDate);
   const historicalMode = selectedBusinessDate !== currentBusinessDate;

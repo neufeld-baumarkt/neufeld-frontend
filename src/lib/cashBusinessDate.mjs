@@ -8,8 +8,23 @@ export function berlinBusinessDate(now = new Date()) {
   return `${value.year}-${value.month}-${value.day}`;
 }
 
-export function canSelectHistoricalBusinessDate(role) {
-  return ['Admin', 'Supervisor'].includes(String(role || '').trim());
+const HISTORICAL_DATE_USERS = new Map([
+  ['alex neufeld', 'Geschäftsführer'],
+  ['gökhan genc', 'Manager-1'],
+  ['jörg menkehorst', 'Manager-1'],
+]);
+
+function normalizeUserName(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('de-DE');
+}
+
+export function canSelectHistoricalBusinessDate(userOrRole) {
+  const user = typeof userOrRole === 'object' && userOrRole !== null
+    ? userOrRole
+    : { role: userOrRole };
+  const role = String(user.role || '').trim();
+  if (['Admin', 'Supervisor'].includes(role)) return true;
+  return HISTORICAL_DATE_USERS.get(normalizeUserName(user.name)) === role;
 }
 
 export function formatBusinessDate(value) {
