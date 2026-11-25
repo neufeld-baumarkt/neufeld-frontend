@@ -89,7 +89,7 @@ export default function DepositBetaTile({ className = 'mt-6' }) {
           setRequestedWeek({ start });
         }} />}
         {weekError && <p className="mb-2 text-xs text-white/80" role="status">Einzahlungsstatus vorübergehend nicht verfügbar.</p>}
-        {current && <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+        {current && (!overview || data.week) && <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
           <span className="text-white/80">{calendarLabel(current.dueDate)} · 12 Uhr</span>
           {overview && <span className="font-bold">{verified}/{current.branches.length} erledigt</span>}
         </div>}
@@ -101,6 +101,7 @@ export default function DepositBetaTile({ className = 'mt-6' }) {
                 {data.cycles.map((cycle, index) => (
                   <th key={cycle.dueDate} scope="col" className={`w-12 py-2 ${cycle === current ? 'bg-white/10 text-white' : ''}`}>
                     <abbr title={calendarLabel(cycle.dueDate)} className="no-underline">{['Mo', 'Mi', 'Fr'][index]}</abbr>
+                    {!data.week && <span className="block text-xs font-normal">{calendarLabel(cycle.dueDate).slice(0, 6)}</span>}
                   </th>
                 ))}
               </tr>
