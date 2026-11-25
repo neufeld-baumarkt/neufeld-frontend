@@ -150,9 +150,9 @@ function Startseite() {
       </div>
 
       <div className="relative z-20 mx-7 mt-[150px] space-y-6 sm:ml-[56px] sm:mr-10 lg:ml-[390px] lg:mr-20 lg:mt-5 xl:ml-[450px]">
-        {rollAlertBranch && <CoinRollAlertTile key={rollAlertBranch} branch={rollAlertBranch} />}
-        <div className="flex flex-col items-start gap-3 empty:hidden lg:flex-row">
-          <DepositBetaTile className="" />
+        <div className="flex flex-wrap items-start gap-3 empty:hidden">
+          <DepositBetaTile />
+          {rollAlertBranch && <CoinRollAlertTile key={rollAlertBranch} branch={rollAlertBranch} />}
           <CardPaymentsBetaTile />
         </div>
         {!PUSH_TASKS_PAUSED && canUsePushTaskPilot(user?.role) && <PushTaskCenter user={user} compact />}
