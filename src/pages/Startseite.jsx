@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PushTaskCenter from '../components/tasks/PushTaskCenter';
 import DepositBetaTile from '../components/DepositBetaTile';
+import CardPaymentsBetaTile from '../components/CardPaymentsBetaTile';
 import { canUsePushTaskPilot, PUSH_TASKS_PAUSED } from '../lib/pushTaskUi.mjs';
 import { canUseCashModule } from '../lib/cashModuleAccess.mjs';
 
@@ -146,7 +147,10 @@ function Startseite() {
       </div>
 
       <div className="relative z-20 mx-7 mt-[150px] space-y-6 sm:ml-[56px] sm:mr-10 lg:ml-[390px] lg:mr-20 lg:mt-5 xl:ml-[450px]">
-        <DepositBetaTile className="" />
+        <div className="flex flex-col items-start gap-3 empty:hidden lg:flex-row">
+          <DepositBetaTile className="" />
+          <CardPaymentsBetaTile />
+        </div>
         {!PUSH_TASKS_PAUSED && canUsePushTaskPilot(user?.role) && <PushTaskCenter user={user} compact />}
       </div>
     </div>

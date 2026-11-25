@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Clock3, Minus, TriangleAlert } from 'lucide-react';
 import { getToken } from '../lib/auth';
+import WeekPicker from './WeekPicker';
 
 const statuses = {
   green: { style: 'bg-emerald-950 text-emerald-200 ring-emerald-400/50', label: 'Erledigt', icon: Check },
@@ -28,6 +29,8 @@ function StatusIcon({ entry }) {
 
 export default function DepositBetaTile({ className = 'mt-6' }) {
   const [data, setData] = useState(null);
+  const [requestedWeek, setRequestedWeek] = useState();
+  const [weekError, setWeekError] = useState(false);
   useEffect(() => {
     const apiOrigin = import.meta.env.VITE_API_URL;
     if (!apiOrigin) return;
@@ -40,18 +43,24 @@ export default function DepositBetaTile({ className = 'mt-6' }) {
         return;
       }
       try {
-        const response = await fetch(`${apiOrigin}/api/deposit-beta`, {
+        const query = requestedWeek ? `?week=${encodeURIComponent(requestedWeek.start)}` : '';
+        const response = await fetch(`${apiOrigin}/api/deposit-beta${query}`, {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',
           signal: controller.signal,
         });
-        const next = response.ok ? await response.json() : null;
+        if ([404, 401, 403].includes(response.status)) {
+          if (!controller.signal.aborted) setData(null);
+          return;
+        }
+        if (!response.ok) throw new Error('Einzahlungsstatus');
+        const next = await response.json();
         if (controller.signal.aborted) return;
         setData(next);
-        if (response.status === 404 || response.status === 401 || response.status === 403) return;
+        setWeekError(false);
       } catch {
         if (controller.signal.aborted) return;
-        setData(null);
+        setWeekError(true);
       }
       timer = window.setTimeout(refresh, 60_000);
     }
@@ -60,23 +69,30 @@ export default function DepositBetaTile({ className = 'mt-6' }) {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [requestedWeek]);
 
   const current = data?.cycles?.find(cycle => cycle.dueDate === data.currentDueDate);
-  if (!current?.branches.length) return null;
+  const branches = data?.cycles?.[0]?.branches;
+  if (!branches?.length) return null;
   const overview = data.cycles.length > 1;
-  const verified = current.branches.filter(entry => entry.status === 'green').length;
-  const reminder = current.branches[0];
+  const verified = current?.branches.filter(entry => entry.status === 'green').length;
+  const reminder = branches[0];
+  const loading = requestedWeek && requestedWeek.start !== data.week?.start && !weekError;
   return (
     <section className={`w-full min-w-0 max-w-sm overflow-hidden rounded-2xl border border-white/20 bg-[#353232] text-white shadow-xl ${className}`} aria-labelledby="deposit-beta-title">
       <header className="bg-[#800000] px-4 py-3">
         <h2 id="deposit-beta-title" className="text-lg font-black">Einzahlungen</h2>
       </header>
       <div className="p-3 sm:p-4">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+        {overview && data.week && <WeekPicker week={data.week} loading={Boolean(loading)} onChange={start => {
+          setWeekError(false);
+          setRequestedWeek({ start });
+        }} />}
+        {weekError && <p className="mb-2 text-xs text-white/80" role="status">Einzahlungsstatus vorübergehend nicht verfügbar.</p>}
+        {current && <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
           <span className="text-white/80">{calendarLabel(current.dueDate)} · 12 Uhr</span>
           {overview && <span className="font-bold">{verified}/{current.branches.length} erledigt</span>}
-        </div>
+        </div>}
         {overview ? (
           <table className="w-full table-fixed rounded-xl bg-[#2b2929] text-sm">
             <thead>
@@ -90,7 +106,7 @@ export default function DepositBetaTile({ className = 'mt-6' }) {
               </tr>
             </thead>
             <tbody>
-              {current.branches.map((entry, index) => (
+              {branches.map((entry, index) => (
                 <tr key={entry.branch} className="border-t border-white/10">
                   <th scope="row" className="break-words px-2 py-2 text-left">{entry.branch}</th>
                   {data.cycles.map(cycle => (
