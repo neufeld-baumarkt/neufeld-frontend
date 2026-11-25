@@ -26,6 +26,9 @@ async function request(path, options = {}, branch = '') {
 }
 
 export const kassenabrechnungApi = {
+  latestRolls(signal) {
+    return request('/api/tageskasse/safe-counts/latest-rolls', { signal });
+  },
   async calculate(workflow, payload, branch) {
     const response = await request(`/api/tageskasse/calculations/${encodeURIComponent(workflow)}`, {
       method:'POST', body:JSON.stringify(payload || {}),

@@ -9,7 +9,7 @@ import {
   ReceiptText,
   ShieldCheck,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import KasseneinzaehlModal from '../components/tageskasse/KasseneinzaehlModal';
@@ -53,6 +53,7 @@ const processes = [
 
 export default function Tageskassenabrechnung() {
   const navigate = useNavigate();
+  const coinOrderDialog = useRef(null);
   const [openingCountOpen, setOpeningCountOpen] = useState(false);
   const [closingOpen, setClosingOpen] = useState(false);
   const [closingPreset, setClosingPreset] = useState(null);
@@ -177,6 +178,18 @@ export default function Tageskassenabrechnung() {
           </div>
         </div>
       </header>
+      {branch && branch.toLowerCase() !== 'alle' && <div className="mx-auto flex max-w-[1300px] justify-end px-4 pt-4 sm:px-6">
+        <button type="button" className="min-h-11 rounded-xl border border-white/20 px-4 font-bold hover:bg-white/10" onClick={() => coinOrderDialog.current.showModal()}>
+          Kleingeldbestellung
+        </button>
+        <dialog ref={coinOrderDialog} aria-labelledby="coin-order-title" className="w-[calc(100%_-_2rem)] max-w-md rounded-2xl bg-white p-6 text-black shadow-xl backdrop:bg-black/70">
+          <h2 id="coin-order-title" className="text-2xl font-black">Kleingeldbestellung</h2>
+          <p className="mt-2">Der Bestellablauf wird noch festgelegt.</p>
+          <form method="dialog" className="mt-5">
+            <button type="submit" className="min-h-11 rounded-xl bg-[#800000] px-4 font-bold text-white">Schließen</button>
+          </form>
+        </dialog>
+      </div>}
 
       <div className="mx-auto max-w-[1300px] p-3 sm:p-6 lg:p-10">
         <section className="rounded-3xl bg-gradient-to-br from-[#4a4747] to-[#302e2e] p-5 shadow-2xl sm:p-8 lg:p-10">
