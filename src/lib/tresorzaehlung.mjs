@@ -20,6 +20,22 @@ function quantity(value) {
   return Number.isInteger(number) && number >= 0 ? number : 0;
 }
 
+export function coinRollWarning(value) {
+  if (value == null || value === '') return null;
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 0 || count > 4) return null;
+  return count <= 2 ? 'critical' : 'low';
+}
+
+export function coinRollAlerts(counts) {
+  if (!counts) return [];
+  return COIN_ROLLS.flatMap(({ cents, label }) => {
+    const count = Number(counts[cents] ?? 0);
+    const severity = coinRollWarning(count);
+    return severity ? [{ cents, label, count, severity }] : [];
+  });
+}
+
 export function calculateSafeCount({ fixedDrawerCents, littleBerthaCents, looseMoneyCents, coinRollCounts = {}, banknoteCounts = {} }) {
   const rollTotalCents = COIN_ROLLS.reduce((sum, item) => sum + quantity(coinRollCounts[item.cents]) * item.rollValueCents, 0);
   const banknoteTotalCents = SAFE_NOTES.reduce((sum, item) => sum + quantity(banknoteCounts[item.cents]) * item.cents, 0);

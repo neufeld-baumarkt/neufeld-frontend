@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ClipboardCheck, Landmark, ShieldCheck, X } from 'lucide-react';
 import { formatEuroFromCents } from '../../lib/kasseneinzaehlung.mjs';
-import { COIN_ROLLS, SAFE_NOTES, countTypeLabels } from '../../lib/tresorzaehlung.mjs';
+import { COIN_ROLLS, SAFE_NOTES, coinRollWarning, countTypeLabels } from '../../lib/tresorzaehlung.mjs';
 import { useCashCalculation } from '../../lib/useCashCalculation';
 import { useWorkflowDraftAutosave } from '../../lib/useWorkflowDraftAutosave';
 import { WorkflowDraftResume, WorkflowDraftStatus } from './WorkflowDraftUi';
@@ -14,7 +14,9 @@ const TYPES = [
 function CountRows({ items, counts, setCounts, refs, offset = 0, roll = false, amounts = {} }) {
   return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{items.map((item, index) => {
     const amount = amounts?.[item.cents] || 0;
-    return <label key={item.cents} className="rounded-xl border border-black/10 bg-white p-3 text-sm font-black">{item.label}{roll&&<span className="ml-2 text-xs text-black/45">Rolle = {formatEuroFromCents(item.rollValueCents)}</span>}
+    const warning = roll && coinRollWarning(counts[item.cents]);
+    const colors = warning === 'critical' ? 'border-red-400 bg-red-100' : warning === 'low' ? 'border-yellow-400 bg-yellow-100' : 'border-black/10 bg-white';
+    return <label key={item.cents} className={`rounded-xl border p-3 text-sm font-black ${colors}`}>{item.label}{roll&&<span className="ml-2 text-xs text-black/45">Rolle = {formatEuroFromCents(item.rollValueCents)}</span>}
       <input ref={(node)=>{ refs.current[offset + index] = node; }} inputMode="numeric" value={counts[item.cents] ?? ''} onChange={(event)=>setCounts((current)=>({ ...current, [item.cents]: event.target.value.replace(/\D/g,'') }))} onKeyDown={(event)=>{ if(event.key==='Enter'){ event.preventDefault(); refs.current[offset + index + 1]?.focus(); } }} className="mt-2 min-h-12 w-full rounded-lg border-2 px-3 text-center text-xl outline-none focus:border-[#800000]" placeholder="0"/>
       <span className="mt-1 block text-right text-xs text-[#800000]">= {formatEuroFromCents(amount)}</span>
     </label>;
